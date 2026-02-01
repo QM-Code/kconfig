@@ -3,6 +3,8 @@
 #include "karma/physics/backend.hpp"
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace karma::physics_backend {
 

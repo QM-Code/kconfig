@@ -2,6 +2,7 @@
 
 #include "karma/components/transform.h"
 #include "karma/ecs/component.h"
+#include <glm/glm.hpp>
 
 namespace karma::components {
 

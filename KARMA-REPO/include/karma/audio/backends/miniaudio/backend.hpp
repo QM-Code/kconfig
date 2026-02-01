@@ -1,6 +1,8 @@
 #pragma once
 
 #include "karma/audio/backend.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 struct ma_engine;
 

@@ -24,7 +24,7 @@ providing game-specific logic:
 
 - **Engine** owns: render devices, backend selection, input mapping, physics
   backends, audio backends, windowing, common config/i18n, data path resolution,
-  UI render bridges, ECS scaffolding, and generic world/content loading.
+  UI render bridges, ECS scaffolding, and generic world/content loading (moved to karma-extras).
 - **Game** owns: gameplay simulation, networking protocol, world session logic,
   UI/HUD/console, gameplay rendering and radar, and any content rules.
 

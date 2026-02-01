@@ -151,7 +151,7 @@ void EngineApp::tick() {
         audioSyncSystem_.update(ecsWorld_, context_.audio);
     }
 #endif
-    systemGraph_.update(dt);
+    systemGraph_.update(ecsWorld_, dt);
     karma::config::ConfigStore::Tick();
 #ifndef KARMA_SERVER
     rendererSystem_.update(ecsWorld_, context_.graphics, dt);

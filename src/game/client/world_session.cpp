@@ -2,11 +2,14 @@
 
 #include "client/game.hpp"
 #include "spdlog/spdlog.h"
-#include "karma/ecs/components.hpp"
+#include "karma/components/mesh.h"
+#include "karma/components/transform.h"
 #include "renderer/radar_components.hpp"
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
+
+namespace components = karma::components;
 
 ClientWorldSession::ClientWorldSession(Game &game, std::string worldDir)
         : game(game), backend_(world_backend::CreateWorldBackend()) {
@@ -29,7 +32,7 @@ ClientWorldSession::ClientWorldSession(Game &game, std::string worldDir)
 }
 
 ClientWorldSession::~ClientWorldSession() {
-    if (worldEcsEntity != ecs::kInvalidEntity && game.engine.ecsWorld) {
+    if (worldEcsEntity.isValid() && game.engine.ecsWorld) {
         game.engine.ecsWorld->destroyEntity(worldEcsEntity);
     }
     physics.destroy();
@@ -103,14 +106,14 @@ void ClientWorldSession::update() {
 
         const auto worldPath = resolveAssetPath("world");
         worldEcsEntity = game.engine.ecsWorld->createEntity();
-        ecs::Transform worldXform{};
-        game.engine.ecsWorld->set(worldEcsEntity, worldXform);
-        ecs::MeshComponent worldMesh{};
+        components::TransformComponent worldXform{};
+        game.engine.ecsWorld->add(worldEcsEntity, worldXform);
+        components::MeshComponent worldMesh{};
         worldMesh.mesh_key = worldPath.string();
-        game.engine.ecsWorld->set(worldEcsEntity, worldMesh);
-        game.engine.ecsWorld->set(worldEcsEntity, game::renderer::RadarRenderable{true});
+        game.engine.ecsWorld->add(worldEcsEntity, worldMesh);
+        game.engine.ecsWorld->add(worldEcsEntity, game::renderer::RadarRenderable{true});
         spdlog::info("ClientWorldSession: ECS world mesh enabled (entity={}, path={})",
-                     worldEcsEntity, worldPath.string());
+                     worldEcsEntity.index, worldPath.string());
         physics = game.engine.physics->createStaticMesh(worldPath.string());
 
         spdlog::info("ClientWorldSession: World initialized from server");

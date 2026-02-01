@@ -22,11 +22,7 @@ endif()
 ## Separate engine sources for client and server to avoid over-linking
 set(ENGINE_CLIENT_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/app/engine_app.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/components/transform.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/geometry/mesh_loader.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/world/content.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/world/backend_factory.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/world/backends/fs/backend.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/enet_transport.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/transport_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/graphics/device.cpp
@@ -44,9 +40,6 @@ set(ENGINE_CLIENT_SOURCES
 set(ENGINE_SERVER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/app/engine_app.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/geometry/mesh_loader.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/world/content.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/world/backend_factory.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/world/backends/fs/backend.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/enet_transport.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/transport_factory.cpp
     ${ENGINE_COMMON_SOURCES}
@@ -61,21 +54,17 @@ endif()
 if(KARMA_UI_BACKEND STREQUAL "imgui")
     if(KARMA_RENDER_BACKEND STREQUAL "bgfx")
         list(APPEND ENGINE_CLIENT_SOURCES
-        ${PROJECT_SOURCE_DIR}/src/engine/ui/platform/imgui/renderer_bgfx.cpp
         )
     elseif(KARMA_RENDER_BACKEND STREQUAL "diligent")
         list(APPEND ENGINE_CLIENT_SOURCES
-        ${PROJECT_SOURCE_DIR}/src/engine/ui/platform/imgui/renderer_diligent.cpp
         )
     endif()
 elseif(KARMA_UI_BACKEND STREQUAL "rmlui")
     if(KARMA_RENDER_BACKEND STREQUAL "bgfx")
         list(APPEND ENGINE_CLIENT_SOURCES
-        ${PROJECT_SOURCE_DIR}/src/engine/ui/platform/rmlui/renderer_bgfx.cpp
         )
     elseif(KARMA_RENDER_BACKEND STREQUAL "diligent")
         list(APPEND ENGINE_CLIENT_SOURCES
-        ${PROJECT_SOURCE_DIR}/src/engine/ui/platform/rmlui/renderer_diligent.cpp
         )
     endif()
 endif()

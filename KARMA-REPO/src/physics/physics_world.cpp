@@ -1,6 +1,7 @@
 #include "karma/physics/physics_world.hpp"
 #include "karma/physics/backend.hpp"
 #include "karma/physics/player_controller.hpp"
+#include <glm/glm.hpp>
 
 namespace karma::physics {
 

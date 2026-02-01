@@ -2,6 +2,7 @@
 
 #include "karma/physics/backend.hpp"
 #include <memory>
+#include <glm/glm.hpp>
 
 class btBroadphaseInterface;
 class btCollisionDispatcher;

@@ -31,18 +31,18 @@ renderer::DirectionalLightData toDirectionalLight(const components::LightCompone
   renderer::DirectionalLightData out{};
   out.color = light.color;
   out.intensity = light.intensity;
-  const glm::quat rot = toGlm(transform.rotation());
+  const glm::quat rot = toGlm(transform.rotation);
   const glm::mat3 basis = glm::mat3_cast(rot);
   out.direction = basis * glm::vec3(0.0f, 0.0f, -1.0f);
-  out.position = toGlm(transform.position());
+  out.position = toGlm(transform.position);
   out.shadow_extent = light.shadow_extent;
   return out;
 }
 
 glm::mat4 toTransform(const components::TransformComponent& transform) {
-  const glm::vec3 pos = toGlm(transform.position());
-  const glm::quat rot = toGlm(transform.rotation());
-  const glm::vec3 scale = toGlm(transform.scale());
+  const glm::vec3 pos = toGlm(transform.position);
+  const glm::quat rot = toGlm(transform.rotation);
+  const glm::vec3 scale = toGlm(transform.scale);
   glm::mat4 matrix(1.0f);
   matrix = glm::translate(matrix, pos);
   matrix *= glm::mat4_cast(rot);
@@ -146,8 +146,8 @@ void RenderSystem::update(ecs::World& world, scene::Scene& /*scene*/, float /*dt
     }
     const auto& transform = world.get<components::TransformComponent>(entity);
     CameraData cam{};
-    cam.position = toGlm(transform.position());
-    cam.rotation = toGlm(transform.rotation());
+    cam.position = toGlm(transform.position);
+    cam.rotation = toGlm(transform.rotation);
     cam.perspective = true;
     cam.fov_y_degrees = camera.fov_y_degrees;
     cam.aspect = 16.0f / 9.0f;
@@ -293,7 +293,7 @@ void RenderSystem::update(ecs::World& world, scene::Scene& /*scene*/, float /*dt
     bool in_frustum = true;
     if (it->second.bounds_valid) {
       const glm::vec3 world_center = glm::vec3(world_matrix * glm::vec4(it->second.bounds_center, 1.0f));
-      const glm::vec3 scale = toGlm(transform.scale());
+      const glm::vec3 scale = toGlm(transform.scale);
       const float max_scale = std::max(scale.x, std::max(scale.y, scale.z));
       const float world_radius = it->second.bounds_radius * max_scale;
       if (!sphereInFrustum(frustum, world_center, world_radius)) {

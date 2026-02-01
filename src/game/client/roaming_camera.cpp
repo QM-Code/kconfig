@@ -7,10 +7,11 @@
 
 #include "game/input/actions.hpp"
 #include "karma/input/input.hpp"
-#include "karma/ecs/world.hpp"
-#include "karma/ecs/components.hpp"
+#include "karma/ecs/world.h"
+#include "karma/components/transform.h"
 
 namespace game_client {
+namespace components = karma::components;
 namespace {
 
 float clampPitch(float pitch) {
@@ -20,13 +21,14 @@ float clampPitch(float pitch) {
 
 }
 
-void RoamingCameraController::syncFromEcs(const ecs::World &world, ecs::EntityId entity) {
-    if (entity == ecs::kInvalidEntity) {
+void RoamingCameraController::syncFromEcs(const karma::ecs::World &world, karma::ecs::Entity entity) {
+    if (!entity.isValid()) {
         return;
     }
-    if (const auto *transform = world.get<ecs::Transform>(entity)) {
-        position_ = transform->position;
-        glm::vec3 forward = transform->rotation * glm::vec3(0.0f, 0.0f, -1.0f);
+    if (world.has<components::TransformComponent>(entity)) {
+        const auto &transform = world.get<components::TransformComponent>(entity);
+        position_ = transform.position;
+        glm::vec3 forward = transform.rotation * glm::vec3(0.0f, 0.0f, -1.0f);
         if (glm::length(forward) < 0.0001f) {
             forward = glm::vec3(0.0f, 0.0f, -1.0f);
         } else {
@@ -136,13 +138,14 @@ void RoamingCameraController::update(TimeUtils::duration deltaTime,
     }
 }
 
-void RoamingCameraController::applyToEcs(ecs::World &world, ecs::EntityId entity) const {
-    if (entity == ecs::kInvalidEntity) {
+void RoamingCameraController::applyToEcs(karma::ecs::World &world, karma::ecs::Entity entity) const {
+    if (!entity.isValid()) {
         return;
     }
-    if (auto *transform = world.get<ecs::Transform>(entity)) {
-        transform->position = position_;
-        transform->rotation = rotation_;
+    if (world.has<components::TransformComponent>(entity)) {
+        auto &transform = world.get<components::TransformComponent>(entity);
+        transform.position = position_;
+        transform.rotation = rotation_;
     }
 }
 

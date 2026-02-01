@@ -4,6 +4,7 @@
 
 #include <mutex>
 #include <vector>
+#include <glm/glm.hpp>
 
 namespace karma::audio_backend {
 

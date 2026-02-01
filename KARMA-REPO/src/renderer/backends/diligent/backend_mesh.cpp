@@ -16,6 +16,7 @@
 #include <Graphics/GraphicsEngine/interface/PipelineState.h>
 #include <Graphics/GraphicsEngine/interface/ShaderResourceBinding.h>
 #include <Graphics/GraphicsEngine/interface/DeviceContext.h>
+#include <glm/glm.hpp>
 
 namespace karma::renderer_backend {
 

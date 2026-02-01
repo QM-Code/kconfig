@@ -1,27 +1,31 @@
 #pragma once
 
-#include "karma/ecs/components.hpp"
-#include "karma/ecs/world.hpp"
 #include "karma/physics/physics_world.hpp"
 #include "karma/physics/rigid_body.hpp"
 #include "karma/physics/static_body.hpp"
+#include "karma/components/collider.h"
+#include "karma/components/rigidbody.h"
+#include "karma/components/transform.h"
+#include "karma/components/mesh.h"
+#include "karma/ecs/world.h"
 #include <unordered_map>
 
-namespace ecs {
+namespace karma::ecs {
+namespace components = karma::components;
 
 class PhysicsSyncSystem {
 public:
-    void update(World &world, PhysicsWorld *physics) {
+    void update(karma::ecs::World &world, PhysicsWorld *physics) {
         if (!physics) {
             return;
         }
 
         // Cleanup stale entries.
         for (auto it = rigidBodies_.begin(); it != rigidBodies_.end(); ) {
-            const EntityId entity = it->first;
-            if (!hasComponent<ColliderComponent>(world, entity) ||
-                !hasComponent<RigidbodyComponent>(world, entity) ||
-                !hasComponent<Transform>(world, entity)) {
+            const karma::ecs::Entity entity = it->first;
+            if (!world.has<components::ColliderComponent>(entity) ||
+                !world.has<components::RigidbodyComponent>(entity) ||
+                !world.has<components::TransformComponent>(entity)) {
                 it->second.destroy();
                 it = rigidBodies_.erase(it);
             } else {
@@ -29,9 +33,9 @@ public:
             }
         }
         for (auto it = staticBodies_.begin(); it != staticBodies_.end(); ) {
-            const EntityId entity = it->first;
-            if (!hasComponent<ColliderComponent>(world, entity) ||
-                !hasComponent<Transform>(world, entity)) {
+            const karma::ecs::Entity entity = it->first;
+            if (!world.has<components::ColliderComponent>(entity) ||
+                !world.has<components::TransformComponent>(entity)) {
                 it->second.destroy();
                 it = staticBodies_.erase(it);
             } else {
@@ -39,24 +43,22 @@ public:
             }
         }
 
-        const auto &transforms = world.all<Transform>();
-        const auto &colliders = world.all<ColliderComponent>();
-        const auto &rigidbodies = world.all<RigidbodyComponent>();
+        auto &transforms = world.storage<components::TransformComponent>();
+        auto &colliders = world.storage<components::ColliderComponent>();
+        auto &rigidbodies = world.storage<components::RigidbodyComponent>();
 
-        for (const auto &pair : colliders) {
-            const EntityId entity = pair.first;
-            const ColliderComponent &collider = pair.second;
-            const auto transformIt = transforms.find(entity);
-            if (transformIt == transforms.end()) {
+        for (const karma::ecs::Entity entity : colliders.denseEntities()) {
+            const components::ColliderComponent &collider = colliders.get(entity);
+            if (!transforms.has(entity)) {
                 continue;
             }
-            const Transform &transform = transformIt->second;
+            const components::TransformComponent &transform = transforms.get(entity);
 
-            const bool hasRigidBody = rigidbodies.find(entity) != rigidbodies.end();
+            const bool hasRigidBody = rigidbodies.has(entity);
             if (hasRigidBody) {
                 if (rigidBodies_.find(entity) == rigidBodies_.end()) {
-                    if (collider.shape == ColliderComponent::Shape::Box) {
-                        const RigidbodyComponent &rb = rigidbodies.at(entity);
+                    if (collider.shape == components::ColliderComponent::Shape::Box) {
+                        const components::RigidbodyComponent &rb = rigidbodies.get(entity);
                         PhysicsRigidBody body = physics->createBoxBody(
                             collider.half_extents,
                             rb.mass,
@@ -65,7 +67,7 @@ public:
                         rigidBodies_.insert({entity, std::move(body)});
                     }
                 }
-            } else if (collider.shape == ColliderComponent::Shape::Mesh) {
+            } else if (collider.shape == components::ColliderComponent::Shape::Mesh) {
                 if (staticBodies_.find(entity) == staticBodies_.end() && !collider.mesh_key.empty()) {
                     PhysicsStaticBody body = physics->createStaticMesh(collider.mesh_key);
                     staticBodies_.insert({entity, std::move(body)});
@@ -74,32 +76,24 @@ public:
         }
 
         for (auto &pair : rigidBodies_) {
-            const EntityId entity = pair.first;
-            if (auto *transform = world.get<Transform>(entity)) {
-                const auto rbIt = rigidbodies.find(entity);
-                if (rbIt != rigidbodies.end()) {
-                    const RigidbodyComponent &rb = rbIt->second;
-                    if (rb.kinematic) {
-                        pair.second.setPosition(transform->position);
-                        pair.second.setRotation(transform->rotation);
+            const karma::ecs::Entity entity = pair.first;
+            if (transforms.has(entity) && rigidbodies.has(entity)) {
+                auto &transform = transforms.get(entity);
+                const components::RigidbodyComponent &rb = rigidbodies.get(entity);
+                    if (rb.is_kinematic) {
+                        pair.second.setPosition(transform.position);
+                        pair.second.setRotation(transform.rotation);
                     } else {
-                        transform->position = pair.second.getPosition();
-                        transform->rotation = pair.second.getRotation();
+                        transform.position = pair.second.getPosition();
+                        transform.rotation = pair.second.getRotation();
                     }
-                }
             }
         }
     }
 
 private:
-    std::unordered_map<EntityId, PhysicsRigidBody> rigidBodies_;
-    std::unordered_map<EntityId, PhysicsStaticBody> staticBodies_;
-
-    template <typename T>
-    bool hasComponent(const World &world, EntityId entity) const {
-        const auto &store = world.all<T>();
-        return store.find(entity) != store.end();
-    }
+    std::unordered_map<karma::ecs::Entity, PhysicsRigidBody> rigidBodies_;
+    std::unordered_map<karma::ecs::Entity, PhysicsStaticBody> staticBodies_;
 };
 
-} // namespace ecs
+} // namespace karma::ecs

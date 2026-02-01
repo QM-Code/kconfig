@@ -16,9 +16,9 @@ For subsystem-level architecture, see each subdirectory’s `architecture.md`.
    - **Physics** (`physics/`)
    - **Audio** (`audio/`)
    - **Input mapping** (`input/`)
-   - **UI bridges** (`ui/`)
+   - **UI bridges** (`ui/`, now in `src/karma-extras/ui/`)
    - **Networking transport** (`network/`)
-   - **World content** (`world/`)
+   - **World content** (`world/`, now in `src/karma-extras/world/`)
 
 4) **App shell** (`app/`)
    - Orchestrates initialization and ties subsystems together.

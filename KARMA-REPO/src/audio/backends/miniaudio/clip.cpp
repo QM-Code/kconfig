@@ -1,6 +1,7 @@
 #include "karma/audio/backends/miniaudio/clip.hpp"
 
 #include <spdlog/spdlog.h>
+#include <glm/glm.hpp>
 
 namespace karma::audio_backend {
 

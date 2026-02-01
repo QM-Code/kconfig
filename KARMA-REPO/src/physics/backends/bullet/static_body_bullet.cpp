@@ -4,6 +4,8 @@
 #include "engine/geometry/mesh_loader.hpp"
 #include <btBulletDynamicsCommon.h>
 #include <spdlog/spdlog.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace {
 inline glm::vec3 toGlm(const btVector3& v) { return glm::vec3(v.x(), v.y(), v.z()); }

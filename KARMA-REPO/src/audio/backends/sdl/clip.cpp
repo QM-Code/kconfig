@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include <spdlog/spdlog.h>
+#include <glm/glm.hpp>
 
 namespace karma::audio_backend {
 

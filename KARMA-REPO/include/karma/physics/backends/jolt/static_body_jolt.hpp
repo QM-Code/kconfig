@@ -4,6 +4,8 @@
 #include <Jolt/Jolt.h>
 #include <Jolt/Physics/Body/BodyID.h>
 #include <optional>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace karma::physics_backend {
 

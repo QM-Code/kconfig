@@ -8,10 +8,13 @@
 #include "karma/common/config_store.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/i18n.hpp"
+#include "karma/components/transform.h"
 #include <cstdint>
 #include <stdexcept>
 #include <vector>
 #include <utility>
+
+namespace components = karma::components;
 
 namespace {
 
@@ -106,7 +109,7 @@ void ClientEngine::step(TimeUtils::duration deltaTime) {
 }
 
 void ClientEngine::lateUpdate(TimeUtils::duration deltaTime) {
-    if (cameraEntity != ecs::kInvalidEntity && ecsWorld && isRoamingModeSession()) {
+    if (cameraEntity.isValid() && ecsWorld && isRoamingModeSession()) {
         const bool consoleVisible = ui && ui->console().isVisible();
         const bool allowInput = !consoleVisible && (!ui || ui->isGameplayInputEnabled());
         updateRoamingCamera(deltaTime, allowInput);
@@ -115,11 +118,11 @@ void ClientEngine::lateUpdate(TimeUtils::duration deltaTime) {
     if (render) {
         glm::vec3 camPos(0.0f);
         glm::quat camRot(1.0f, 0.0f, 0.0f, 0.0f);
-        if (ecsWorld && cameraEntity != ecs::kInvalidEntity) {
-            if (const auto *transform = ecsWorld->get<ecs::Transform>(cameraEntity)) {
-                camPos = transform->position;
-                camRot = transform->rotation;
-            }
+        if (ecsWorld && cameraEntity.isValid() &&
+            ecsWorld->has<components::TransformComponent>(cameraEntity)) {
+            const auto &transform = ecsWorld->get<components::TransformComponent>(cameraEntity);
+            camPos = transform.position;
+            camRot = transform.rotation;
         }
         render->renderRadar(camPos, camRot);
     }

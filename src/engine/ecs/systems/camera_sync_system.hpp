@@ -1,47 +1,51 @@
 #pragma once
 
-#include "karma/ecs/components.hpp"
-#include "karma/ecs/world.hpp"
 #include "karma/renderer/renderer_context.hpp"
+#include "karma/components/camera.h"
+#include "karma/components/transform.h"
+#include "karma/ecs/world.h"
 
-namespace ecs {
+namespace karma::ecs {
 
 class CameraSyncSystem {
 public:
-    void update(World &world, engine::renderer::RendererContext &context) {
-        const auto &cameras = world.all<CameraComponent>();
-        if (cameras.empty()) {
+    void update(karma::ecs::World &world, engine::renderer::RendererContext &context) {
+        auto &cameras = world.storage<karma::components::CameraComponent>();
+        if (cameras.denseEntities().empty()) {
             return;
         }
-        const auto &transforms = world.all<Transform>();
+        auto &transforms = world.storage<karma::components::TransformComponent>();
 
-        const CameraComponent *selected = nullptr;
-        EntityId selectedEntity = kInvalidEntity;
-        for (const auto &pair : cameras) {
-            if (pair.second.is_primary) {
-                selected = &pair.second;
-                selectedEntity = pair.first;
+        const karma::components::CameraComponent *selected = nullptr;
+        karma::ecs::Entity selectedEntity{};
+        for (const auto entity : cameras.denseEntities()) {
+            const auto &camera = cameras.get(entity);
+            if (camera.is_primary) {
+                selected = &camera;
+                selectedEntity = entity;
                 break;
             }
         }
         if (!selected) {
-            selected = &cameras.begin()->second;
-            selectedEntity = cameras.begin()->first;
+            const auto &entities = cameras.denseEntities();
+            if (!entities.empty()) {
+                selectedEntity = entities.front();
+                selected = &cameras.get(selectedEntity);
+            }
         }
         if (!selected) {
             return;
         }
-        const auto transformIt = transforms.find(selectedEntity);
-        if (transformIt == transforms.end()) {
+        if (!transforms.has(selectedEntity)) {
             return;
         }
-        const Transform &transform = transformIt->second;
+        const karma::components::TransformComponent &transform = transforms.get(selectedEntity);
         context.cameraPosition = transform.position;
         context.cameraRotation = transform.rotation;
-        context.fov = selected->fov_degrees;
-        context.nearPlane = selected->near_plane;
-        context.farPlane = selected->far_plane;
+        context.fov = selected->fov_y_degrees;
+        context.nearPlane = selected->near_clip;
+        context.farPlane = selected->far_clip;
     }
 };
 
-} // namespace ecs
+} // namespace karma::ecs

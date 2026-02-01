@@ -2,20 +2,24 @@
 #include "karma/core/types.hpp"
 #include "game/net/messages.hpp"
 #include "client/game.hpp"
-#include "karma/ecs/components.hpp"
+#include "karma/components/mesh.h"
+#include "karma/components/transform.h"
 #include "renderer/radar_components.hpp"
 #include "spdlog/spdlog.h"
 #include <glm/glm.hpp>
 
+namespace components = karma::components;
+
 void Client::syncRenderFromState() {
-    if (ecsEntity != ecs::kInvalidEntity && game.engine.ecsWorld) {
-        if (auto *transform = game.engine.ecsWorld->get<ecs::Transform>(ecsEntity)) {
-            transform->position = state.position;
-            transform->rotation = state.rotation;
-            transform->scale = state.alive ? glm::vec3(1.0f) : glm::vec3(0.0f);
+    if (ecsEntity.isValid() && game.engine.ecsWorld) {
+        if (game.engine.ecsWorld->has<components::TransformComponent>(ecsEntity)) {
+            auto &transform = game.engine.ecsWorld->get<components::TransformComponent>(ecsEntity);
+            transform.position = state.position;
+            transform.rotation = state.rotation;
+            transform.scale = state.alive ? glm::vec3(1.0f) : glm::vec3(0.0f);
         }
-        if (auto *circle = game.engine.ecsWorld->get<game::renderer::RadarCircle>(ecsEntity)) {
-            circle->enabled = state.alive;
+        if (game.engine.ecsWorld->has<game::renderer::RadarCircle>(ecsEntity)) {
+            game.engine.ecsWorld->get<game::renderer::RadarCircle>(ecsEntity).enabled = state.alive;
         }
     }
 }
@@ -25,15 +29,15 @@ Client::Client(Game &game, client_id id, const PlayerState &initialState)
       dieAudio(game.engine.audio->loadClip(game.world->resolveAssetPath("audio.player.Die").string(), 10)) {
     if (game.engine.ecsWorld) {
         ecsEntity = game.engine.ecsWorld->createEntity();
-        ecs::Transform xform{};
+        components::TransformComponent xform{};
         xform.scale = glm::vec3(1.0f);
-        game.engine.ecsWorld->set(ecsEntity, xform);
-        ecs::MeshComponent mesh{};
+        game.engine.ecsWorld->add(ecsEntity, xform);
+        components::MeshComponent mesh{};
         mesh.mesh_key = game.world->resolveAssetPath("playerModel").string();
-        game.engine.ecsWorld->set(ecsEntity, mesh);
+        game.engine.ecsWorld->add(ecsEntity, mesh);
         game::renderer::RadarCircle circle{};
         circle.radius = 1.2f;
-        game.engine.ecsWorld->set(ecsEntity, circle);
+        game.engine.ecsWorld->add(ecsEntity, circle);
     }
 
     setState(initialState);
@@ -43,7 +47,7 @@ Client::Client(Game &game, client_id id, const PlayerState &initialState)
 }
 
 Client::~Client() {
-    if (ecsEntity != ecs::kInvalidEntity && game.engine.ecsWorld) {
+    if (ecsEntity.isValid() && game.engine.ecsWorld) {
         game.engine.ecsWorld->destroyEntity(ecsEntity);
     }
 }

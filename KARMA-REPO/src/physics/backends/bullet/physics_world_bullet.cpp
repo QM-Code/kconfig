@@ -4,6 +4,7 @@
 #include "karma/physics/backends/bullet/static_body_bullet.hpp"
 #include <btBulletDynamicsCommon.h>
 #include <BulletCollision/CollisionDispatch/btGhostObject.h>
+#include <glm/glm.hpp>
 
 namespace karma::physics_backend {
 

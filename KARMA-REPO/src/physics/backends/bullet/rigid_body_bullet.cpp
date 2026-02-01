@@ -1,6 +1,8 @@
 #include "karma/physics/backends/bullet/rigid_body_bullet.hpp"
 #include "karma/physics/backends/bullet/physics_world_bullet.hpp"
 #include <btBulletDynamicsCommon.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace {
 inline glm::vec3 toGlm(const btVector3& v) { return glm::vec3(v.x(), v.y(), v.z()); }

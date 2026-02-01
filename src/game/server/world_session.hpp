@@ -4,8 +4,8 @@
 #include "game/net/messages.hpp"
 #include "karma/physics/static_body.hpp"
 #include "game/world/config.hpp"
-#include "world/backend.hpp"
-#include "world/content.hpp"
+#include "karma_extras/world/backend.hpp"
+#include "karma_extras/world/content.hpp"
 
 #include <filesystem>
 #include <memory>

@@ -1,16 +1,19 @@
 #pragma once
 
-#include "karma/ecs/components.hpp"
-#include "karma/ecs/world.hpp"
 #include "karma/audio/audio.hpp"
+#include "karma/components/audio_listener.h"
+#include "karma/components/audio_source.h"
+#include "karma/components/transform.h"
+#include "karma/ecs/world.h"
 #include <optional>
 #include <unordered_map>
 
-namespace ecs {
+namespace karma::ecs {
+namespace components = karma::components;
 
 class AudioSyncSystem {
 public:
-    void update(World &world, Audio *audio) {
+    void update(karma::ecs::World &world, Audio *audio) {
 #ifdef KARMA_SERVER
         (void)world;
         (void)audio;
@@ -20,35 +23,34 @@ public:
             return;
         }
 
-        const auto &transforms = world.all<Transform>();
-        const auto &sources = world.all<AudioSourceComponent>();
+        auto &transforms = world.storage<components::TransformComponent>();
+        auto &sources = world.storage<components::AudioSourceComponent>();
 
         for (auto it = sources_.begin(); it != sources_.end(); ) {
-            if (sources.find(it->first) == sources.end()) {
+            if (!sources.has(it->first)) {
                 it = sources_.erase(it);
             } else {
                 ++it;
             }
         }
 
-        for (const auto &pair : world.all<AudioListenerComponent>()) {
-            const EntityId entity = pair.first;
-            const AudioListenerComponent &listener = pair.second;
+        auto &listeners = world.storage<components::AudioListenerComponent>();
+        for (const auto entity : listeners.denseEntities()) {
+            const components::AudioListenerComponent &listener = listeners.get(entity);
             if (!listener.active) {
                 continue;
             }
-            const auto transformIt = transforms.find(entity);
-            if (transformIt == transforms.end()) {
+            if (!transforms.has(entity)) {
                 continue;
             }
-            audio->setListenerPosition(transformIt->second.position);
-            audio->setListenerRotation(transformIt->second.rotation);
+            const auto &transform = transforms.get(entity);
+            audio->setListenerPosition(transform.position);
+            audio->setListenerRotation(transform.rotation);
             break;
         }
 
-        for (const auto &pair : sources) {
-            const EntityId entity = pair.first;
-            const AudioSourceComponent &source = pair.second;
+        for (const auto entity : sources.denseEntities()) {
+            const components::AudioSourceComponent &source = sources.get(entity);
             if (source.clip_key.empty()) {
                 continue;
             }
@@ -58,9 +60,8 @@ public:
             }
             if (source.play_on_start && !state.started && state.clip.has_value()) {
                 glm::vec3 position{0.0f};
-                const auto transformIt = transforms.find(entity);
-                if (transformIt != transforms.end()) {
-                    position = transformIt->second.position;
+                if (transforms.has(entity)) {
+                    position = transforms.get(entity).position;
                 }
                 state.clip->play(position, source.gain);
                 state.started = true;
@@ -74,7 +75,7 @@ private:
         std::optional<AudioClip> clip{};
         bool started = false;
     };
-    std::unordered_map<EntityId, SourceState> sources_;
+    std::unordered_map<karma::ecs::Entity, SourceState> sources_;
 };
 
-} // namespace ecs
+} // namespace karma::ecs

@@ -20,6 +20,7 @@
 #include "game/net/messages.hpp"
 #include "game/common/data_path_spec.hpp"
 #include "game/ui/core/system.hpp"
+#include "karma_extras/ecs/render_components.h"
 #include "karma/common/data_dir_override.hpp"
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/config_helpers.hpp"
@@ -30,6 +31,8 @@
 #include "karma/platform/window.hpp"
 #include "ui/config/ui_config.hpp"
 #include "ui/bridges/renderer_bridge.hpp"
+
+namespace components = karma::components;
 
 #if !defined(_WIN32)
 #include <csignal>
@@ -535,34 +538,34 @@ public:
             return;
         }
         auto *world = ctx->ecsWorld;
-        const ecs::EntityId cube = world->createEntity();
-        ecs::Transform cubeXform{};
+        const karma::ecs::Entity cube = world->createEntity();
+        components::TransformComponent cubeXform{};
         cubeXform.scale = {2.0f, 2.0f, 2.0f};
-        world->set(cube, cubeXform);
+        world->add(cube, cubeXform);
         if (useWorld_) {
-            ecs::MeshComponent mesh{};
+            components::MeshComponent mesh{};
             mesh.mesh_key = karma::data::Resolve("common/models/world.glb").string();
-            world->set(cube, mesh);
+            world->add(cube, mesh);
         } else {
-            ecs::ProceduralMesh proc{};
+            karma::ecs::ProceduralMesh proc{};
             proc.mesh = MakeTestCube(1.0f);
             proc.dirty = true;
-            world->set(cube, proc);
+            world->add(cube, proc);
         }
 
         cameraEntity_ = world->createEntity();
-        ecs::Transform camXform{};
+        components::TransformComponent camXform{};
         camXform.position = {0.0f, 2.0f, 6.0f};
         const glm::vec3 target{0.0f, 0.0f, 0.0f};
         const glm::mat4 view = glm::lookAt(camXform.position, target, glm::vec3(0.0f, 1.0f, 0.0f));
         camXform.rotation = glm::quat_cast(glm::inverse(view));
-        world->set(cameraEntity_, camXform);
-        ecs::CameraComponent camera{};
+        world->add(cameraEntity_, camXform);
+        components::CameraComponent camera{};
         camera.is_primary = true;
-        camera.fov_degrees = karma::config::ReadRequiredFloatConfig("graphics.Camera.FovDegrees");
-        camera.near_plane = karma::config::ReadRequiredFloatConfig("graphics.Camera.NearPlane");
-        camera.far_plane = karma::config::ReadRequiredFloatConfig("graphics.Camera.FarPlane");
-        world->set(cameraEntity_, camera);
+        camera.fov_y_degrees = karma::config::ReadRequiredFloatConfig("graphics.Camera.FovDegrees");
+        camera.near_clip = karma::config::ReadRequiredFloatConfig("graphics.Camera.NearPlane");
+        camera.far_clip = karma::config::ReadRequiredFloatConfig("graphics.Camera.FarPlane");
+        world->add(cameraEntity_, camera);
     }
 
     void onUpdate(float /*dt*/) override {}
@@ -571,7 +574,7 @@ public:
 
 private:
     platform::Window &window_;
-    ecs::EntityId cameraEntity_ = ecs::kInvalidEntity;
+    karma::ecs::Entity cameraEntity_{};
     bool useWorld_ = false;
 };
 
@@ -756,16 +759,16 @@ int main(int argc, char *argv[]) {
         auto *ecsWorld = app.context().ecsWorld;
         if (ecsWorld) {
             engine.cameraEntity = ecsWorld->createEntity();
-            ecs::Transform camXform{};
+            components::TransformComponent camXform{};
             camXform.position = {0.0f, 2.0f, 6.0f};
-            ecsWorld->set(engine.cameraEntity, camXform);
-            ecs::CameraComponent camera{};
+            ecsWorld->add(engine.cameraEntity, camXform);
+            components::CameraComponent camera{};
             camera.is_primary = true;
-            camera.fov_degrees = karma::config::ReadRequiredFloatConfig("graphics.Camera.FovDegrees");
-            camera.near_plane = karma::config::ReadRequiredFloatConfig("graphics.Camera.NearPlane");
-            camera.far_plane = karma::config::ReadRequiredFloatConfig("graphics.Camera.FarPlane");
-            ecsWorld->set(engine.cameraEntity, camera);
-            ecsWorld->set(engine.cameraEntity, ecs::AudioListenerComponent{});
+            camera.fov_y_degrees = karma::config::ReadRequiredFloatConfig("graphics.Camera.FovDegrees");
+            camera.near_clip = karma::config::ReadRequiredFloatConfig("graphics.Camera.NearPlane");
+            camera.far_clip = karma::config::ReadRequiredFloatConfig("graphics.Camera.FarPlane");
+            ecsWorld->add(engine.cameraEntity, camera);
+            ecsWorld->add(engine.cameraEntity, components::AudioListenerComponent{});
         }
     }
     {
@@ -784,27 +787,27 @@ int main(int argc, char *argv[]) {
         auto *ecsWorld = app.context().ecsWorld;
         if (ecsWorld) {
             const auto worldEntity = ecsWorld->createEntity();
-            ecs::Transform worldXform{};
+            components::TransformComponent worldXform{};
             worldXform.scale = {2.0f, 2.0f, 2.0f};
-            ecsWorld->set(worldEntity, worldXform);
-            ecs::MeshComponent worldMesh{};
+            ecsWorld->add(worldEntity, worldXform);
+            components::MeshComponent worldMesh{};
             worldMesh.mesh_key = karma::data::Resolve("common/models/tank_final.glb").string();
-            ecsWorld->set(worldEntity, worldMesh);
+            ecsWorld->add(worldEntity, worldMesh);
 
             const auto cameraEntity = ecsWorld->createEntity();
-            ecs::Transform camXform{};
+            components::TransformComponent camXform{};
             camXform.position = {0.0f, 8.0f, 22.0f};
             const glm::vec3 target{0.0f, 0.0f, 0.0f};
             const glm::mat4 view = glm::lookAt(camXform.position, target, glm::vec3(0.0f, 1.0f, 0.0f));
             camXform.rotation = glm::quat_cast(glm::inverse(view));
-            ecsWorld->set(cameraEntity, camXform);
-            ecs::CameraComponent camera{};
+            ecsWorld->add(cameraEntity, camXform);
+            components::CameraComponent camera{};
             camera.is_primary = true;
-            camera.fov_degrees = karma::config::ReadRequiredFloatConfig("graphics.Camera.FovDegrees");
-            camera.near_plane = karma::config::ReadRequiredFloatConfig("graphics.Camera.NearPlane");
-            camera.far_plane = karma::config::ReadRequiredFloatConfig("graphics.Camera.FarPlane");
-            ecsWorld->set(cameraEntity, camera);
-            ecsWorld->set(cameraEntity, ecs::AudioListenerComponent{});
+            camera.fov_y_degrees = karma::config::ReadRequiredFloatConfig("graphics.Camera.FovDegrees");
+            camera.near_clip = karma::config::ReadRequiredFloatConfig("graphics.Camera.NearPlane");
+            camera.far_clip = karma::config::ReadRequiredFloatConfig("graphics.Camera.FarPlane");
+            ecsWorld->add(cameraEntity, camera);
+            ecsWorld->add(cameraEntity, components::AudioListenerComponent{});
         }
     }
     spdlog::info("EngineApp loop enabled (start/tick)");

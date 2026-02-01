@@ -4,9 +4,9 @@
 #include "game/net/messages.hpp"
 #include "karma/physics/static_body.hpp"
 #include "game/world/config.hpp"
-#include "world/backend.hpp"
-#include "world/content.hpp"
-#include "karma/ecs/types.hpp"
+#include "karma_extras/world/backend.hpp"
+#include "karma_extras/world/content.hpp"
+#include "karma/ecs/entity.h"
 
 #include <filesystem>
 #include <memory>
@@ -20,7 +20,7 @@ class ClientWorldSession {
 private:
     Game &game;
     std::unique_ptr<world_backend::Backend> backend_;
-    ecs::EntityId worldEcsEntity = ecs::kInvalidEntity;
+    karma::ecs::Entity worldEcsEntity{};
     PhysicsStaticBody physics;
     world::WorldContent content_;
     PlayerParameters defaultPlayerParameters_;

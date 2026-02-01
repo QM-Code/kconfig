@@ -5,6 +5,8 @@
 #include <SDL3/SDL_audio.h>
 #include <mutex>
 #include <vector>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace karma::audio_backend {
 

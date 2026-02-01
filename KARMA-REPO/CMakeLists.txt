@@ -294,7 +294,6 @@ endif()
 set(KARMA_SOURCES
   src/app/engine_app.cpp
   src/app/ui_context.cpp
-  src/components/transform.cpp
   src/audio/audio.cpp
   src/audio/backend_factory.cpp
   src/audio/audio_system.cpp

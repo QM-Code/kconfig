@@ -8,6 +8,8 @@
 #include <cmath>
 #include <unordered_set>
 
+namespace components = karma::components;
+
 namespace {
 
 class RendererUiBridge final : public ui::UiRenderTargetBridge {
@@ -81,15 +83,15 @@ void Renderer::renderRadar(const glm::vec3 &cameraPosition, const glm::quat &cam
     }
 }
 
-void Renderer::setEcsWorld(ecs::World *world) {
+void Renderer::setEcsWorld(karma::ecs::World *world) {
     ecsWorld = world;
 }
 
 void Renderer::syncEcsRadar() {
-    const auto &radarTags = ecsWorld->all<game::renderer::RadarRenderable>();
-    const auto &meshes = ecsWorld->all<ecs::MeshComponent>();
-    const auto &transforms = ecsWorld->all<ecs::Transform>();
-    if (radarTags.empty()) {
+    auto &radarTags = ecsWorld->storage<game::renderer::RadarRenderable>();
+    auto &meshes = ecsWorld->storage<components::MeshComponent>();
+    auto &transforms = ecsWorld->storage<components::TransformComponent>();
+    if (radarTags.denseEntities().empty()) {
         if (!radarEcsEntities_.empty()) {
             for (const auto &entry : radarEcsEntities_) {
                 radarRenderer_->destroy(entry.second.id);
@@ -97,19 +99,18 @@ void Renderer::syncEcsRadar() {
             radarEcsEntities_.clear();
         }
     } else {
-        std::unordered_set<ecs::EntityId> seen;
-        seen.reserve(radarTags.size());
+        std::unordered_set<karma::ecs::Entity> seen;
+        seen.reserve(radarTags.denseEntities().size());
 
-        for (const auto &pair : radarTags) {
-            const ecs::EntityId entity = pair.first;
-            if (!pair.second.enabled) {
+        for (const karma::ecs::Entity entity : radarTags.denseEntities()) {
+            const auto &tag = radarTags.get(entity);
+            if (!tag.enabled) {
                 continue;
             }
-            auto meshIt = meshes.find(entity);
-            if (meshIt == meshes.end()) {
+            if (!meshes.has(entity)) {
                 continue;
             }
-            const std::string &meshKey = meshIt->second.mesh_key;
+            const std::string &meshKey = meshes.get(entity).mesh_key;
             if (meshKey.empty()) {
                 continue;
             }
@@ -124,16 +125,16 @@ void Renderer::syncEcsRadar() {
                 radarRenderer_->setScale(id, glm::vec3(1.0f));
                 radarEcsEntities_.insert({entity, RadarEcsEntry{id, meshKey}});
                 spdlog::info("Renderer: ECS radar sync created (ecs_entity={}, render_id={}, mesh={})",
-                             entity, id, meshKey);
+                             entity.index, id, meshKey);
             } else if (it->second.mesh_key != meshKey) {
                 radarRenderer_->setModel(it->second.id, meshKey, true);
                 it->second.mesh_key = meshKey;
                 spdlog::info("Renderer: ECS radar sync updated (ecs_entity={}, render_id={}, mesh={})",
-                             entity, it->second.id, meshKey);
+                             entity.index, it->second.id, meshKey);
             }
 
-            if (auto xformIt = transforms.find(entity); xformIt != transforms.end()) {
-                const ecs::Transform &xform = xformIt->second;
+            if (transforms.has(entity)) {
+                const components::TransformComponent &xform = transforms.get(entity);
                 const auto &entry = radarEcsEntities_.find(entity)->second;
                 radarRenderer_->setPosition(entry.id, xform.position);
                 radarRenderer_->setRotation(entry.id, xform.rotation);
@@ -151,8 +152,8 @@ void Renderer::syncEcsRadar() {
         }
     }
 
-    const auto &radarCircles = ecsWorld->all<game::renderer::RadarCircle>();
-    if (radarCircles.empty()) {
+    auto &radarCircles = ecsWorld->storage<game::renderer::RadarCircle>();
+    if (radarCircles.denseEntities().empty()) {
         if (!radarEcsCircles_.empty()) {
             for (const auto &entry : radarEcsCircles_) {
                 radarRenderer_->destroy(entry.second.id);
@@ -162,17 +163,15 @@ void Renderer::syncEcsRadar() {
         return;
     }
 
-    std::unordered_set<ecs::EntityId> seenCircles;
-    seenCircles.reserve(radarCircles.size());
+    std::unordered_set<karma::ecs::Entity> seenCircles;
+    seenCircles.reserve(radarCircles.denseEntities().size());
 
-    for (const auto &pair : radarCircles) {
-        const ecs::EntityId entity = pair.first;
-        const auto &circle = pair.second;
+    for (const karma::ecs::Entity entity : radarCircles.denseEntities()) {
+        const auto &circle = radarCircles.get(entity);
         if (!circle.enabled) {
             continue;
         }
-        const auto transformIt = transforms.find(entity);
-        if (transformIt == transforms.end()) {
+        if (!transforms.has(entity)) {
             continue;
         }
 
@@ -181,14 +180,14 @@ void Renderer::syncEcsRadar() {
         if (it == radarEcsCircles_.end()) {
             const render_id id = nextId++;
             radarRenderer_->setRadarCircleGraphic(id, circle.radius);
-            radarRenderer_->setPosition(id, transformIt->second.position);
+            radarRenderer_->setPosition(id, transforms.get(entity).position);
             radarEcsCircles_.insert({entity, RadarEcsCircleEntry{id, circle.radius}});
         } else {
             if (std::abs(it->second.radius - circle.radius) > 0.0001f) {
                 radarRenderer_->setRadarCircleGraphic(it->second.id, circle.radius);
                 it->second.radius = circle.radius;
             }
-            radarRenderer_->setPosition(it->second.id, transformIt->second.position);
+            radarRenderer_->setPosition(it->second.id, transforms.get(entity).position);
         }
     }
 

@@ -17,8 +17,6 @@
 #include "karma/components/visibility.h"
 #include "karma/ecs/world.h"
 #include "karma/input/input_system.h"
-#include "karma/math/quat.h"
-#include "karma/math/vec3.h"
 #include "karma/network/transport.h"
 #include "karma/network/transport_factory.h"
 #include "karma/physics/physics_world.hpp"

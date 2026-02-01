@@ -8,7 +8,7 @@
 #include "game/input/state.hpp"
 #include "ui/core/system.hpp"
 #include "client/roaming_camera.hpp"
-#include "karma/ecs/world.hpp"
+#include "karma/ecs/world.h"
 #include "karma/audio/audio.hpp"
 #include "karma/platform/window.hpp"
 #include <string>
@@ -35,8 +35,8 @@ public:
     game_input::InputState inputState;
     UiSystem *ui;
     Audio *audio;
-    ecs::World *ecsWorld = nullptr;
-    ecs::EntityId cameraEntity = ecs::kInvalidEntity;
+    karma::ecs::World *ecsWorld = nullptr;
+    karma::ecs::Entity cameraEntity{};
     game_client::RoamingCameraController &roamingCameraController() { return roamingCamera; }
 
     void setRoamingModeSession(bool enabled);

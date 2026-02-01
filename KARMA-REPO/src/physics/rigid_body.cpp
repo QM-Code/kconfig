@@ -1,5 +1,7 @@
 #include "karma/physics/rigid_body.hpp"
 #include "karma/physics/backend.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace karma::physics {
 

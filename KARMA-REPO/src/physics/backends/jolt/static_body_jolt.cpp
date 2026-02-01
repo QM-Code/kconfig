@@ -10,6 +10,8 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <spdlog/spdlog.h>
 #include <vector>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 using namespace JPH;
 

@@ -1,13 +1,13 @@
 #pragma once
 
-#include "karma/ecs/components.hpp"
-#include "karma/ecs/world.hpp"
+#include "karma/components/mesh.h"
+#include "karma/components/transform.h"
+#include "karma/ecs/world.h"
 #include "karma/renderer/renderer_context.hpp"
 #include "karma/renderer/renderer_core.hpp"
 #include "karma/renderer/scene_renderer.hpp"
 #include "renderer/radar_renderer.hpp"
 #include "ui/bridges/ui_render_target_bridge.hpp"
-#include "karma/core/types.hpp"
 
 #include <filesystem>
 #include <glm/glm.hpp>
@@ -38,14 +38,14 @@ private:
         render_id id = 0;
         std::string mesh_key{};
     };
-    std::unordered_map<ecs::EntityId, RadarEcsEntry> radarEcsEntities_;
+    std::unordered_map<karma::ecs::Entity, RadarEcsEntry> radarEcsEntities_;
     struct RadarEcsCircleEntry {
         render_id id = 0;
         float radius = 1.0f;
     };
-    std::unordered_map<ecs::EntityId, RadarEcsCircleEntry> radarEcsCircles_;
+    std::unordered_map<karma::ecs::Entity, RadarEcsCircleEntry> radarEcsCircles_;
 
-    ecs::World *ecsWorld = nullptr;
+    karma::ecs::World *ecsWorld = nullptr;
     bool ecsRadarSyncEnabled = true;
 
 
@@ -55,7 +55,7 @@ public:
     Renderer(platform::Window &window);
     ~Renderer();
     void renderRadar(const glm::vec3 &cameraPosition, const glm::quat &cameraRotation);
-    void setEcsWorld(ecs::World *world);
+    void setEcsWorld(karma::ecs::World *world);
     void setMainLayer(graphics::LayerId layer) { if (core_) { core_->context().mainLayer = layer; } }
     graphics::TextureHandle getRadarTexture() const;
     ui::UiRenderTargetBridge* getUiRenderTargetBridge() const;

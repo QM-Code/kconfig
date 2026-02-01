@@ -2,7 +2,7 @@
 #include "karma/core/types.hpp"
 #include "game/net/messages.hpp"
 #include "karma/audio/audio.hpp"
-#include "karma/ecs/types.hpp"
+#include "karma/ecs/entity.h"
 #include <optional>
 
 class Game;
@@ -16,7 +16,7 @@ private:
     glm::vec3 velocity;
     glm::vec3 prevPosition;
 
-    ecs::EntityId ecsEntity = ecs::kInvalidEntity;
+    karma::ecs::Entity ecsEntity{};
     Audio& audioEngine;
     AudioClip fireAudio;
     AudioClip ricochetAudio;

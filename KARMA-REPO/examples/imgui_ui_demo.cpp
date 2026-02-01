@@ -9,8 +9,19 @@
 
 #include <imgui.h>
 #include "stb_image.h"
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 namespace karma::demo {
+
+namespace {
+glm::quat fromYawPitch(float yaw, float pitch) {
+  const glm::quat qy = glm::angleAxis(yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+  const glm::quat qx = glm::angleAxis(pitch, glm::vec3(1.0f, 0.0f, 0.0f));
+  return qy * qx;
+}
+}
 
 namespace {
 ImGuiKey toImGuiKey(platform::Key key) {
@@ -367,13 +378,13 @@ class DemoGame : public app::GameInterface {
 
     auto camera = world->createEntity();
     components::TransformComponent camera_xform{};
-    camera_xform.setPosition({0.0f, 10.0f, 14.0f});
+    camera_xform.position = {0.0f, 10.0f, 14.0f};
     const float pitch = -0.55f;
     camera_pitch_ = pitch;
     target_camera_pitch_ = pitch;
     camera_yaw_ = 3.14159f;
     target_camera_yaw_ = 3.14159f;
-    camera_xform.setRotation(math::fromYawPitch(camera_yaw_, camera_pitch_));
+    camera_xform.rotation = fromYawPitch(camera_yaw_, camera_pitch_);
     world->add(camera, camera_xform);
     world->add(camera, components::CameraComponent{.is_primary = true});
     world->add(camera, components::AudioListenerComponent{});
@@ -381,8 +392,8 @@ class DemoGame : public app::GameInterface {
 
     auto light = world->createEntity();
     components::TransformComponent light_xform{};
-    light_xform.setPosition({0.0f, 50.0f, 0.0f});
-    light_xform.setRotation(math::fromYawPitch(0.5f, -0.9f));
+    light_xform.position = {0.0f, 50.0f, 0.0f};
+    light_xform.rotation = fromYawPitch(0.5f, -0.9f);
     world->add(light, light_xform);
     world->add(light, components::LightComponent{
         .type = components::LightComponent::Type::Directional,
@@ -418,10 +429,10 @@ class DemoGame : public app::GameInterface {
     camera_pitch_ += (target_camera_pitch_ - camera_pitch_) * alpha;
 
     auto& camera_xform = world->get<components::TransformComponent>(camera_entity_);
-    const glm::quat cam_rot = math::fromYawPitch(camera_yaw_, camera_pitch_);
-    glm::vec3 forward = math::normalize(math::rotateVec(cam_rot, {0.0f, 0.0f, -1.0f}));
+    const glm::quat cam_rot = fromYawPitch(camera_yaw_, camera_pitch_);
+    glm::vec3 forward = glm::normalize(cam_rot * glm::vec3(0.0f, 0.0f, -1.0f));
     const glm::vec3 up{0.0f, 1.0f, 0.0f};
-    glm::vec3 right = math::normalize(math::cross(forward, up));
+    glm::vec3 right = glm::normalize(glm::cross(forward, up));
 
     float forward_input = 0.0f;
     float right_input = 0.0f;
@@ -430,12 +441,12 @@ class DemoGame : public app::GameInterface {
     if (input->actionDown("cam_right")) right_input += 1.0f;
     if (input->actionDown("cam_left")) right_input -= 1.0f;
 
-    glm::vec3 cam_pos = camera_xform.position();
+    glm::vec3 cam_pos = camera_xform.position;
     cam_pos.x += (forward.x * forward_input + right.x * right_input) * move_speed * dt;
     cam_pos.y += (forward.y * forward_input) * move_speed * dt;
     cam_pos.z += (forward.z * forward_input + right.z * right_input) * move_speed * dt;
-    camera_xform.setPosition(cam_pos);
-    camera_xform.setRotation(cam_rot);
+    camera_xform.position = cam_pos;
+    camera_xform.rotation = cam_rot;
 
     if (graphics) {
       const float axis_len = 5.0f;

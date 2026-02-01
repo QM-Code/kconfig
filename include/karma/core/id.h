@@ -22,3 +22,12 @@ struct EntityId {
 };
 
 }  // namespace karma::core
+
+namespace std {
+template <>
+struct hash<karma::core::EntityId> {
+  size_t operator()(const karma::core::EntityId& id) const noexcept {
+    return (static_cast<size_t>(id.index) << 32) ^ static_cast<size_t>(id.generation);
+  }
+};
+}  // namespace std

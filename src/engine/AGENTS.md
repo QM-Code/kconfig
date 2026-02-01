@@ -10,7 +10,7 @@ Karma is a modular runtime that owns:
 
 - Platform and window management
 - Graphics backends and GPU resource management
-- UI rendering bridges (ImGui/RmlUi render-to-texture)
+- UI rendering bridges (ImGui/RmlUi render-to-texture) (moved to karma-extras)
 - Input mapping (action-agnostic)
 - Physics backends (Jolt or PhysX)
 - Audio backends (miniaudio or SDL audio)
@@ -28,9 +28,9 @@ BZ3 uses these engine services to implement gameplay and UI.
 - **Physics** → `src/engine/physics/AGENTS.md`
 - **Windowing / events** → `src/engine/platform/AGENTS.md`
 - **Config/I18n** → `src/engine/common/AGENTS.md`
-- **UI bridges** → `src/engine/ui/AGENTS.md`
+- **UI bridges** → `src/karma-extras/ui/AGENTS.md`
 - **Network transport** → `src/engine/network/AGENTS.md`
-- **World content loading** → `src/engine/world/AGENTS.md`
+- **World content loading** → `src/karma-extras/world/AGENTS.md`
 
 ## Public headers
 - Game code includes `karma/...` headers; these live in `include/karma/` and
@@ -58,8 +58,8 @@ and `architecture.md`. Read from the top down:
 - `physics/` — backend factory + physics world
 - `platform/` — window/events abstraction
 - `renderer/` — renderer core and scene orchestration
-- `ui/` — UI bridges and platform renderers
-- `world/` — content and world backend factories
+- `ui/` — moved to `src/karma-extras/ui/`
+- `world/` — moved to `src/karma-extras/world/`
 
 
 If you’re unsure, read the subsystem’s `README.md` for a human-level overview,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "karma/renderer/backend.hpp"
+#include <glm/glm.hpp>
 
 namespace karma::renderer {
 

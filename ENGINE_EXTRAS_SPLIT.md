@@ -33,10 +33,10 @@ bridges, world/content loading, JSON, i18n, etc.) belongs in **karma-extras**.
 Match to KARMA-REPO equivalents:
 
 - `src/engine/app/*` (EngineApp/GameInterface/EngineConfig)
-- `src/engine/ecs/*` (world, registry, system graph, core ECS types)
+- `src/engine/ecs/*` (optional engine sync systems only; ECS core types live in `include/karma/ecs/`)
 - `src/engine/scene/*` **(currently missing; add or align)**
 - `src/engine/core/*` (core ids/types)
-- `src/engine/math/*` **(if missing, align with KARMA-REPO math headers)**
+- `src/engine/math/*` **(removed; standardize on glm instead)**
 - `src/engine/renderer/*` (device/backend/resource registry/types)
 - `src/engine/graphics/*` (renderer backend abstraction + device)
 - `src/engine/physics/*` (backend + world + rigid/static/player)
@@ -53,6 +53,7 @@ These do **not** exist in KARMA-REPO sources and should be removed from core eng
 - `src/engine/world/*` (world/content loading + fs backend)
 - `src/engine/ui/*` (RmlUi/ImGui bridges, UI overlay helpers)
 - Any engine-owned UI framework glue or UI render-target bridges
+- Engine-specific ECS render glue components (RenderMesh/RenderEntity/RenderLayer/Material/Transparency/ProceduralMesh)
 
 ## Public header mismatches (examples)
 Current `include/karma/` contains many headers not present in KARMA-REPO sources:
@@ -61,6 +62,13 @@ Current `include/karma/` contains many headers not present in KARMA-REPO sources
 - `karma/ui/*`
 - `karma/input/mapping/*` and `karma/input/bindings_text.hpp`
 These should move to `include/karma_extras/` and be compiled into `karma_extras`.
+
+## Render ECS glue (extras)
+The engine-specific ECS render components now live in:
+- `include/karma_extras/ecs/render_components.h`
+
+These are considered **extras**, not core engine, because they depend on engine
+graphics types and are not part of KARMA-REPO’s core ECS.
 
 ## src/game candidates for extras
 - Any **generic** UI/HUD/console code that is not BZ3-specific

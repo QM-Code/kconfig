@@ -2,6 +2,8 @@
 
 #include "karma/components/mesh.h"
 #include "karma/components/visibility.h"
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace karma::physics {
 
@@ -66,19 +68,16 @@ void PhysicsSystem::syncRigidBodies(ecs::World& world) {
       RigidBody rigid = physics_.createBoxBody(
           toGlm(collider.half_extents),
           body.mass,
-          toGlm(transform.position()),
+          toGlm(transform.position),
           material);
       it = rigid_bodies_.emplace(key, std::move(rigid)).first;
     }
 
     auto& body = world.get<components::RigidbodyComponent>(entity);
     auto& transform = world.get<components::TransformComponent>(entity);
-    transform.setHasPhysics(true);
-    transform.setPhysicsWriteWarning(!body.is_kinematic);
-
     glm::vec3 teleport_position{};
     if (body.consumeTeleport(teleport_position)) {
-      teleports_[key] = TeleportRequest{teleport_position, transform.rotation()};
+      teleports_[key] = TeleportRequest{teleport_position, transform.rotation};
       body.velocity = {0.0f, 0.0f, 0.0f};
       body.angular_velocity = {0.0f, 0.0f, 0.0f};
       continue;
@@ -88,11 +87,11 @@ void PhysicsSystem::syncRigidBodies(ecs::World& world) {
       if (!it->second.isValid()) {
         continue;
       }
-      it->second.setPosition(toGlm(transform.position()));
-      it->second.setRotation(toGlm(transform.rotation()));
+      it->second.setPosition(toGlm(transform.position));
+      it->second.setRotation(toGlm(transform.rotation));
       it->second.setVelocity(toGlm(body.velocity));
       it->second.setAngularVelocity(toGlm(body.angular_velocity));
-      body.syncPosition(transform.position());
+      body.syncPosition(transform.position);
     }
   }
 
@@ -140,8 +139,8 @@ void PhysicsSystem::applyTeleports(ecs::World& world) {
     }
     if (world.has<components::TransformComponent>(entity)) {
       auto& transform = world.get<components::TransformComponent>(entity);
-      transform.setPosition(teleport.position, components::TransformWriteMode::AllowPhysics);
-      transform.setRotation(teleport.rotation, components::TransformWriteMode::AllowPhysics);
+      transform.position = teleport.position;
+      transform.rotation = teleport.rotation;
     }
     if (world.has<components::RigidbodyComponent>(entity)) {
       auto& body = world.get<components::RigidbodyComponent>(entity);
@@ -171,14 +170,12 @@ void PhysicsSystem::syncDynamicBodies(ecs::World& world) {
       continue;
     }
     auto& transform = world.get<components::TransformComponent>(entity);
-    transform.setPosition(toVec3(it->second.getPosition()),
-                          components::TransformWriteMode::AllowPhysics);
-    transform.setRotation({it->second.getRotation().x, it->second.getRotation().y,
-                           it->second.getRotation().z, it->second.getRotation().w},
-                          components::TransformWriteMode::AllowPhysics);
+    transform.position = toVec3(it->second.getPosition());
+    transform.rotation = {it->second.getRotation().x, it->second.getRotation().y,
+                           it->second.getRotation().z, it->second.getRotation().w};
     body.velocity = toVec3(it->second.getVelocity());
     body.angular_velocity = toVec3(it->second.getAngularVelocity());
-    body.syncPosition(transform.position());
+    body.syncPosition(transform.position);
   }
 }
 
@@ -196,7 +193,7 @@ void PhysicsSystem::syncPlayerController(ecs::World& world, float dt) {
       player_entity_ = entity;
       has_player_ = true;
       auto& transform = world.get<components::TransformComponent>(entity);
-      controller.setPosition(toGlm(transform.position()));
+      controller.setPosition(toGlm(transform.position));
       break;
     }
   }
@@ -218,11 +215,9 @@ void PhysicsSystem::syncPlayerController(ecs::World& world, float dt) {
   controller.setVelocity(velocity);
   input.clearImpulse();
 
-  transform.setPosition(toVec3(controller.getPosition()),
-                        components::TransformWriteMode::AllowPhysics);
-  transform.setRotation({controller.getRotation().x, controller.getRotation().y,
-                         controller.getRotation().z, controller.getRotation().w},
-                        components::TransformWriteMode::AllowPhysics);
+  transform.position = toVec3(controller.getPosition());
+  transform.rotation = {controller.getRotation().x, controller.getRotation().y,
+                         controller.getRotation().z, controller.getRotation().w};
 }
 
 void PhysicsSystem::cleanupStale(ecs::World& world) {

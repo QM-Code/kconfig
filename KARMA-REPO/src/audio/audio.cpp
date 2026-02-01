@@ -5,6 +5,8 @@
 #include <utility>
 
 #include <spdlog/spdlog.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace {
 std::string buildCacheKey(const std::string& filepath, int max_instances) {

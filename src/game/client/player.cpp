@@ -3,7 +3,10 @@
 #include "karma/core/types.hpp"
 #include "game/net/messages.hpp"
 #include "client/game.hpp"
-#include "karma/ecs/components.hpp"
+#include "karma/components/audio_listener.h"
+#include "karma/components/camera.h"
+#include "karma/components/mesh.h"
+#include "karma/components/transform.h"
 #include "karma/common/config_helpers.hpp"
 #include "renderer/radar_components.hpp"
 #include <cmath>
@@ -12,6 +15,8 @@
 #include <memory>
 #include "spdlog/spdlog.h"
 #include "shot.hpp"
+
+namespace components = karma::components;
 
 Player::Player(Game &game,
                client_id id,
@@ -42,14 +47,14 @@ Player::Player(Game &game,
 
     if (game.engine.ecsWorld) {
         ecsEntity = game.engine.ecsWorld->createEntity();
-        ecs::Transform xform{};
+        components::TransformComponent xform{};
         xform.scale = glm::vec3(1.0f);
-        game.engine.ecsWorld->set(ecsEntity, xform);
+        game.engine.ecsWorld->add(ecsEntity, xform);
         game::renderer::RadarCircle circle{};
         circle.radius = 1.2f;
-        game.engine.ecsWorld->set(ecsEntity, circle);
+        game.engine.ecsWorld->add(ecsEntity, circle);
         // Local player mesh rendering is skipped to avoid first-person camera inside the tank.
-        spdlog::info("Player: ECS entity created for local player (ecs_entity={})", ecsEntity);
+        spdlog::info("Player: ECS entity created for local player (ecs_entity={})", ecsEntity.index);
     }
 
     // Initialize controller extents from parameters once params are set
@@ -60,7 +65,7 @@ Player::Player(Game &game,
 }
 
 Player::~Player() {
-    if (ecsEntity != ecs::kInvalidEntity && game.engine.ecsWorld) {
+    if (ecsEntity.isValid() && game.engine.ecsWorld) {
         game.engine.ecsWorld->destroyEntity(ecsEntity);
     }
 }
@@ -79,13 +84,14 @@ void Player::earlyUpdate() {
     bool wasGrounded = grounded;
     grounded = physics->isGrounded();
 
-    if (ecsEntity != ecs::kInvalidEntity && game.engine.ecsWorld) {
-        if (auto *transform = game.engine.ecsWorld->get<ecs::Transform>(ecsEntity)) {
-            transform->position = state.position;
-            transform->rotation = state.rotation;
+    if (ecsEntity.isValid() && game.engine.ecsWorld) {
+        if (game.engine.ecsWorld->has<components::TransformComponent>(ecsEntity)) {
+            auto &transform = game.engine.ecsWorld->get<components::TransformComponent>(ecsEntity);
+            transform.position = state.position;
+            transform.rotation = state.rotation;
         }
-        if (auto *circle = game.engine.ecsWorld->get<game::renderer::RadarCircle>(ecsEntity)) {
-            circle->enabled = state.alive;
+        if (game.engine.ecsWorld->has<game::renderer::RadarCircle>(ecsEntity)) {
+            game.engine.ecsWorld->get<game::renderer::RadarCircle>(ecsEntity).enabled = state.alive;
         }
     }
 
@@ -186,11 +192,11 @@ void Player::earlyUpdate() {
 
 void Player::lateUpdate() {
     setLocation(physics->getPosition(), physics->getRotation(), physics->getVelocity());
-    if (game.engine.cameraEntity != ecs::kInvalidEntity && game.engine.ecsWorld) {
-        if (auto *transform = game.engine.ecsWorld->get<ecs::Transform>(game.engine.cameraEntity)) {
-            transform->position = state.position + glm::vec3(0.0f, muzzleOffset.y, 0.0f);
-            transform->rotation = state.rotation;
-        }
+    if (game.engine.cameraEntity.isValid() && game.engine.ecsWorld &&
+        game.engine.ecsWorld->has<components::TransformComponent>(game.engine.cameraEntity)) {
+        auto &transform = game.engine.ecsWorld->get<components::TransformComponent>(game.engine.cameraEntity);
+        transform.position = state.position + glm::vec3(0.0f, muzzleOffset.y, 0.0f);
+        transform.rotation = state.rotation;
     }
     if (state.alive) {
         if (glm::distance(lastPosition, state.position) > POSITION_UPDATE_THRESHOLD ||
@@ -218,11 +224,11 @@ void Player::setState(const PlayerState &newState) {
         physics->setRotation(state.rotation);
         physics->setVelocity(state.velocity);
     }
-    if (ecsEntity != ecs::kInvalidEntity && game.engine.ecsWorld) {
-        if (auto *transform = game.engine.ecsWorld->get<ecs::Transform>(ecsEntity)) {
-            transform->position = state.position;
-            transform->rotation = state.rotation;
-        }
+    if (ecsEntity.isValid() && game.engine.ecsWorld &&
+        game.engine.ecsWorld->has<components::TransformComponent>(ecsEntity)) {
+        auto &transform = game.engine.ecsWorld->get<components::TransformComponent>(ecsEntity);
+        transform.position = state.position;
+        transform.rotation = state.rotation;
     }
 }
 

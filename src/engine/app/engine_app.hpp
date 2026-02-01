@@ -3,13 +3,13 @@
 #include "karma/app/engine_config.hpp"
 #include "karma/app/game_interface.hpp"
 #include "karma/core/types.hpp"
-#include "karma/ecs/system_graph.hpp"
+#include "karma/systems/system_graph.h"
 #include "karma/ecs/systems/camera_sync_system.hpp"
 #include "karma/ecs/systems/audio_sync_system.hpp"
 #include "karma/ecs/systems/physics_sync_system.hpp"
 #include "karma/ecs/systems/procedural_mesh_sync_system.hpp"
 #include "karma/ecs/systems/render_sync_system.hpp"
-#include "karma/ecs/world.hpp"
+#include "karma/ecs/world.h"
 #include "karma/ecs/systems/renderer_system.hpp"
 #include "karma/graphics/resources.hpp"
 #include "karma/renderer/renderer_context.hpp"
@@ -28,9 +28,6 @@ struct RendererContext;
 namespace ui {
 class Overlay;
 }
-namespace ecs {
-class World;
-}
 namespace platform {
 class Window;
 }
@@ -43,7 +40,7 @@ struct EngineContext {
     Audio *audio = nullptr;
     PhysicsWorld *physics = nullptr;
     ui::Overlay *overlay = nullptr;
-    ecs::World *ecsWorld = nullptr;
+    karma::ecs::World *ecsWorld = nullptr;
     graphics::ResourceRegistry *resources = nullptr;
     graphics::MaterialId defaultMaterial = graphics::kInvalidMaterial;
     engine::renderer::RendererContext rendererContext{};
@@ -74,8 +71,8 @@ private:
     float fixed_accumulator_ = 0.0f;
     TimeUtils::time last_tick_time_ = TimeUtils::GetCurrentTime();
     EngineContext context_{};
-    ecs::World ecsWorld_{};
-    ecs::SystemGraph systemGraph_{};
+    karma::ecs::World ecsWorld_{};
+    systems::SystemGraph systemGraph_{};
     ecs::RendererSystem rendererSystem_{};
     ecs::RenderSyncSystem renderSyncSystem_{};
     ecs::PhysicsSyncSystem physicsSyncSystem_{};

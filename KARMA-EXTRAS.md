@@ -15,6 +15,7 @@ Goal:
 - `src/karma-extras/` must be repo-ready from the start: its own public headers, CMake targets, install/export, and minimal documentation.
 - Dependency direction is one-way: `karma-extras` can depend on `karma`, but `karma` must never depend on `karma-extras`.
 - Use the name `karma-extras` consistently (typos like `karmak-extras` should be corrected).
+- Engine-specific ECS render glue (RenderMesh/RenderEntity/RenderLayer/Material/Transparency/ProceduralMesh) now lives in `include/karma_extras/ecs/render_components.h` and is considered **extras**, not core.
 
 ## Phase 0 — Inventory + decision map
 - Walk `src/engine/` and `src/game/` and tag each module:

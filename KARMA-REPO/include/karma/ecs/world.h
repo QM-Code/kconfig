@@ -11,16 +11,18 @@
 #include "karma/ecs/component_storage.h"
 #include "karma/ecs/entity_registry.h"
 
-#include "karma/components/rigidbody.h"
-#include "karma/components/transform.h"
-
 namespace karma::ecs {
 
 class World {
  public:
   Entity createEntity() { return registry_.create(); }
 
-  void destroyEntity(Entity entity) { registry_.destroy(entity); }
+  void destroyEntity(Entity entity) {
+    registry_.destroy(entity);
+    for (auto& entry : storages_) {
+      entry.second->remove(entity);
+    }
+  }
 
   bool isAlive(Entity entity) const { return registry_.isAlive(entity); }
 
@@ -29,21 +31,7 @@ class World {
     if constexpr (HasValidate<T>::value) {
       T::Validate(*this, entity);
     }
-    if constexpr (std::is_same_v<T, components::TransformComponent>) {
-      if (has<components::RigidbodyComponent>(entity)) {
-        const auto& body = get<components::RigidbodyComponent>(entity);
-        component.setHasPhysics(true);
-        component.setPhysicsWriteWarning(!body.is_kinematic);
-      }
-    }
     getStorage<T>().data.add(entity, std::move(component));
-    if constexpr (std::is_same_v<T, components::RigidbodyComponent>) {
-      if (has<components::TransformComponent>(entity)) {
-        auto& transform = get<components::TransformComponent>(entity);
-        transform.setHasPhysics(true);
-        transform.setPhysicsWriteWarning(!component.is_kinematic);
-      }
-    }
   }
 
   template <typename T>
@@ -64,13 +52,6 @@ class World {
   template <typename T>
   void remove(Entity entity) {
     getStorage<T>().data.remove(entity);
-    if constexpr (std::is_same_v<T, components::RigidbodyComponent>) {
-      if (has<components::TransformComponent>(entity)) {
-        auto& transform = get<components::TransformComponent>(entity);
-        transform.setHasPhysics(false);
-        transform.setPhysicsWriteWarning(true);
-      }
-    }
   }
 
   template <typename T>
@@ -109,11 +90,14 @@ class World {
 
   struct IStorage {
     virtual ~IStorage() = default;
+    virtual void remove(Entity entity) = 0;
   };
 
   template <typename T>
   struct Storage : IStorage {
     ComponentStorage<T> data;
+
+    void remove(Entity entity) override { data.remove(entity); }
   };
 
   template <typename T>

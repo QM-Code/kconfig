@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <glm/glm.hpp>
 
 namespace karma::platform {
 class Window;

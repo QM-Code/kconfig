@@ -1,6 +1,6 @@
-# src/engine/ui/platform/AGENTS.md
+# src/karma-extras/ui/platform/AGENTS.md
 
-Read `src/engine/ui/AGENTS.md` first.
+Read `src/karma-extras/ui/AGENTS.md` first.
 This directory contains **RmlUi render interfaces** for each graphics backend.
 
 ## Backends

@@ -21,6 +21,8 @@
 #include <cstdio>
 #include <spdlog/spdlog.h>
 #include <thread>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace {
 using namespace JPH;

@@ -2,6 +2,8 @@
 
 #include "karma/physics/backend.hpp"
 #include <memory>
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 class btCollisionShape;
 class btRigidBody;

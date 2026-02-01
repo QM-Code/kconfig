@@ -9,6 +9,13 @@ endif()
 
 add_library(karma_extras STATIC
     ${PROJECT_SOURCE_DIR}/src/karma-extras/karma_extras.cpp
+    ${PROJECT_SOURCE_DIR}/src/karma-extras/world/content.cpp
+    ${PROJECT_SOURCE_DIR}/src/karma-extras/world/backend_factory.cpp
+    ${PROJECT_SOURCE_DIR}/src/karma-extras/world/backends/fs/backend.cpp
+    ${PROJECT_SOURCE_DIR}/src/karma-extras/ui/platform/imgui/renderer_bgfx.cpp
+    ${PROJECT_SOURCE_DIR}/src/karma-extras/ui/platform/imgui/renderer_diligent.cpp
+    ${PROJECT_SOURCE_DIR}/src/karma-extras/ui/platform/rmlui/renderer_bgfx.cpp
+    ${PROJECT_SOURCE_DIR}/src/karma-extras/ui/platform/rmlui/renderer_diligent.cpp
 )
 add_library(karma_extras::karma_extras ALIAS karma_extras)
 

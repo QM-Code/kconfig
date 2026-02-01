@@ -10,6 +10,8 @@
 #include "karma/ecs/world.h"
 #include "karma/physics/physics_world.hpp"
 #include "karma/systems/system.h"
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 namespace karma::physics {
 

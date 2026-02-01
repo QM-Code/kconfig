@@ -6,6 +6,7 @@
 #include "karma/components/transform.h"
 #include "karma/ecs/component.h"
 #include "karma/ecs/world.h"
+#include <glm/glm.hpp>
 
 namespace karma::components {
 
