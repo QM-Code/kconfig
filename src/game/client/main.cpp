@@ -25,6 +25,7 @@
 #include "karma/common/i18n.hpp"
 #include "karma/platform/window.hpp"
 #include "ui/config/ui_config.hpp"
+#include "ui/core/ui_layer_adapter.hpp"
 
 namespace components = karma::components;
 
@@ -676,7 +677,7 @@ int main(int argc, char *argv[]) {
     app.context().input = engine.input;
     app.context().audio = engine.audio;
     app.context().physics = engine.physics;
-    app.context().overlay = engine.ui;
+    app.setUi(std::move(engine.uiLayer));
     engine.ecsWorld = app.context().ecsWorld;
     engine.render->setEcsWorld(app.context().ecsWorld);
     app.context().rendererCore = engine.render->getRendererCore();

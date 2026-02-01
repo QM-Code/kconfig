@@ -13,6 +13,7 @@
 #include "karma/ecs/systems/renderer_system.hpp"
 #include "karma/graphics/resources.hpp"
 #include "karma/renderer/renderer_context.hpp"
+#include "karma/app/ui_context.h"
 #include <memory>
 
 namespace graphics {
@@ -25,9 +26,6 @@ namespace engine::renderer {
 class RendererCore;
 struct RendererContext;
 }
-namespace ui {
-class Overlay;
-}
 namespace platform {
 class Window;
 }
@@ -39,7 +37,6 @@ struct EngineContext {
     Input *input = nullptr;
     Audio *audio = nullptr;
     PhysicsWorld *physics = nullptr;
-    ui::Overlay *overlay = nullptr;
     karma::ecs::World *ecsWorld = nullptr;
     graphics::ResourceRegistry *resources = nullptr;
     graphics::MaterialId defaultMaterial = graphics::kInvalidMaterial;
@@ -56,7 +53,7 @@ public:
     void setConfig(const EngineConfig &config);
     EngineConfig &config();
     const EngineConfig &config() const;
-    void setOverlay(std::unique_ptr<ui::Overlay> overlay);
+    void setUi(std::unique_ptr<UiLayer> ui);
     bool start(GameInterface &game, const EngineConfig &config);
     void tick();
     bool isRunning() const;
@@ -80,7 +77,8 @@ private:
     ecs::CameraSyncSystem cameraSyncSystem_{};
     ecs::ProceduralMeshSyncSystem proceduralMeshSyncSystem_{};
     std::unique_ptr<graphics::ResourceRegistry> resources_{};
-    std::unique_ptr<ui::Overlay> owned_overlay_{};
+    std::unique_ptr<UiLayer> ui_layer_{};
+    UIContext ui_context_{};
     int lastFramebufferWidth_ = 0;
     int lastFramebufferHeight_ = 0;
 };

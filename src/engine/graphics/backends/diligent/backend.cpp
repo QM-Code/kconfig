@@ -826,6 +826,156 @@ void DiligentBackend::renderUiOverlay() {
     context_->Draw(drawAttrs);
 }
 
+void DiligentBackend::renderUiDrawData(
+    const karma::app::UIDrawData& drawData,
+    const std::function<bool(karma::app::UITextureHandle, graphics::TextureHandle&)>& resolveTexture,
+    int viewportW,
+    int viewportH,
+    float /*dpiScale*/) {
+    if (!initialized || !device_ || !context_) {
+        return;
+    }
+    if (viewportW <= 0 || viewportH <= 0) {
+        return;
+    }
+    if (drawData.commands.empty() || drawData.vertices.empty() || drawData.indices.empty()) {
+        return;
+    }
+
+    ensureUiDrawPipeline();
+    if (!uiDrawPipeline_ || !uiDrawPipelinePremult_ || !uiDrawConstants_) {
+        return;
+    }
+
+    const uint32_t vertexCount = static_cast<uint32_t>(drawData.vertices.size());
+    const uint32_t indexCount = static_cast<uint32_t>(drawData.indices.size());
+
+    const uint32_t vertexBytes = vertexCount * sizeof(karma::app::UIVertex);
+    if (!uiDrawVertexBuffer_ || vertexCount > uiDrawVertexCapacity_) {
+        Diligent::BufferDesc vbDesc;
+        vbDesc.Name = "KARMA Diligent UI Draw VB";
+        vbDesc.Usage = Diligent::USAGE_DYNAMIC;
+        vbDesc.BindFlags = Diligent::BIND_VERTEX_BUFFER;
+        vbDesc.CPUAccessFlags = Diligent::CPU_ACCESS_WRITE;
+        vbDesc.Size = vertexBytes;
+        device_->CreateBuffer(vbDesc, nullptr, &uiDrawVertexBuffer_);
+        uiDrawVertexCapacity_ = vertexCount;
+    }
+
+    const uint32_t indexBytes = indexCount * sizeof(uint32_t);
+    if (!uiDrawIndexBuffer_ || indexCount > uiDrawIndexCapacity_) {
+        Diligent::BufferDesc ibDesc;
+        ibDesc.Name = "KARMA Diligent UI Draw IB";
+        ibDesc.Usage = Diligent::USAGE_DYNAMIC;
+        ibDesc.BindFlags = Diligent::BIND_INDEX_BUFFER;
+        ibDesc.CPUAccessFlags = Diligent::CPU_ACCESS_WRITE;
+        ibDesc.Size = indexBytes;
+        device_->CreateBuffer(ibDesc, nullptr, &uiDrawIndexBuffer_);
+        uiDrawIndexCapacity_ = indexCount;
+    }
+
+    if (!uiDrawVertexBuffer_ || !uiDrawIndexBuffer_) {
+        return;
+    }
+
+    {
+        Diligent::MapHelper<karma::app::UIVertex> vtxData(context_, uiDrawVertexBuffer_,
+                                                          Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
+        std::memcpy(vtxData, drawData.vertices.data(), vertexBytes);
+    }
+    {
+        Diligent::MapHelper<uint32_t> idxData(context_, uiDrawIndexBuffer_,
+                                              Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
+        std::memcpy(idxData, drawData.indices.data(), indexBytes);
+    }
+
+    const float scaleBias[4] = {
+        2.0f / static_cast<float>(viewportW),
+        -2.0f / static_cast<float>(viewportH),
+        -1.0f,
+        1.0f
+    };
+    {
+        Diligent::MapHelper<float> cbData(context_, uiDrawConstants_,
+                                          Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
+        cbData[0] = scaleBias[0];
+        cbData[1] = scaleBias[1];
+        cbData[2] = scaleBias[2];
+        cbData[3] = scaleBias[3];
+    }
+
+    auto* rtv = swapChain_ ? swapChain_->GetCurrentBackBufferRTV() : nullptr;
+    if (!rtv) {
+        return;
+    }
+    context_->SetRenderTargets(1, &rtv, nullptr, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+    Diligent::Viewport vp{};
+    vp.TopLeftX = 0.0f;
+    vp.TopLeftY = 0.0f;
+    vp.Width = static_cast<float>(viewportW);
+    vp.Height = static_cast<float>(viewportH);
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+    context_->SetViewports(1, &vp, 0, 0);
+
+    const Diligent::Uint64 vbOffset = 0;
+    Diligent::IBuffer* vbs[] = {uiDrawVertexBuffer_};
+    context_->SetVertexBuffers(0, 1, vbs, &vbOffset, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
+                               Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
+    context_->SetIndexBuffer(uiDrawIndexBuffer_, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+    Diligent::IPipelineState* pipeline = drawData.premultiplied_alpha ? uiDrawPipelinePremult_ : uiDrawPipeline_;
+    Diligent::IShaderResourceBinding* binding = drawData.premultiplied_alpha ? uiDrawBindingPremult_ : uiDrawBinding_;
+    if (!pipeline || !binding) {
+        return;
+    }
+
+    context_->SetPipelineState(pipeline);
+    if (auto* var = binding->GetVariableByName(Diligent::SHADER_TYPE_VERTEX, "Constants")) {
+        var->Set(uiDrawConstants_);
+    }
+
+    for (const auto& cmd : drawData.commands) {
+        graphics::TextureHandle texture{};
+        if (!resolveTexture(cmd.texture, texture) || !texture.valid()) {
+            continue;
+        }
+        auto* srv = graphics_backend::diligent_ui::ResolveExternalTexture(texture.id);
+        if (!srv) {
+            continue;
+        }
+        if (auto* var = binding->GetVariableByName(Diligent::SHADER_TYPE_PIXEL, "g_Texture")) {
+            var->Set(srv);
+        }
+
+        if (cmd.scissor_enabled) {
+            const int left = std::max(0, cmd.scissor_x);
+            const int top = std::max(0, cmd.scissor_y);
+            const int right = std::min(viewportW, cmd.scissor_x + cmd.scissor_w);
+            const int bottom = std::min(viewportH, cmd.scissor_y + cmd.scissor_h);
+            if (right <= left || bottom <= top) {
+                continue;
+            }
+            Diligent::Rect scissor{left, top, right, bottom};
+            context_->SetScissorRects(1, &scissor, 0, 0);
+        } else {
+            Diligent::Rect scissor{0, 0, viewportW, viewportH};
+            context_->SetScissorRects(1, &scissor, 0, 0);
+        }
+
+        context_->CommitShaderResources(binding, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+        Diligent::DrawIndexedAttribs drawAttrs{};
+        drawAttrs.IndexType = Diligent::VT_UINT32;
+        drawAttrs.NumIndices = cmd.index_count;
+        drawAttrs.FirstIndexLocation = cmd.index_offset;
+        drawAttrs.BaseVertex = 0;
+        drawAttrs.Flags = Diligent::DRAW_FLAG_VERIFY_ALL;
+        context_->DrawIndexed(drawAttrs);
+    }
+}
+
 void DiligentBackend::setBrightness(float brightness) {
     brightness_ = brightness;
 }
@@ -1473,6 +1623,149 @@ float4 main(float2 uv : TEXCOORD0) : SV_Target
     vbData.pData = verts;
     vbData.DataSize = vbDesc.Size;
     device_->CreateBuffer(vbDesc, &vbData, &uiOverlayVertexBuffer_);
+}
+
+void DiligentBackend::ensureUiDrawPipeline() {
+    if (!initialized || !device_) {
+        return;
+    }
+    if (uiDrawPipeline_ && uiDrawPipelinePremult_ && uiDrawConstants_) {
+        return;
+    }
+
+    const char* vsSource = R"(
+cbuffer Constants
+{
+    float4 ScaleBias;
+};
+struct VSInput
+{
+    float2 Pos   : ATTRIB0;
+    float2 UV    : ATTRIB1;
+    float4 Color : ATTRIB2;
+};
+struct PSInput
+{
+    float4 Pos   : SV_POSITION;
+    float2 UV    : TEXCOORD0;
+    float4 Color : COLOR0;
+};
+PSInput main(VSInput In)
+{
+    PSInput Out;
+    Out.Pos = float4(In.Pos.xy * ScaleBias.xy + ScaleBias.zw, 0.0, 1.0);
+    Out.UV = In.UV;
+    Out.Color = In.Color;
+    return Out;
+}
+)";
+
+    const char* psSource = R"(
+Texture2D g_Texture;
+SamplerState g_Texture_sampler;
+float4 main(float2 uv : TEXCOORD0, float4 color : COLOR0) : SV_Target
+{
+    return g_Texture.Sample(g_Texture_sampler, uv) * color;
+}
+)";
+
+    Diligent::ShaderCreateInfo shaderCI;
+    shaderCI.SourceLanguage = Diligent::SHADER_SOURCE_LANGUAGE_HLSL;
+    shaderCI.EntryPoint = "main";
+
+    Diligent::RefCntAutoPtr<Diligent::IShader> vs;
+    shaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_VERTEX;
+    shaderCI.Desc.Name = "KARMA Diligent UI Draw VS";
+    shaderCI.Source = vsSource;
+    device_->CreateShader(shaderCI, &vs);
+
+    Diligent::RefCntAutoPtr<Diligent::IShader> ps;
+    shaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_PIXEL;
+    shaderCI.Desc.Name = "KARMA Diligent UI Draw PS";
+    shaderCI.Source = psSource;
+    device_->CreateShader(shaderCI, &ps);
+
+    if (!vs || !ps) {
+        spdlog::error("Graphics(Diligent): failed to create UI draw shaders");
+        return;
+    }
+
+    auto createPipeline = [&](Diligent::BLEND_FACTOR srcBlend) -> Diligent::RefCntAutoPtr<Diligent::IPipelineState> {
+        Diligent::GraphicsPipelineStateCreateInfo psoCI;
+        psoCI.PSODesc.PipelineType = Diligent::PIPELINE_TYPE_GRAPHICS;
+        psoCI.pVS = vs;
+        psoCI.pPS = ps;
+        psoCI.GraphicsPipeline.PrimitiveTopology = Diligent::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        psoCI.GraphicsPipeline.RasterizerDesc.CullMode = Diligent::CULL_MODE_NONE;
+        psoCI.GraphicsPipeline.DepthStencilDesc.DepthEnable = false;
+        psoCI.GraphicsPipeline.DepthStencilDesc.DepthWriteEnable = false;
+        psoCI.GraphicsPipeline.NumRenderTargets = 1;
+        if (swapChain_) {
+            const auto& scDesc = swapChain_->GetDesc();
+            psoCI.GraphicsPipeline.RTVFormats[0] = scDesc.ColorBufferFormat;
+            psoCI.GraphicsPipeline.DSVFormat = scDesc.DepthBufferFormat;
+        }
+
+        auto& rt0 = psoCI.GraphicsPipeline.BlendDesc.RenderTargets[0];
+        rt0.BlendEnable = true;
+        rt0.SrcBlend = srcBlend;
+        rt0.DestBlend = Diligent::BLEND_FACTOR_INV_SRC_ALPHA;
+        rt0.BlendOp = Diligent::BLEND_OPERATION_ADD;
+        rt0.SrcBlendAlpha = Diligent::BLEND_FACTOR_ONE;
+        rt0.DestBlendAlpha = Diligent::BLEND_FACTOR_INV_SRC_ALPHA;
+        rt0.BlendOpAlpha = Diligent::BLEND_OPERATION_ADD;
+
+        Diligent::LayoutElement layout[] = {
+            {0, 0, 2, Diligent::VT_FLOAT32, false},
+            {1, 0, 2, Diligent::VT_FLOAT32, false},
+            {2, 0, 4, Diligent::VT_UINT8, true}
+        };
+        psoCI.GraphicsPipeline.InputLayout.LayoutElements = layout;
+        psoCI.GraphicsPipeline.InputLayout.NumElements = static_cast<Diligent::Uint32>(std::size(layout));
+
+        Diligent::ShaderResourceVariableDesc vars[] = {
+            {Diligent::SHADER_TYPE_PIXEL, "g_Texture", Diligent::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC},
+            {Diligent::SHADER_TYPE_VERTEX, "Constants", Diligent::SHADER_RESOURCE_VARIABLE_TYPE_DYNAMIC}
+        };
+        psoCI.PSODesc.ResourceLayout.Variables = vars;
+        psoCI.PSODesc.ResourceLayout.NumVariables = static_cast<Diligent::Uint32>(std::size(vars));
+
+        Diligent::SamplerDesc samplerDesc;
+        samplerDesc.MinFilter = Diligent::FILTER_TYPE_LINEAR;
+        samplerDesc.MagFilter = Diligent::FILTER_TYPE_LINEAR;
+        samplerDesc.MipFilter = Diligent::FILTER_TYPE_LINEAR;
+        samplerDesc.AddressU = Diligent::TEXTURE_ADDRESS_CLAMP;
+        samplerDesc.AddressV = Diligent::TEXTURE_ADDRESS_CLAMP;
+        samplerDesc.AddressW = Diligent::TEXTURE_ADDRESS_CLAMP;
+
+        Diligent::ImmutableSamplerDesc samplers[] = {
+            {Diligent::SHADER_TYPE_PIXEL, "g_Texture_sampler", samplerDesc}
+        };
+        psoCI.PSODesc.ResourceLayout.ImmutableSamplers = samplers;
+        psoCI.PSODesc.ResourceLayout.NumImmutableSamplers = static_cast<Diligent::Uint32>(std::size(samplers));
+
+        Diligent::RefCntAutoPtr<Diligent::IPipelineState> pipeline;
+        device_->CreatePipelineState(psoCI, &pipeline);
+        return pipeline;
+    };
+
+    uiDrawPipeline_ = createPipeline(Diligent::BLEND_FACTOR_SRC_ALPHA);
+    uiDrawPipelinePremult_ = createPipeline(Diligent::BLEND_FACTOR_ONE);
+    if (!uiDrawPipeline_ || !uiDrawPipelinePremult_) {
+        spdlog::error("Graphics(Diligent): failed to create UI draw pipeline");
+        return;
+    }
+
+    uiDrawPipeline_->CreateShaderResourceBinding(&uiDrawBinding_, true);
+    uiDrawPipelinePremult_->CreateShaderResourceBinding(&uiDrawBindingPremult_, true);
+
+    Diligent::BufferDesc cbDesc;
+    cbDesc.Name = "KARMA UI Draw Constants";
+    cbDesc.Usage = Diligent::USAGE_DYNAMIC;
+    cbDesc.BindFlags = Diligent::BIND_UNIFORM_BUFFER;
+    cbDesc.CPUAccessFlags = Diligent::CPU_ACCESS_WRITE;
+    cbDesc.Size = sizeof(float) * 4;
+    device_->CreateBuffer(cbDesc, nullptr, &uiDrawConstants_);
 }
 
 void DiligentBackend::ensureBrightnessPipeline() {

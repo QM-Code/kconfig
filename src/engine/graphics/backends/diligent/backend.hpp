@@ -2,6 +2,7 @@
 
 #include "karma/graphics/backend.hpp"
 #include <DiligentCore/Common/interface/RefCntAutoPtr.hpp>
+#include <functional>
 #include <unordered_map>
 
 namespace Diligent {
@@ -58,6 +59,11 @@ public:
     void setUiOverlayTexture(const graphics::TextureHandle& texture) override;
     void setUiOverlayVisible(bool visible) override;
     void renderUiOverlay() override;
+    void renderUiDrawData(const karma::app::UIDrawData& drawData,
+                          const std::function<bool(karma::app::UITextureHandle, graphics::TextureHandle&)>& resolveTexture,
+                          int viewportW,
+                          int viewportH,
+                          float dpiScale) override;
     void setBrightness(float brightness) override;
 
     void setPosition(graphics::EntityId entity, const glm::vec3& position) override;
@@ -157,6 +163,15 @@ private:
     uint32_t uiOverlayWidth_ = 0;
     uint32_t uiOverlayHeight_ = 0;
     bool uiOverlayVisible_ = false;
+    Diligent::RefCntAutoPtr<Diligent::IPipelineState> uiDrawPipeline_;
+    Diligent::RefCntAutoPtr<Diligent::IPipelineState> uiDrawPipelinePremult_;
+    Diligent::RefCntAutoPtr<Diligent::IShaderResourceBinding> uiDrawBinding_;
+    Diligent::RefCntAutoPtr<Diligent::IShaderResourceBinding> uiDrawBindingPremult_;
+    Diligent::RefCntAutoPtr<Diligent::IBuffer> uiDrawVertexBuffer_;
+    Diligent::RefCntAutoPtr<Diligent::IBuffer> uiDrawIndexBuffer_;
+    Diligent::RefCntAutoPtr<Diligent::IBuffer> uiDrawConstants_;
+    uint32_t uiDrawVertexCapacity_ = 0;
+    uint32_t uiDrawIndexCapacity_ = 0;
 
     float brightness_ = 1.0f;
     RenderTargetRecord sceneTarget_;
@@ -186,6 +201,7 @@ private:
     void updateSwapChain(int width, int height);
     void buildSkyboxResources();
     void ensureUiOverlayPipeline();
+    void ensureUiDrawPipeline();
     void ensureBrightnessPipeline();
     void ensureSceneTarget(int width, int height);
     void destroySceneTarget();

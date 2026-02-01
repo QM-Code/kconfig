@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "karma/ui/types.hpp"
+#include "karma_extras/ui/types.hpp"
 
 struct ScoreboardEntry {
     std::string name;

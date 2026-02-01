@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "karma/graphics/texture_handle.hpp"
-#include "karma/ui/types.hpp"
+#include "karma_extras/ui/types.hpp"
 
 namespace ui {
 

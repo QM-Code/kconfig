@@ -120,7 +120,7 @@ Intended end state for public headers:
 - `karma/audio/*` — audio public API (no backend details)
 - `karma/physics/*` — physics public API (no backend details)
 - `karma/network/*` — transport API (public only)
-- `karma/ui/*` — Overlay interface + UI types
+- `karma/app/ui_*` — UiLayer + UIContext + UIDrawData (framework-agnostic UI draw data)
 
 Anything not intended for external use should live only under `src/engine/`
 and not be reachable from `include/karma/*`.

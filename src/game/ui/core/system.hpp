@@ -13,7 +13,7 @@
 #include "ui/core/types.hpp"
 #include "ui/core/validation.hpp"
 #include "ui/console/console_interface.hpp"
-#include "karma/ui/overlay.hpp"
+#include "karma_extras/ui/overlay.hpp"
 #include "karma_extras/ui/bridges/renderer_bridge.hpp"
 
 namespace platform {
@@ -24,7 +24,7 @@ namespace ui_backend {
 class Backend;
 }
 
-class UiSystem : public ui::Overlay {
+class UiSystem {
 
 public:
     UiSystem(platform::Window &window);
@@ -32,8 +32,8 @@ public:
 
     ui::ConsoleInterface &console();
     const ui::ConsoleInterface &console() const;
-    void handleEvents(const std::vector<platform::Event> &events) override;
-    void update() override;
+    void handleEvents(const std::vector<platform::Event> &events);
+    void update();
 
 private:
     std::unique_ptr<ui_backend::Backend> backend;
@@ -61,8 +61,8 @@ public:
     std::optional<ui::QuickMenuAction> consumeQuickMenuAction();
     bool consumeKeybindingsReloadRequest();
     void setRendererBridge(const ui::RendererBridge *bridge);
-    ui::RenderOutput getRenderOutput() const override;
-    float getRenderBrightness() const override;
+    ui::RenderOutput getRenderOutput() const;
+    float getRenderBrightness() const;
     bool isUiInputEnabled() const;
     bool isGameplayInputEnabled() const;
 };

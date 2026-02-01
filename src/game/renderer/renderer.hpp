@@ -6,7 +6,6 @@
 #include "karma/renderer/renderer_context.hpp"
 #include "karma/renderer/renderer_core.hpp"
 #include "karma/renderer/scene_renderer.hpp"
-#include "karma/graphics/ui_render_target_bridge.hpp"
 #include "renderer/radar_renderer.hpp"
 #include "karma_extras/ui/bridges/ui_render_target_bridge.hpp"
 
@@ -34,8 +33,7 @@ private:
     render_id nextId = 1;
 
     std::unique_ptr<game::renderer::RadarRenderer> radarRenderer_;
-    std::unique_ptr<graphics_backend::UiRenderTargetBridge> imguiBridge_;
-    std::unique_ptr<ui::UiRenderTargetBridge> uiRenderTargetBridge_;
+    std::unique_ptr<ui::UiRenderTargetBridge> imguiBridge_;
     struct RadarEcsEntry {
         render_id id = 0;
         std::string mesh_key{};

@@ -57,7 +57,7 @@ These do **not** exist in KARMA-REPO sources and should be removed from core eng
 
 ## Public header mismatches (examples)
 Current `include/karma/` contains many headers not present in KARMA-REPO sources:
-- `karma/ui/*`
+- `karma/app/ui_*` (draw data + UiLayer) should live in core; framework bridges live in extras
 - `karma/input/mapping/*` and `karma/input/bindings_text.hpp`
 These should move to `include/karma_extras/` and be compiled into `karma_extras`.
 

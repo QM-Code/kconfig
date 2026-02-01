@@ -9,6 +9,7 @@
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/i18n.hpp"
 #include "karma/components/transform.h"
+#include "ui/core/ui_layer_adapter.hpp"
 #include <cstdint>
 #include <stdexcept>
 #include <vector>
@@ -75,6 +76,7 @@ ClientEngine::ClientEngine(platform::Window &window) {
     spdlog::trace("ClientEngine: Input initialized successfully");
     ui = new UiSystem(window);
     ui->setRendererBridge(rendererBridgeImpl);
+    uiLayer = std::make_unique<UiLayerAdapter>(*ui);
     spdlog::trace("ClientEngine: UiSystem initialized successfully");
     lastLanguage = karma::i18n::Get().language();
     ui->setDialogText(game_input::SpawnHintText(*input));

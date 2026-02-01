@@ -2,6 +2,7 @@
 
 #include "karma/graphics/backend.hpp"
 #include <bgfx/bgfx.h>
+#include <functional>
 #include <unordered_map>
 
 namespace graphics_backend {
@@ -54,6 +55,11 @@ public:
     void setUiOverlayTexture(const graphics::TextureHandle& texture) override;
     void setUiOverlayVisible(bool visible) override;
     void renderUiOverlay() override;
+    void renderUiDrawData(const karma::app::UIDrawData& drawData,
+                          const std::function<bool(karma::app::UITextureHandle, graphics::TextureHandle&)>& resolveTexture,
+                          int viewportW,
+                          int viewportH,
+                          float dpiScale) override;
     void setBrightness(float brightness) override;
 
     void setPosition(graphics::EntityId entity, const glm::vec3& position) override;

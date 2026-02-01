@@ -1,6 +1,6 @@
 #pragma once
 
-#include "karma/graphics/ui_render_target_bridge.hpp"
+#include "karma_extras/ui/bridges/ui_render_target_bridge.hpp"
 
 #include <bgfx/bgfx.h>
 #include <cstdint>
@@ -8,7 +8,7 @@
 
 namespace graphics_backend {
 
-class BgfxRenderer final : public UiRenderTargetBridge {
+class BgfxRenderer final : public ui::UiRenderTargetBridge {
 public:
     BgfxRenderer();
     ~BgfxRenderer() override;

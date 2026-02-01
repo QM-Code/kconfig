@@ -24,6 +24,7 @@ endif()
 ## Separate engine sources for client and server to avoid over-linking
 set(ENGINE_CLIENT_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/app/engine_app.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/ui_context.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/geometry/mesh_loader.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/enet_transport.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/transport_factory.cpp
@@ -41,6 +42,7 @@ set(ENGINE_CLIENT_SOURCES
 )
 set(ENGINE_SERVER_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/app/engine_app.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/ui_context.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/geometry/mesh_loader.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/enet_transport.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/transport_factory.cpp

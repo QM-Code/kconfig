@@ -1,8 +1,6 @@
 #include "karma/app/engine_app.hpp"
 #include "karma/core/types.hpp"
 #include "karma/renderer/renderer_core.hpp"
-#include "karma/ui/overlay.hpp"
-#include "karma/ui/types.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
 #include "karma/input/input.hpp"
@@ -35,9 +33,8 @@ const EngineConfig &EngineApp::config() const {
     return config_;
 }
 
-void EngineApp::setOverlay(std::unique_ptr<ui::Overlay> overlay) {
-    owned_overlay_ = std::move(overlay);
-    context_.overlay = owned_overlay_.get();
+void EngineApp::setUi(std::unique_ptr<UiLayer> ui) {
+    ui_layer_ = std::move(ui);
 }
 
 bool EngineApp::start(GameInterface &game, const EngineConfig &config) {
@@ -119,12 +116,24 @@ void EngineApp::tick() {
         context_.input->pumpEvents(events);
     }
 #endif
-    if (context_.overlay) {
-        context_.overlay->handleEvents(events);
+    if (ui_layer_) {
+        for (const auto &event : events) {
+            ui_layer_->onEvent(event);
+        }
     }
     game_->onUpdate(dt);
-    if (context_.overlay) {
-        context_.overlay->update();
+    if (ui_layer_) {
+        UIFrameInfo frame{};
+        frame.dt = dt;
+        frame.viewport_w = lastFramebufferWidth_;
+        frame.viewport_h = lastFramebufferHeight_;
+        if (context_.window) {
+            frame.dpi_scale = context_.window->getContentScale();
+        }
+        ui_context_.setFrameInfo(frame);
+        ui_context_.setInput(context_.input);
+        ui_context_.clearFrame();
+        ui_layer_->onFrame(ui_context_);
     }
     if (context_.window) {
         context_.window->clearEvents();
@@ -159,23 +168,27 @@ void EngineApp::tick() {
 #ifndef KARMA_SERVER
     if (context_.rendererCore) {
         context_.rendererCore->scene().renderMain(context_.rendererContext);
-        if (context_.overlay) {
-            const ui::RenderOutput output = context_.overlay->getRenderOutput();
-            context_.rendererCore->scene().setUiOverlayTexture(output.texture, output.valid());
+        if (ui_layer_) {
             if (!std::getenv("KARMA_DISABLE_UI_OVERLAY")) {
-                context_.rendererCore->scene().renderUiOverlay();
+                context_.rendererCore->scene().renderUi(ui_context_);
             }
-            context_.rendererCore->scene().setBrightness(context_.overlay->getRenderBrightness());
+            context_.rendererCore->scene().setBrightness(ui_context_.brightness());
         }
         context_.rendererCore->scene().endFrame();
     }
 #endif
     if (game_->shouldQuit()) {
         running_ = false;
+        if (ui_layer_) {
+            ui_layer_->onShutdown();
+        }
         game_->onShutdown();
     }
     if (context_.window && context_.window->shouldClose()) {
         running_ = false;
+        if (ui_layer_) {
+            ui_layer_->onShutdown();
+        }
         game_->onShutdown();
     }
 }

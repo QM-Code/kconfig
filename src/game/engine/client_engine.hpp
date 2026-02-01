@@ -34,6 +34,7 @@ public:
     Input *input;
     game_input::InputState inputState;
     UiSystem *ui;
+    std::unique_ptr<karma::app::UiLayer> uiLayer;
     Audio *audio;
     karma::ecs::World *ecsWorld = nullptr;
     karma::ecs::Entity cameraEntity{};

@@ -43,7 +43,7 @@
 
 namespace {
 
-constexpr bgfx::ViewId kRmlUiView = 254;
+constexpr bgfx::ViewId kRmlUiView = 244;
 
 struct RmlUiVertex {
     float x;

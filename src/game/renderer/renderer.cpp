@@ -1,6 +1,6 @@
 #include "renderer/renderer.hpp"
 #include "renderer/radar_components.hpp"
-#include "karma/graphics/ui_render_target_bridge.hpp"
+#include "karma_extras/ui/bridges/ui_render_target_bridge.hpp"
 #include "karma/graphics/resources.hpp"
 
 #if defined(KARMA_UI_BACKEND_IMGUI)
@@ -18,49 +18,6 @@
 
 namespace components = karma::components;
 
-namespace {
-
-class RendererUiBridge final : public ui::UiRenderTargetBridge {
-public:
-    explicit RendererUiBridge(graphics_backend::UiRenderTargetBridge* bridge)
-        : bridge_(bridge) {}
-
-    void* toImGuiTextureId(const graphics::TextureHandle& texture) const override {
-        return bridge_ ? bridge_->toImGuiTextureId(texture) : nullptr;
-    }
-
-    void rebuildImGuiFonts(ImFontAtlas* atlas) override {
-        if (bridge_) {
-            bridge_->rebuildImGuiFonts(atlas);
-        }
-    }
-
-    void renderImGuiToTarget(ImDrawData* drawData) override {
-        if (bridge_) {
-            bridge_->renderImGuiToTarget(drawData);
-        }
-    }
-
-    bool isImGuiReady() const override {
-        return bridge_ && bridge_->isImGuiReady();
-    }
-
-    void ensureImGuiRenderTarget(int width, int height) override {
-        if (bridge_) {
-            bridge_->ensureImGuiRenderTarget(width, height);
-        }
-    }
-
-    graphics::TextureHandle getImGuiRenderTarget() const override {
-        return bridge_ ? bridge_->getImGuiRenderTarget() : graphics::TextureHandle{};
-    }
-
-private:
-    graphics_backend::UiRenderTargetBridge* bridge_ = nullptr;
-};
-
-} // namespace
-
 Renderer::Renderer(platform::Window &windowIn)
     : window(&windowIn) {
     core_ = std::make_unique<engine::renderer::RendererCore>(windowIn);
@@ -71,9 +28,6 @@ Renderer::Renderer(platform::Window &windowIn)
 #elif defined(KARMA_RENDER_BACKEND_DILIGENT)
     imguiBridge_ = std::make_unique<graphics_backend::DiligentRenderer>();
 #endif
-    if (imguiBridge_) {
-        uiRenderTargetBridge_ = std::make_unique<RendererUiBridge>(imguiBridge_.get());
-    }
 #endif
 
 }
@@ -221,7 +175,7 @@ graphics::TextureHandle Renderer::getRadarTexture() const {
 }
 
 ui::UiRenderTargetBridge* Renderer::getUiRenderTargetBridge() const {
-    return uiRenderTargetBridge_.get();
+    return imguiBridge_.get();
 }
 
 void Renderer::configureRadar(const game::renderer::RadarConfig& config) {

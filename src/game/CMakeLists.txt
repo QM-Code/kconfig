@@ -26,6 +26,7 @@ set(GAME_CLIENT_SOURCES
     ${PROJECT_SOURCE_DIR}/src/game/input/bindings.cpp
     ${PROJECT_SOURCE_DIR}/src/game/input/state.cpp
     ${PROJECT_SOURCE_DIR}/src/game/ui/core/system.cpp
+    ${PROJECT_SOURCE_DIR}/src/game/ui/core/ui_layer_adapter.cpp
     ${PROJECT_SOURCE_DIR}/src/game/ui/core/validation.cpp
     ${PROJECT_SOURCE_DIR}/src/game/ui/core/backend_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/game/ui/config/config.cpp

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "karma/graphics/ui_render_target_bridge.hpp"
+#include "karma_extras/ui/bridges/ui_render_target_bridge.hpp"
 
 #include <DiligentCore/Common/interface/RefCntAutoPtr.hpp>
 
@@ -17,7 +17,7 @@ class ITextureView;
 
 namespace graphics_backend {
 
-class DiligentRenderer final : public UiRenderTargetBridge {
+class DiligentRenderer final : public ui::UiRenderTargetBridge {
 public:
     DiligentRenderer();
     ~DiligentRenderer() override;

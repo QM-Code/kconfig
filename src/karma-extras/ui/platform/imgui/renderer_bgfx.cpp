@@ -13,7 +13,7 @@
 
 namespace graphics_backend {
 namespace {
-constexpr bgfx::ViewId kImGuiView = 255;
+constexpr bgfx::ViewId kImGuiView = 245;
 
 }
 
