@@ -96,6 +96,7 @@ Rendering and windowing
 - **Assimp** (model loading)
 
 UI
+ - **RmlUi** and **ImGui** (game UI frontends via `src/karma-extras/`)
 
 Networking
 - **ENet** (reliable UDP transport)
@@ -125,6 +126,7 @@ Other
 
 - **Engine** (game-agnostic systems) lives under `src/engine/`.
 - **Game** (BZ3-specific rules, UI, and gameplay) lives under `src/game/`.
+- **Karma extras** (optional UI frontends and helpers) live under `src/karma-extras/`.
 - The game configures engine data/asset discovery via `src/game/common/data_path_spec.*`.
 
 ## Engine library (Karma)
@@ -166,7 +168,6 @@ Backend factories (compile-time selection)
 - UI: `src/game/ui/core/backend_factory.cpp`
 - Physics: `src/engine/physics/backend_factory.cpp`
 - Networking: `src/game/net/backend_factory.cpp`
-- World: `src/engine/world/backend_factory.cpp`
 
 Backend layouts (examples)
 - `src/engine/audio/backends/miniaudio/` and `src/engine/audio/backends/sdl/`
@@ -175,7 +176,6 @@ Backend layouts (examples)
 - `src/engine/physics/backends/jolt/` and `src/engine/physics/backends/physx/`
 - `src/engine/graphics/backends/bgfx/` and `src/engine/graphics/backends/diligent/`
 - `src/game/net/backends/enet/` (future: steam, webrtc, etc.)
-- `src/engine/world/backends/fs/` (future: zip, remote, etc.)
 - `src/engine/input/mapping/` (action-agnostic mapping: bindings, maps, mapper)
 - `src/game/input/` (BZ3 action IDs + default bindings)
 

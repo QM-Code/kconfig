@@ -205,16 +205,23 @@ if(KARMA_PHYSICS_BACKEND STREQUAL "jolt")
     target_link_libraries(karma PUBLIC Jolt::Jolt)
     target_link_libraries(karma_server PUBLIC Jolt::Jolt)
 elseif(KARMA_PHYSICS_BACKEND STREQUAL "physx")
-    target_link_libraries(karma PUBLIC unofficial::omniverse-physx-sdk::sdk)
-    target_link_libraries(karma PUBLIC
+    set(KARMA_PHYSX_LIBS
+        unofficial::omniverse-physx-sdk::sdk
         unofficial::omniverse-physx-sdk::PhysXCharacterKinematic
         unofficial::omniverse-physx-sdk::PhysXExtensions
+        unofficial::omniverse-physx-sdk::PhysXCooking
+        unofficial::omniverse-physx-sdk::PhysXCommon
+        unofficial::omniverse-physx-sdk::PhysXFoundation
+        unofficial::omniverse-physx-sdk::PhysXPvdSDK
+        unofficial::omniverse-physx-sdk::PhysXVehicle
     )
-    target_link_libraries(karma_server PUBLIC unofficial::omniverse-physx-sdk::sdk)
-    target_link_libraries(karma_server PUBLIC
-        unofficial::omniverse-physx-sdk::PhysXCharacterKinematic
-        unofficial::omniverse-physx-sdk::PhysXExtensions
-    )
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(karma PUBLIC "-Wl,--start-group" ${KARMA_PHYSX_LIBS} "-Wl,--end-group")
+        target_link_libraries(karma_server PUBLIC "-Wl,--start-group" ${KARMA_PHYSX_LIBS} "-Wl,--end-group")
+    else()
+        target_link_libraries(karma PUBLIC ${KARMA_PHYSX_LIBS})
+        target_link_libraries(karma_server PUBLIC ${KARMA_PHYSX_LIBS})
+    endif()
 endif()
 if(KARMA_AUDIO_BACKEND STREQUAL "sdlaudio")
     target_link_libraries(karma PUBLIC SDL3::SDL3)

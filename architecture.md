@@ -15,7 +15,7 @@ The code is organized around a small **engine layer** (game-agnostic systems) an
 src/
     game/
         client/
-            main.cpp                   # Client startup + main loop
+            main.cpp                   # Client entrypoint (EngineApp wiring)
             game.{hpp,cpp}             # Orchestrates gameplay objects on the client
             world_session.*            # Receives world from server, merges config/assets, builds render+physics
             player.*                   # Local player input -> physics + sends network updates
@@ -23,14 +23,14 @@ src/
             console.*                  # Chat/console glue to UiSystem
             server/                    # Client-side discovery + connect flow
         server/
-            main.cpp                   # Server startup + main loop + plugin boot
+            main.cpp                   # Server entrypoint (EngineApp wiring)
             game.{hpp,cpp}             # Authoritative orchestration (clients, shots, chat, world)
             world_session.*            # Loads world config/assets + bundles world for clients
             client.*                   # Per-client authoritative state + replication
             shot.*                     # Authoritative shot creation/expiry + hit checks
             chat.*                     # Chat routing + plugin hook
             plugin.*                   # Embedded Python (pybind11) plugin API and callback registration
-        engine/                        # BZ3-specific engine orchestrators
+        engine/                        # BZ3-specific engine/game wiring
         net/                           # Game protocol and message networking
         renderer/                      # Game render orchestration (radar, ECS sync)
         ui/                            # HUD/console + UI frontends
@@ -48,7 +48,8 @@ src/
         physics/                       # Physics system + backends
         platform/                      # Window/events abstraction
         renderer/                      # Renderer core and scene orchestration
-        ui/                            # UI render bridges and platform renderers
+    karma-extras/                      # Optional UI frontends + helpers
+        ui/                            # ImGui/RmlUi frontends + render bridges
 
 data/
     common/config.json                 # Shared config layer (assets, network defaults, fonts)
@@ -95,58 +96,36 @@ Relevant helpers live in `src/engine/common/data_path_resolver.*`:
 
 ### Engine vs gameplay
 
-- **Engine** classes (`src/engine/...`) wrap subsystems: rendering, physics, networking, input, audio.
-- **Gameplay** classes (`src/game/client/...`, `src/game/server/...`) define the game rules and state: players, shots, world loading, chat.
+- **Engine** classes (`src/engine/...`) provide subsystems and own lifecycle/timing via `EngineApp`.
+- **Gameplay** classes (`src/game/client/...`, `src/game/server/...`) implement game rules/state and plug into the engine via `GameInterface`.
 
-The engine exposes direct pointers (e.g. `engine.render`, `engine.physics`, `engine.network`) and the gameplay layer calls into these systems.
+The game mutates ECS data and uses public engine APIs; `EngineApp` owns the loop and system updates.
 
 ## Runtime flow
 
-### Client main loop
+### Engine-owned loop (client)
 
-The client loop lives in `src/game/client/main.cpp`.
+The client entrypoint (`src/game/client/main.cpp`) wires `EngineApp` with a game-specific
+`GameInterface`. The engine owns timing and system ordering. High-level flow per frame:
 
-High-level per-frame ordering:
+1. Poll window events and pump input (engine).
+2. `GameInterface::onUpdate(dt)` (client gameplay orchestration).
+3. UI layer `onFrame()` builds draw data (game UI layer).
+4. ECS sync systems + physics/audio updates (engine).
+5. Render main scene + UI draw data (engine).
 
-1. `engine.earlyUpdate(dt)`
-     - Input polls SDL events and updates action mappings.
-     - `ClientNetwork::update()` pumps ENet and queues decoded protobuf messages.
-2. Handle fullscreen toggle / disconnect events.
-3. Either update the server browser (if not connected) or update gameplay.
-     - `Game::earlyUpdate()`:
-         - `World::update()` waits for `ServerMsg_Init` and initializes render + physics.
-         - If world initialized, ensure local `Player` exists.
-         - Consume a *subset* of network messages via `peekMessage<T>()` (join/leave/shot create/remove).
-4. `engine.step(dt)`
-     - `PhysicsWorld::update()` (Jolt/PhysX stepping).
-5. `Game::lateUpdate(dt)`
-     - Local player sends `ClientMsg_PlayerLocation` when position/rotation change.
-     - Update remote clients and shots.
-     - Update scoreboard names.
-6. `engine.lateUpdate(dt)`
-     - `Renderer` draws the scene.
-     - `UiSystem::update()` draws the active UI backend (HUD or console).
-     - `ClientNetwork::flushPeekedMessages()` frees/destroys any messages that were peeked.
+Network message handling follows the **peek + flush** pattern: gameplay peeks messages,
+and the network system flushes them during the engine tick.
 
-The important pattern is **peek + flush**: gameplay “peeks” messages it wants to handle during the frame, and the network system destroys them during the engine’s late update.
+### Engine-owned loop (server)
 
-### Server main loop
+The server entrypoint (`src/game/server/main.cpp`) wires `EngineApp` with a server-side
+`GameInterface`. Per frame:
 
-The server loop lives in `src/game/server/main.cpp`.
-
-High-level per-frame ordering:
-
-1. Poll stdin (non-blocking) for terminal commands.
-2. `engine.earlyUpdate(dt)`
-     - `ServerNetwork::update()` pumps ENet, queues decoded client messages.
-3. `game.update(dt)`
-     - Handle chat.
-     - Update each connected client (replication, spawn, state).
-     - Handle shot creation and update shots (expiry + hit checks).
-     - World update sends init payload to newly-connected clients.
-4. `engine.lateUpdate(dt)`
-     - `PhysicsWorld::update()` (Jolt/PhysX stepping).
-     - `ServerNetwork::flushPeekedMessages()` frees/destroys peeked messages.
+1. Pump network transport (engine).
+2. `GameInterface::onUpdate(dt)` (server gameplay orchestration).
+3. ECS/physics updates (engine).
+4. Flush peeked messages (engine).
 
 ## Networking
 

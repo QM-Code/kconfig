@@ -16,18 +16,19 @@ For subsystem-level architecture, see each subdirectory’s `architecture.md`.
    - **Physics** (`physics/`)
    - **Audio** (`audio/`)
    - **Input mapping** (`input/`)
-   - **UI bridges** (`ui/`, now in `src/karma-extras/ui/`)
    - **Networking transport** (`network/`)
-   - **World content** (`world/`, now in `src/karma-extras/world/`)
 
 4) **App shell** (`app/`)
    - Orchestrates initialization and ties subsystems together.
 
+Optional UI frontends and helpers live in `src/karma-extras/` and are consumed
+by game code, not the engine core.
+
 ## Key integration points
 - **Renderer ↔ Graphics backends**: `graphics` owns backend selection and GPU
   resources; `renderer` orchestrates scene and render passes.
-- **UI ↔ Graphics**: UI frontends render into textures via bridges; those textures
-  are composed by renderer/graphics.
+- **UI ↔ Graphics**: Game-provided UI layers fill `UIContext` draw data; the
+  renderer consumes that draw data via backend-agnostic paths.
 - **Input ↔ Platform**: platform events feed the input mapper; input provides
   action-based queries for game code.
 - **Physics ↔ Game**: physics backends provide a consistent API; game code uses
