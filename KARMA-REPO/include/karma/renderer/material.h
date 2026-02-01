@@ -2,11 +2,10 @@
 
 #include <string>
 
-#include "karma/math/types.h"
 
 namespace karma::renderer {
 
-using Color = math::Color;
+using Color = glm::vec4;
 
 struct MaterialResourceDesc {
   std::string material_key;

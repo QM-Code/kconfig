@@ -30,7 +30,7 @@ class GraphicsDevice {
 
   void submit(const DrawItem& item);
   void renderLayer(LayerId layer, RenderTargetId target = kDefaultRenderTarget);
-  void drawLine(const math::Vec3& start, const math::Vec3& end, const math::Color& color,
+  void drawLine(const glm::vec3& start, const glm::vec3& end, const glm::vec4& color,
                 bool depth_test = true, float thickness = 1.0f);
 
   unsigned int getRenderTargetTextureId(RenderTargetId target) const;

@@ -1,12 +1,15 @@
 # Engine vs Extras Mapping (KARMA-REPO baseline)
 
 This document inventories the current BZ3 engine headers/sources and maps them
-against `KARMA-REPO/` (the authoritative micro-engine baseline). Anything **not**
-present in `KARMA-REPO/` should be removed from `src/engine/` and moved into
+against `KARMA-REPO/` (the reference engine tree). The goal is **convergence**:
+`src/engine/` and `KARMA-REPO/` may both change, and the end state is that they
+match each other in scope and API, based on the *best overall design*. Anything
+that does not belong in the micro-engine core should be moved into
 `src/karma-extras/` (or left in `src/game/` if game-specific).
 
 ## Baseline summary (KARMA-REPO, source-based)
-KARMA-REPO implements the following in source (`include/` + `src/`):
+KARMA-REPO currently implements the following in source (`include/` + `src/`);
+this is a starting point, not a one-way constraint:
 - app: EngineApp, GameInterface, UIContext/UIDrawData (UI texture create/update/destroy)
 - ecs: world/entity/registry + component storage
 - components: audio, camera, collider, environment, layers, light, mesh, player controller,
@@ -72,8 +75,8 @@ These should move to `include/karma_extras/` and be compiled into `karma_extras`
 5) Ensure `karma_extras` links against `karma` and contains all removed helpers.
 
 ## Notes
-- `KARMA-REPO/` is canonical. If unsure where a feature belongs, compare against
-  its headers and docs first.
+- `KARMA-REPO/` and `src/engine/` must converge; neither is sacred. If unsure,
+  choose the better design and make both match.
 - Do not move gameplay code into engine; only move generic helpers into extras.
 - One-line shim headers (e.g., re-export-only `.hpp` wrappers) should be removed
   during alignment, not moved into `karma-extras`.

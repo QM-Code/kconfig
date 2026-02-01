@@ -418,10 +418,10 @@ class DemoGame : public app::GameInterface {
     camera_pitch_ += (target_camera_pitch_ - camera_pitch_) * alpha;
 
     auto& camera_xform = world->get<components::TransformComponent>(camera_entity_);
-    const math::Quat cam_rot = math::fromYawPitch(camera_yaw_, camera_pitch_);
-    math::Vec3 forward = math::normalize(math::rotateVec(cam_rot, {0.0f, 0.0f, -1.0f}));
-    const math::Vec3 up{0.0f, 1.0f, 0.0f};
-    math::Vec3 right = math::normalize(math::cross(forward, up));
+    const glm::quat cam_rot = math::fromYawPitch(camera_yaw_, camera_pitch_);
+    glm::vec3 forward = math::normalize(math::rotateVec(cam_rot, {0.0f, 0.0f, -1.0f}));
+    const glm::vec3 up{0.0f, 1.0f, 0.0f};
+    glm::vec3 right = math::normalize(math::cross(forward, up));
 
     float forward_input = 0.0f;
     float right_input = 0.0f;
@@ -430,7 +430,7 @@ class DemoGame : public app::GameInterface {
     if (input->actionDown("cam_right")) right_input += 1.0f;
     if (input->actionDown("cam_left")) right_input -= 1.0f;
 
-    math::Vec3 cam_pos = camera_xform.position();
+    glm::vec3 cam_pos = camera_xform.position();
     cam_pos.x += (forward.x * forward_input + right.x * right_input) * move_speed * dt;
     cam_pos.y += (forward.y * forward_input) * move_speed * dt;
     cam_pos.z += (forward.z * forward_input + right.z * right_input) * move_speed * dt;
@@ -439,12 +439,12 @@ class DemoGame : public app::GameInterface {
 
     if (graphics) {
       const float axis_len = 5.0f;
-      graphics->drawLine(math::Vec3{0.0f, 0.0f, 0.0f}, math::Vec3{axis_len, 0.0f, 0.0f},
-                         math::Color{1.0f, 0.0f, 0.0f, 1.0f});
-      graphics->drawLine(math::Vec3{0.0f, 0.0f, 0.0f}, math::Vec3{0.0f, axis_len, 0.0f},
-                         math::Color{0.0f, 1.0f, 0.0f, 1.0f});
-      graphics->drawLine(math::Vec3{0.0f, 0.0f, 0.0f}, math::Vec3{0.0f, 0.0f, axis_len},
-                         math::Color{0.0f, 0.0f, 1.0f, 1.0f});
+      graphics->drawLine(glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{axis_len, 0.0f, 0.0f},
+                         glm::vec4{1.0f, 0.0f, 0.0f, 1.0f});
+      graphics->drawLine(glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, axis_len, 0.0f},
+                         glm::vec4{0.0f, 1.0f, 0.0f, 1.0f});
+      graphics->drawLine(glm::vec3{0.0f, 0.0f, 0.0f}, glm::vec3{0.0f, 0.0f, axis_len},
+                         glm::vec4{0.0f, 0.0f, 1.0f, 1.0f});
     }
   }
 

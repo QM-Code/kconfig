@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "karma/math/types.h"
 
 namespace karma::renderer {
 
@@ -36,7 +35,7 @@ struct MeshData {
 struct MaterialDesc {
   std::filesystem::path vertex_shader_path;
   std::filesystem::path fragment_shader_path;
-  math::Color base_color{1.0f, 1.0f, 1.0f, 1.0f};
+  glm::vec4 base_color{1.0f, 1.0f, 1.0f, 1.0f};
   TextureId base_color_texture = kInvalidTexture;
   bool unlit = false;
   bool transparent = false;
@@ -62,7 +61,7 @@ struct CameraData {
 
 struct DirectionalLightData {
   glm::vec3 direction{0.0f, -1.0f, 0.0f};
-  math::Color color{1.0f, 1.0f, 1.0f, 1.0f};
+  glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
   float intensity = 1.0f;
   glm::vec3 position{0.0f, 0.0f, 0.0f};
   float shadow_extent = 0.0f;

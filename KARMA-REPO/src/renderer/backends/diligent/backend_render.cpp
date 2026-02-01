@@ -503,8 +503,8 @@ void DiligentBackend::submit(const renderer::DrawItem& item) {
   record.shadow_visible = item.shadow_visible;
 }
 
-void DiligentBackend::drawLine(const math::Vec3& start, const math::Vec3& end,
-                               const math::Color& color, bool depth_test, float thickness) {
+void DiligentBackend::drawLine(const glm::vec3& start, const glm::vec3& end,
+                               const glm::vec4& color, bool depth_test, float thickness) {
   if (!warned_line_thickness_ && thickness != 1.0f) {
     spdlog::warn("Karma: Line thickness {} requested; only 1.0 is supported right now.", thickness);
     warned_line_thickness_ = true;

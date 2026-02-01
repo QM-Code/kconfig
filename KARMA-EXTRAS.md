@@ -1,6 +1,6 @@
 # Karma Extras Split Plan
 
-This project refactors the current BZ3 engine into two clean layers by using `KARMA-REPO/` as the authoritative “micro-engine” baseline: `src/engine/` must be pared down to match the scope, API surface, and architectural philosophy of `KARMA-REPO/` (small core API, ECS/scene scaffolding, backend interfaces/factories, and a minimal EngineApp loop), while any functionality present in `src/engine/` that does not exist in `KARMA-REPO/` is removed from `src/engine/` and moved into `src/karma-extras/`. The goal is a true split: `src/engine/` is a drop-in engine-only repo aligned with `KARMA-REPO/`, `src/karma-extras/` provides the “middleman” conveniences (config/data, file I/O, UI bridges, content/world loading, asset loaders, input mapping helpers, etc.), and `src/game/` remains game-specific; every migration decision should be validated against the contents and intent of `KARMA-REPO/` so that another agent can compare the two trees and immediately know what to cut from `src/engine/` and what to relocate into extras.
+This project refactors the current BZ3 engine into two clean layers and **converges** the two engine codebases: `src/engine/` and `KARMA-REPO/` are both allowed to change, and the goal is to end with them matching each other (same scope and compatible API) based on the *best overall design*, not a one-way clone of either tree. Functionality that does not belong in the micro-engine core is moved into `src/karma-extras/`, while core engine functionality is kept aligned between `src/engine/` and `KARMA-REPO/`. A backup copy exists in `KARMA-REPO-ORIG/`; edits may be made directly in `KARMA-REPO/` and later pushed upstream. The goal is a true split: `src/engine/` and `KARMA-REPO/` become drop-in engine-only repos with the same shape, `src/karma-extras/` provides “middleman” conveniences (config/data, file I/O, UI bridges, content/world loading, asset loaders, input mapping helpers, etc.), and `src/game/` remains game-specific.
 `src/karma-extras/` must be structured from the start to function as an independent repo (its own headers, CMake targets, install/export, and documentation), similar to how we are treating `src/engine/`.
 
 Goal:
@@ -10,7 +10,7 @@ Goal:
 - Build order must be: (1) `src/engine/` builds core libs, (2) `src/karma-extras/` builds and links against engine headers/libs, (3) `src/game/` builds and links against both engine and extras.
 
 ## Non-goals / invariants
-- `KARMA-REPO/` is the canonical baseline; if a subsystem is not present there, it must not remain in `src/engine/`.
+- `KARMA-REPO/` and `src/engine/` must converge; neither is sacred. Pick the better design and make both match.
 - Do not move gameplay code from `src/game/` into `src/engine/`; only migrate reusable, non-game-specific pieces into `src/karma-extras/`.
 - `src/karma-extras/` must be repo-ready from the start: its own public headers, CMake targets, install/export, and minimal documentation.
 - Dependency direction is one-way: `karma-extras` can depend on `karma`, but `karma` must never depend on `karma-extras`.

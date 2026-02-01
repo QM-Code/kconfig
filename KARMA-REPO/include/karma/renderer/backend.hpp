@@ -4,7 +4,6 @@
 #include "karma/app/ui_draw_data.h"
 
 #include <filesystem>
-#include "karma/math/types.h"
 #include <memory>
 #include <string>
 #include <string_view>
@@ -40,8 +39,8 @@ class Backend {
 
   virtual void submit(const renderer::DrawItem& item) = 0;
   virtual void renderLayer(renderer::LayerId layer, renderer::RenderTargetId target) = 0;
-  virtual void drawLine(const math::Vec3& start, const math::Vec3& end,
-                        const math::Color& color, bool depth_test, float thickness) = 0;
+  virtual void drawLine(const glm::vec3& start, const glm::vec3& end,
+                        const glm::vec4& color, bool depth_test, float thickness) = 0;
 
   virtual unsigned int getRenderTargetTextureId(renderer::RenderTargetId target) const = 0;
 

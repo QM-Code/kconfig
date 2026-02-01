@@ -6,21 +6,21 @@ namespace karma::components {
 
 TransformComponent::TransformComponent() = default;
 
-TransformComponent::TransformComponent(const math::Vec3& position, const math::Quat& rotation,
-                                       const math::Vec3& scale)
+TransformComponent::TransformComponent(const glm::vec3& position, const glm::quat& rotation,
+                                       const glm::vec3& scale)
     : position_(position), rotation_(rotation), scale_(scale) {}
 
-void TransformComponent::setPosition(const math::Vec3& position, TransformWriteMode mode) {
+void TransformComponent::setPosition(const glm::vec3& position, TransformWriteMode mode) {
   warnIfPhysics("position", mode);
   position_ = position;
 }
 
-void TransformComponent::setRotation(const math::Quat& rotation, TransformWriteMode mode) {
+void TransformComponent::setRotation(const glm::quat& rotation, TransformWriteMode mode) {
   warnIfPhysics("rotation", mode);
   rotation_ = rotation;
 }
 
-void TransformComponent::setScale(const math::Vec3& scale, TransformWriteMode mode) {
+void TransformComponent::setScale(const glm::vec3& scale, TransformWriteMode mode) {
   warnIfPhysics("scale", mode);
   scale_ = scale;
 }

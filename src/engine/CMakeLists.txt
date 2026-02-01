@@ -22,6 +22,7 @@ endif()
 ## Separate engine sources for client and server to avoid over-linking
 set(ENGINE_CLIENT_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/app/engine_app.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/components/transform.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/geometry/mesh_loader.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/world/content.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/world/backend_factory.cpp

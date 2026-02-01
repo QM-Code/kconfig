@@ -18,11 +18,11 @@
 namespace karma::renderer {
 
 namespace {
-glm::vec3 toGlm(const math::Vec3& v) {
+glm::vec3 toGlm(const glm::vec3& v) {
   return {v.x, v.y, v.z};
 }
 
-glm::quat toGlm(const math::Quat& q) {
+glm::quat toGlm(const glm::quat& q) {
   return {q.w, q.x, q.y, q.z};
 }
 
@@ -202,7 +202,7 @@ void RenderSystem::update(ecs::World& world, scene::Scene& /*scene*/, float /*dt
   }
   if (!has_light) {
     light.direction = glm::vec3(0.3f, 1.0f, 0.2f);
-    light.color = math::Color{1.0f, 1.0f, 1.0f, 1.0f};
+    light.color = glm::vec4{1.0f, 1.0f, 1.0f, 1.0f};
     light.intensity = 1.0f;
   }
   device_.setDirectionalLight(light);

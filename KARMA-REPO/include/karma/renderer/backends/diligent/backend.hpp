@@ -58,8 +58,8 @@ class DiligentBackend final : public Backend {
 
   void submit(const renderer::DrawItem& item) override;
   void renderLayer(renderer::LayerId layer, renderer::RenderTargetId target) override;
-  void drawLine(const math::Vec3& start, const math::Vec3& end,
-                const math::Color& color, bool depth_test, float thickness) override;
+  void drawLine(const glm::vec3& start, const glm::vec3& end,
+                const glm::vec4& color, bool depth_test, float thickness) override;
 
   unsigned int getRenderTargetTextureId(renderer::RenderTargetId target) const override;
 

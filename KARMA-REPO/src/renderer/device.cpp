@@ -96,8 +96,8 @@ void GraphicsDevice::renderLayer(LayerId layer, RenderTargetId target) {
   }
 }
 
-void GraphicsDevice::drawLine(const math::Vec3& start, const math::Vec3& end,
-                              const math::Color& color, bool depth_test, float thickness) {
+void GraphicsDevice::drawLine(const glm::vec3& start, const glm::vec3& end,
+                              const glm::vec4& color, bool depth_test, float thickness) {
   if (backend_) {
     backend_->drawLine(start, end, color, depth_test, thickness);
   }
