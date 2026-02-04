@@ -2,6 +2,7 @@
 #include <miniaudio.h>
 #include "audio/backends/miniaudio/backend.hpp"
 #include "audio/backends/miniaudio/clip.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 
 #include <algorithm>
@@ -22,7 +23,7 @@ MiniaudioBackend::MiniaudioBackend() {
         throw std::runtime_error("Audio: Failed to initialize miniaudio engine");
     }
 
-    spdlog::trace("Audio: Initialized miniaudio engine");
+    KARMA_TRACE("audio", "Audio: Initialized miniaudio engine");
 }
 
 MiniaudioBackend::~MiniaudioBackend() {

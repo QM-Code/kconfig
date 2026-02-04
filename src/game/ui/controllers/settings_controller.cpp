@@ -1,8 +1,8 @@
 #include "ui/controllers/settings_controller.hpp"
 
+#include "karma/common/logging.hpp"
 #include "karma/common/config_store.hpp"
 #include "ui/config/ui_config.hpp"
-#include "spdlog/spdlog.h"
 
 namespace ui {
 
@@ -23,7 +23,7 @@ bool SettingsController::setLanguage(const std::string &code, std::string *error
         return false;
     }
     model.language = code;
-    spdlog::trace("UiSettings: language changed {} -> {}", previousLanguage, code);
+    KARMA_TRACE("ui.rmlui", "UiSettings: language changed {} -> {}", previousLanguage, code);
     return true;
 }
 

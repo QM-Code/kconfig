@@ -19,6 +19,7 @@
 #include "karma_extras/ecs/render_components.h"
 #include "karma/common/data_dir_override.hpp"
 #include "karma/common/data_path_resolver.hpp"
+#include "karma/common/logging.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
 #include "karma/common/config_validation.hpp"
@@ -164,7 +165,10 @@ bool launchQuickStartServer(const ClientCLIOptions &cliOptions, QuickStartServer
     }
 
     server.pid = pid;
-    spdlog::info("dev-quick-start: launched bz3-server (pid {}) on port {}", pid, cliOptions.connectPort);
+    KARMA_TRACE("engine.client",
+                "dev-quick-start: launched bz3-server (pid {}) on port {}",
+                pid,
+                cliOptions.connectPort);
     return true;
 #endif
 }
@@ -350,10 +354,10 @@ public:
         }
         if (!consoleVisible && engine_.getInputState().toggleFullscreen) {
             const bool wasFullscreen = window_.isFullscreen();
-            spdlog::info("Fullscreen toggle requested (before={})", wasFullscreen);
+            KARMA_TRACE("engine.client", "Fullscreen toggle requested (before={})", wasFullscreen);
             window_.setFullscreen(!wasFullscreen);
             const bool nowFullscreen = window_.isFullscreen();
-            spdlog::info("Fullscreen toggle complete (after={})", nowFullscreen);
+            KARMA_TRACE("engine.client", "Fullscreen toggle complete (after={})", nowFullscreen);
             if (nowFullscreen == wasFullscreen) {
                 spdlog::warn("Fullscreen toggle had no effect");
             }
@@ -411,28 +415,28 @@ private:
             ui::UiConfig::SetHudFps(false);
             ui::UiConfig::SetHudCrosshair(true);
             engine_.ui->setDialogVisible(false);
-            spdlog::info("ui-smoke: baseline HUD on");
+            KARMA_TRACE("ui.rmlui", "ui-smoke: baseline HUD on");
             break;
         case 1:
             ui::UiConfig::SetHudScoreboard(false);
-            spdlog::info("ui-smoke: scoreboard off");
+            KARMA_TRACE("ui.rmlui", "ui-smoke: scoreboard off");
             break;
         case 2:
             ui::UiConfig::SetHudChat(false);
-            spdlog::info("ui-smoke: chat off");
+            KARMA_TRACE("ui.rmlui", "ui-smoke: chat off");
             break;
         case 3:
             ui::UiConfig::SetHudRadar(false);
-            spdlog::info("ui-smoke: radar off");
+            KARMA_TRACE("ui.rmlui", "ui-smoke: radar off");
             break;
         case 4:
             ui::UiConfig::SetHudFps(true);
-            spdlog::info("ui-smoke: fps on");
+            KARMA_TRACE("ui.rmlui", "ui-smoke: fps on");
             break;
         case 5:
             engine_.ui->setDialogText("UI smoke test");
             engine_.ui->setDialogVisible(true);
-            spdlog::info("ui-smoke: dialog on");
+            KARMA_TRACE("ui.rmlui", "ui-smoke: dialog on");
             break;
         default:
             break;
@@ -540,11 +544,7 @@ spdlog::level::level_enum ParseLogLevel(const std::string &level) {
 }
 
 void ConfigureLogging(spdlog::level::level_enum level, bool includeTimestamp) {
-    if (includeTimestamp) {
-        spdlog::set_pattern("%Y-%m-%d %H:%M:%S.%e [%^%l%$] %v");
-    } else {
-        spdlog::set_pattern("[%^%l%$] %v");
-    }
+    karma::logging::ConfigureLogPatterns(includeTimestamp);
     spdlog::set_level(level);
 }
 
@@ -557,7 +557,7 @@ void SetEnvOverride(const char *name, const std::string &value) {
 #else
     setenv(name, value.c_str(), 1);
 #endif
-    spdlog::info("Env override set: {}={}", name, value);
+    KARMA_TRACE("config", "Env override set: {}={}", name, value);
 }
 
 int main(int argc, char *argv[]) {
@@ -608,10 +608,15 @@ int main(int argc, char *argv[]) {
     }
     const spdlog::level::level_enum logLevel = cliOptions.logLevelExplicit
         ? ParseLogLevel(cliOptions.logLevel)
-        : (cliOptions.verbose >= 2 ? spdlog::level::trace
-           : cliOptions.verbose == 1 ? spdlog::level::debug
+        : (cliOptions.verbose >= 1 ? spdlog::level::debug
            : spdlog::level::info);
     ConfigureLogging(logLevel, cliOptions.timestampLogging);
+    if (cliOptions.traceExplicit) {
+        spdlog::set_level(spdlog::level::trace);
+    }
+    if (cliOptions.traceExplicit) {
+        karma::logging::EnableTraceChannels(cliOptions.traceChannels);
+    }
 
     const std::string clientUserConfigPath = clientUserConfigPathFs.string();
     ClientConfig clientConfig = ClientConfig::Load("");
@@ -655,7 +660,7 @@ int main(int argc, char *argv[]) {
     }
 
     ClientEngine engine(*window);
-    spdlog::trace("ClientEngine initialized successfully");
+    KARMA_TRACE("engine.client", "ClientEngine initialized successfully");
 
     if (fullscreenEnabled) {
         window->setFullscreen(true);
@@ -669,7 +674,7 @@ int main(int argc, char *argv[]) {
         clientUserConfigPath,
         serverConnector);
 
-    spdlog::trace("Starting main loop");
+    KARMA_TRACE("engine.client", "Starting main loop");
 
     ClientLoopAdapter adapter(*window, engine, serverConnector, communityBrowser, cliOptions, game);
     karma::app::EngineApp app;
@@ -702,13 +707,13 @@ int main(int argc, char *argv[]) {
         config.enable_ecs_render_sync = true;
         config.enable_ecs_camera_sync = true;
         config.enable_ecs_audio_sync = true;
-        spdlog::info("ECS render/camera/audio sync enabled (default)");
+        KARMA_TRACE("render.frame", "ECS render/camera/audio sync enabled (default)");
     }
     if (cliOptions.ecsSmokeTest) {
         auto &config = app.config();
         config.enable_ecs_physics_sync = false;
         config.enable_ecs_audio_sync = false;
-        spdlog::info("ECS smoke test enabled (render + camera sync)");
+        KARMA_TRACE("render.frame", "ECS smoke test enabled (render + camera sync)");
 
         auto *ecsWorld = app.context().ecsWorld;
         if (ecsWorld) {
@@ -736,7 +741,7 @@ int main(int argc, char *argv[]) {
             ecsWorld->add(cameraEntity, components::AudioListenerComponent{});
         }
     }
-    spdlog::info("EngineApp loop enabled (start/tick)");
+    KARMA_TRACE("engine.client", "EngineApp loop enabled (start/tick)");
     if (!app.start(adapter, app.config())) {
         return 1;
     }

@@ -24,6 +24,7 @@
 
 #include "karma/common/data_path_resolver.hpp"
 #include "ui/frontends/rmlui/console/emoji_utils.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 
 namespace ui {
@@ -983,8 +984,10 @@ void RmlUiPanelCommunity::handleJoin() {
         return;
     }
     auto &community = consoleModel->community;
-    spdlog::info("RmlUi Community: Join clicked (selectedServerIndex={}, entries={})",
-                 community.selectedIndex, community.entries.size());
+    KARMA_TRACE("ui.rmlui",
+                "RmlUi Community: Join clicked (selectedServerIndex={}, entries={})",
+                community.selectedIndex,
+                community.entries.size());
     if (community.selectedIndex < 0 ||
         community.selectedIndex >= static_cast<int>(community.entries.size())) {
         spdlog::warn("RmlUi Community: Join ignored (no valid selection)");

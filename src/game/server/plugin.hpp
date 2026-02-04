@@ -1,6 +1,7 @@
 #pragma once
 #include "karma/core/types.hpp"
 #include "game/net/messages.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 #include "karma/common/json.hpp"
 #include <vector>
@@ -63,7 +64,10 @@ template<typename T> inline bool g_triggerPluginEvent(EventType type, T& eventDa
 
                 if constexpr (std::is_same_v<T, Event_Chat>) {
                     if (eventData.message.rfind("/", 0) == 0) {
-                        spdlog::debug("PluginAPI: Chat command candidate '{}' (callbacks: {})", eventData.message, it->second.size());
+                        KARMA_TRACE("engine.server",
+                                    "PluginAPI: Chat command candidate '{}' (callbacks: {})",
+                                    eventData.message,
+                                    it->second.size());
                     }
                     if (type == EventType_Chat) {
                         h = func(eventData.fromId, eventData.toId, eventData.message).template cast<bool>();

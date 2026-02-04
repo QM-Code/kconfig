@@ -5,8 +5,8 @@
 
 #include "karma/common/config_store.hpp"
 #include "karma/common/i18n.hpp"
+#include "karma/common/logging.hpp"
 #include "ui/config/config.hpp"
-#include "spdlog/spdlog.h"
 #include "ui/console/status_banner.hpp"
 
 namespace {
@@ -49,10 +49,11 @@ namespace ui {
 void ConsoleView::drawSettingsPanel(const MessageColors &colors) {
     const uint64_t revision = karma::config::ConfigStore::Revision();
     if (settingsModel.lastConfigRevision != 0 && settingsModel.lastConfigRevision != revision) {
-        spdlog::info("ImGuiSettings: config revision changed while open: {} -> {} (connected={})",
-                     settingsModel.lastConfigRevision,
-                     revision,
-                     consoleModel.connectionState.connected);
+        KARMA_TRACE("ui.imgui",
+                    "ImGuiSettings: config revision changed while open: {} -> {} (connected={})",
+                    settingsModel.lastConfigRevision,
+                    revision,
+                    consoleModel.connectionState.connected);
     }
     settingsModel.lastConfigRevision = revision;
 

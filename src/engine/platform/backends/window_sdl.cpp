@@ -1,6 +1,7 @@
 #include "platform/window.hpp"
 
 #include <SDL3/SDL.h>
+#include "karma/common/logging.hpp"
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -311,13 +312,15 @@ public:
             SetEnvVar("SDL_VIDEODRIVER", nullptr);
             sdlInitOk = SDL_Init(SDL_INIT_VIDEO);
         }
-        spdlog::info("SDL_Init(SDL_INIT_VIDEO) returned {}", sdlInitOk ? 1 : 0);
+        KARMA_TRACE("platform.sdl", "SDL_Init(SDL_INIT_VIDEO) returned {}", sdlInitOk ? 1 : 0);
         if (!sdlInitOk) {
             spdlog::error("SDL failed to initialize: {}", SDL_GetError());
             spdlog::error("SDL video driver: {}", SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "(null)");
             return;
         }
-        spdlog::info("SDL video driver: {}", SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "(null)");
+        KARMA_TRACE("platform.sdl",
+                    "SDL video driver: {}",
+                    SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "(null)");
 
         uint32_t windowFlags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_VULKAN;
         window = SDL_CreateWindow(config.title.c_str(), config.width, config.height, windowFlags);

@@ -6,6 +6,7 @@
 
 #include "karma/graphics/backends/diligent/ui_bridge.hpp"
 #include "karma/app/ui_context.h"
+#include "karma/common/logging.hpp"
 
 #include <DiligentCore/Common/interface/BasicMath.hpp>
 #include <DiligentCore/Graphics/GraphicsEngine/interface/Buffer.h>
@@ -88,8 +89,11 @@ void RenderInterface_Diligent::EndFrame() {
         return;
     }
     if (debug_frame % 120 == 0) {
-        spdlog::info("RmlUi(Diligent): frame {} draw_calls={} tris={}",
-                     debug_frame, debug_draw_calls, debug_triangles);
+        KARMA_TRACE("ui.rmlui",
+                    "frame {} draw_calls={} tris={}",
+                    debug_frame,
+                    debug_draw_calls,
+                    debug_triangles);
     }
 }
 

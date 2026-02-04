@@ -5,6 +5,7 @@
 #include "game/engine/client_engine.hpp"
 #include "client/game.hpp"
 #include "karma/common/config_helpers.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 
 ServerConnector::ServerConnector(ClientEngine &engine,
@@ -25,13 +26,19 @@ bool ServerConnector::connect(const std::string &targetHost,
     std::string status = "Connecting to " + targetHost + ":" + std::to_string(targetPort) + "...";
     auto &browser = engine.ui->console();
     browser.setStatus(status, false);
-    spdlog::info("Attempting to connect to {}:{}", targetHost, targetPort);
+    KARMA_TRACE("net.client",
+                "Attempting to connect to {}:{}",
+                targetHost,
+                targetPort);
 
     const std::string resolvedName = playerName.empty() ? defaultPlayerName : playerName;
     const uint16_t connectTimeoutMs = karma::config::ReadUInt16Config({"network.ConnectTimeoutMs"}, 2000);
     if (engine.network->connect(targetHost, targetPort, static_cast<int>(connectTimeoutMs))) {
-        spdlog::info("Connected to server at {}:{}", targetHost, targetPort);
-        spdlog::info("Requesting join for name '{}'", resolvedName);
+        KARMA_TRACE("net.client",
+                    "Connected to server at {}:{}",
+                    targetHost,
+                    targetPort);
+        KARMA_TRACE("net.client", "Requesting join for name '{}'", resolvedName);
         joinPending_ = true;
         pending_.host = targetHost;
         pending_.port = targetPort;
@@ -78,10 +85,14 @@ void ServerConnector::handleJoinResponse(const ServerMsg_JoinResponse &response)
         return;
     }
 
-    spdlog::info("Join accepted for '{}'", pending_.name);
-    spdlog::info("Join mode: {} user", pending_.registeredUser ? "registered" : "anonymous");
-    spdlog::info("Join flags: community_admin={}, local_admin={}",
-                 pending_.communityAdmin, pending_.localAdmin);
+    KARMA_TRACE("net.client", "Join accepted for '{}'", pending_.name);
+    KARMA_TRACE("net.client",
+                "Join mode: {} user",
+                pending_.registeredUser ? "registered" : "anonymous");
+    KARMA_TRACE("net.client",
+                "Join flags: community_admin={}, local_admin={}",
+                pending_.communityAdmin,
+                pending_.localAdmin);
     browser.setConnectionState({true, pending_.host, pending_.port});
     game = std::make_unique<Game>(engine,
                                   pending_.name,
@@ -89,7 +100,7 @@ void ServerConnector::handleJoinResponse(const ServerMsg_JoinResponse &response)
                                   pending_.registeredUser,
                                   pending_.communityAdmin,
                                   pending_.localAdmin);
-    spdlog::trace("Game initialized successfully");
+    KARMA_TRACE("game.client", "Game initialized successfully");
 
     ClientMsg_PlayerJoin joinMsg{};
     joinMsg.clientId = 0;

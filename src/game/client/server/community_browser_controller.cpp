@@ -12,6 +12,7 @@
 #include "client/server/server_connector.hpp"
 #include "karma/common/curl_global.hpp"
 #include "karma/common/config_helpers.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 #include <curl/curl.h>
 #include "karma/common/json.hpp"
@@ -823,7 +824,10 @@ void CommunityBrowserController::handleJoinSelection(const ui::CommunityBrowserS
     }
 
     if (password.empty() && !storedHash.empty()) {
-        spdlog::info("Authenticating '{}' on community {} (stored hash)", username, communityHost);
+        KARMA_TRACE("net.client",
+                    "Authenticating '{}' on community {} (stored hash)",
+                    username,
+                    communityHost);
         browser.setStatus("Authenticating...", false);
         browser.storeCommunityAuth(communityHost, username, storedHash, std::string{});
         pendingJoin = PendingJoin{selection, communityHost, username, std::string{}, false, false, true};
@@ -832,7 +836,10 @@ void CommunityBrowserController::handleJoinSelection(const ui::CommunityBrowserS
     }
 
     if (password.empty()) {
-        spdlog::info("Checking username '{}' on community {}", username, communityHost);
+        KARMA_TRACE("net.client",
+                    "Checking username '{}' on community {}",
+                    username,
+                    communityHost);
         browser.setStatus("Checking username availability...", false);
         pendingJoin = PendingJoin{selection, communityHost, username, std::string{}, false, false, false};
         authClient.requestUserRegistered(communityHost, username);
@@ -842,7 +849,10 @@ void CommunityBrowserController::handleJoinSelection(const ui::CommunityBrowserS
     std::string cacheKey = makeAuthCacheKey(communityHost, username);
     auto saltIt = passwordSaltCache.find(cacheKey);
     if (saltIt == passwordSaltCache.end()) {
-        spdlog::info("Fetching auth salt for '{}' on community {}", username, communityHost);
+        KARMA_TRACE("net.client",
+                    "Fetching auth salt for '{}' on community {}",
+                    username,
+                    communityHost);
         browser.setStatus("Fetching account info...", false);
         pendingJoin = PendingJoin{selection, communityHost, username, password, false, false, false};
         authClient.requestUserRegistered(communityHost, username);
@@ -855,7 +865,10 @@ void CommunityBrowserController::handleJoinSelection(const ui::CommunityBrowserS
         return;
     }
 
-    spdlog::info("Authenticating '{}' on community {}", username, communityHost);
+    KARMA_TRACE("net.client",
+                "Authenticating '{}' on community {}",
+                username,
+                communityHost);
     browser.setStatus("Authenticating...", false);
     browser.storeCommunityAuth(communityHost, username, passhash, saltIt->second);
     pendingJoin = PendingJoin{selection, communityHost, username, std::string{}, false, false, true};
@@ -909,10 +922,11 @@ void CommunityBrowserController::handleAuthResponse(const CommunityAuthClient::R
                 pendingJoin.reset();
             } else {
                 pendingJoin.reset();
-                spdlog::info("Connecting as anonymous user '{}' to {}:{}",
-                             pending.username,
-                             pending.selection.host,
-                             pending.selection.port);
+                KARMA_TRACE("net.client",
+                            "Connecting as anonymous user '{}' to {}:{}",
+                            pending.username,
+                            pending.selection.host,
+                            pending.selection.port);
                 engine.setRoamingModeSession(pending.selection.roamingMode);
                 connector.connect(pending.selection.host, pending.selection.port, pending.username, false, false, false);
             }
@@ -921,10 +935,11 @@ void CommunityBrowserController::handleAuthResponse(const CommunityAuthClient::R
 
         if (!response.registered) {
             pendingJoin.reset();
-            spdlog::info("Connecting as anonymous user '{}' to {}:{}",
-                         pending.username,
-                         pending.selection.host,
-                         pending.selection.port);
+            KARMA_TRACE("net.client",
+                        "Connecting as anonymous user '{}' to {}:{}",
+                        pending.username,
+                        pending.selection.host,
+                        pending.selection.port);
             engine.setRoamingModeSession(pending.selection.roamingMode);
             connector.connect(pending.selection.host, pending.selection.port, pending.username, false, false, false);
             return;
@@ -943,7 +958,10 @@ void CommunityBrowserController::handleAuthResponse(const CommunityAuthClient::R
             return;
         }
 
-        spdlog::info("Authenticating '{}' on community {}", response.username, response.host);
+    KARMA_TRACE("net.client",
+                "Authenticating '{}' on community {}",
+                response.username,
+                response.host);
         browser.setStatus("Authenticating...", false);
         browser.storeCommunityAuth(response.host, response.username, passhash, response.salt);
         pendingJoin->password.clear();
@@ -962,10 +980,11 @@ void CommunityBrowserController::handleAuthResponse(const CommunityAuthClient::R
         return;
     }
 
-    spdlog::info("Connecting as registered user '{}' to {}:{}",
-                 pending.username,
-                 pending.selection.host,
-                 pending.selection.port);
+    KARMA_TRACE("net.client",
+                "Connecting as registered user '{}' to {}:{}",
+                pending.username,
+                pending.selection.host,
+                pending.selection.port);
     browser.clearPassword();
     engine.setRoamingModeSession(pending.selection.roamingMode);
     connector.connect(

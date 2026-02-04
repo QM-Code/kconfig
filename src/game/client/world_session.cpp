@@ -1,6 +1,7 @@
 #include "client/world_session.hpp"
 
 #include "client/game.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 #include "karma/components/mesh.h"
 #include "karma/components/transform.h"
@@ -49,7 +50,7 @@ bool ClientWorldSession::isInitialized() const {
 
 void ClientWorldSession::update() {
     for (const auto &initMsg : game.engine.network->consumeMessages<ServerMsg_Init>()) {
-        spdlog::trace("ClientWorldSession: Received init message from server");
+        KARMA_TRACE("net.client", "ClientWorldSession: Received init message from server");
         serverName = initMsg.serverName;
         content_.name = initMsg.worldName;
         protocolVersion = initMsg.protocolVersion;
@@ -102,7 +103,8 @@ void ClientWorldSession::update() {
             }
 
         } else {
-            spdlog::debug("ClientWorldSession: Received bundled world indication; skipping download");
+            KARMA_TRACE("net.client",
+                        "ClientWorldSession: Received bundled world indication; skipping download");
         }
 
         const auto worldPath = resolveAssetPath("world");
@@ -113,11 +115,13 @@ void ClientWorldSession::update() {
         worldMesh.mesh_key = worldPath.string();
         game.engine.ecsWorld->add(worldEcsEntity, worldMesh);
         game.engine.ecsWorld->add(worldEcsEntity, game::renderer::RadarRenderable{true});
-        spdlog::info("ClientWorldSession: ECS world mesh enabled (entity={}, path={})",
-                     worldEcsEntity.index, worldPath.string());
+        KARMA_TRACE("net.client",
+                    "ClientWorldSession: ECS world mesh enabled (entity={}, path={})",
+                    worldEcsEntity.index,
+                    worldPath.string());
         physics = game.engine.physics->createStaticMesh(worldPath.string());
 
-        spdlog::info("ClientWorldSession: World initialized from server");
+        KARMA_TRACE("net.client", "ClientWorldSession: World initialized from server");
         initialized = true;
         return;
     }

@@ -2,10 +2,10 @@
 #include "karma/core/types.hpp"
 #include "game/net/messages.hpp"
 #include "client/game.hpp"
+#include "karma/common/logging.hpp"
 #include "karma/components/mesh.h"
 #include "karma/components/transform.h"
 #include "renderer/radar_components.hpp"
-#include "spdlog/spdlog.h"
 #include <glm/glm.hpp>
 
 namespace components = karma::components;
@@ -43,7 +43,7 @@ Client::Client(Game &game, client_id id, const PlayerState &initialState)
     setState(initialState);
     justSpawned = state.alive;
     lastSpawnPosition = state.position;
-    spdlog::trace("Client::Client: Initialized location for client id {}", id);
+    KARMA_TRACE("game.client", "Client::Client: Initialized location for client id {}", id);
 }
 
 Client::~Client() {
@@ -67,7 +67,7 @@ void Client::die() {
     Actor::die();
     state.alive = false;
     dieAudio.play(state.position);
-    spdlog::trace("Client::update: Client id {} has died", id);
+    KARMA_TRACE("game.client", "Client::update: Client id {} has died", id);
 }
 
 void Client::spawn(glm::vec3 position, glm::quat rotation, glm::vec3 velocity) {
@@ -76,5 +76,5 @@ void Client::spawn(glm::vec3 position, glm::quat rotation, glm::vec3 velocity) {
     justSpawned = true;
     lastSpawnPosition = state.position;
     syncRenderFromState();
-    spdlog::trace("Client::update: Client id {} has spawned", id);
+    KARMA_TRACE("game.client", "Client::update: Client id {} has spawned", id);
 }

@@ -27,6 +27,8 @@ struct ClientCLIOptions {
     int verbose = 0;
     std::string logLevel;
     bool logLevelExplicit = false;
+    std::string traceChannels;
+    bool traceExplicit = false;
     bool timestampLogging = false;
 };
 

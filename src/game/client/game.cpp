@@ -1,6 +1,6 @@
 #include "client/game.hpp"
 #include "renderer/radar_renderer.hpp"
-#include "spdlog/spdlog.h"
+#include "karma/common/logging.hpp"
 #include <algorithm>
 #include "ui/core/system.hpp"
 
@@ -17,9 +17,9 @@ Game::Game(ClientEngine &engine,
       engine(engine) {
     roamingMode = engine.isRoamingModeSession();
     world = std::make_unique<ClientWorldSession>(*this, worldDir);
-    spdlog::trace("Game: World session created successfully");
+    KARMA_TRACE("game.client", "Game: World session created successfully");
     console = std::make_unique<Console>(*this);
-    spdlog::trace("Game: Console created successfully");
+    KARMA_TRACE("game.client", "Game: Console created successfully");
 
     game::renderer::RadarConfig radarConfig{};
     radarConfig.shaderVertex = world->resolveAssetPath("shaders.radar.vertex");
@@ -32,9 +32,9 @@ Game::Game(ClientEngine &engine,
 Game::~Game() {
 
     world.reset();
-    spdlog::trace("Game: World session destroyed successfully");
+    KARMA_TRACE("game.client", "Game: World session destroyed successfully");
     console.reset();
-    spdlog::trace("Game: Console destroyed successfully");
+    KARMA_TRACE("game.client", "Game: Console destroyed successfully");
     actors.clear();
     shots.clear();
 }
@@ -47,7 +47,7 @@ void Game::earlyUpdate(TimeUtils::duration deltaTime) {
     }
 
     if (!player && !roamingMode) {
-        spdlog::trace("Game: Creating player with name '{}'", playerName);
+        KARMA_TRACE("game.client", "Game: Creating player with name '{}'", playerName);
         auto playerActor = std::make_unique<Player>(
             *this,
             world->playerId,
@@ -58,12 +58,12 @@ void Game::earlyUpdate(TimeUtils::duration deltaTime) {
             localAdmin);
         player = playerActor.get();
         actors.push_back(std::move(playerActor));
-        spdlog::trace("Game: Player created successfully");
+        KARMA_TRACE("game.client", "Game: Player created successfully");
     }
 
     if (focusState == FOCUS_STATE_GAME && engine.getInputState().chat) {
         focusState = FOCUS_STATE_CONSOLE;
-        spdlog::trace("Game: Switching focus to console");
+        KARMA_TRACE("game.client", "Game: Switching focus to console");
         console->focusChatInput();
     }
 
@@ -71,7 +71,7 @@ void Game::earlyUpdate(TimeUtils::duration deltaTime) {
 
     if (focusState == FOCUS_STATE_CONSOLE && !console->isChatInFocus()) {
         focusState = FOCUS_STATE_GAME;
-        spdlog::trace("Game: Returning focus to game");
+        KARMA_TRACE("game.client", "Game: Returning focus to game");
     }
 
     for (const auto &msg : engine.network->consumeMessages<ServerMsg_PlayerJoin>()) {
@@ -82,7 +82,7 @@ void Game::earlyUpdate(TimeUtils::duration deltaTime) {
             continue;
         }
         actors.push_back(std::make_unique<Client>(*this, msg.clientId, msg.state));
-        spdlog::trace("Game: New client connected with ID {}", msg.clientId);
+        KARMA_TRACE("game.client", "Game: New client connected with ID {}", msg.clientId);
     }
 
     for (const auto &msg : engine.network->consumeMessages<ServerMsg_PlayerLeave>()) {
@@ -93,7 +93,7 @@ void Game::earlyUpdate(TimeUtils::duration deltaTime) {
 
         if (it != actors.end()) {
             actors.erase(it, actors.end());
-            spdlog::trace("Game: Client disconnected with ID {}", msg.clientId);
+            KARMA_TRACE("game.client", "Game: Client disconnected with ID {}", msg.clientId);
         }
     }
 

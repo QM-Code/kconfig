@@ -37,6 +37,7 @@
 #include "ui/console/tab_spec.hpp"
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/config_store.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 #include "karma_extras/ui/bridges/ui_render_bridge.hpp"
 #include "ui/fonts/console_fonts.hpp"
@@ -85,6 +86,7 @@ public:
     }
 
     bool LogMessage(Rml::Log::Type type, const Rml::String &message) override {
+        const bool isFontFace = message.rfind("Loaded font face", 0) == 0;
         switch (type) {
             case Rml::Log::Type::LT_ERROR:
                 spdlog::error("RmlUi: {}", message);
@@ -93,12 +95,20 @@ public:
                 spdlog::warn("RmlUi: {}", message);
                 break;
             case Rml::Log::Type::LT_INFO:
-                spdlog::trace("RmlUi: {}", message);
+                if (isFontFace) {
+                    KARMA_TRACE("ui.rmlui.fonts", "{}", message);
+                } else {
+                    KARMA_TRACE("ui.rmlui", "{}", message);
+                }
                 break;
             case Rml::Log::Type::LT_DEBUG:
             case Rml::Log::Type::LT_ASSERT:
             default:
-                spdlog::debug("RmlUi: {}", message);
+                if (isFontFace) {
+                    KARMA_TRACE("ui.rmlui.fonts", "{}", message);
+                } else {
+                    KARMA_TRACE("ui.rmlui", "{}", message);
+                }
                 break;
         }
         return true;
@@ -208,13 +218,13 @@ RmlUiBackend::RmlUiBackend(platform::Window &windowRefIn) : windowRef(&windowRef
         spdlog::error("RmlUi: failed to initialize bgfx renderer.");
         return;
     }
-    spdlog::info("RmlUi: bgfx renderer initialized.");
+    KARMA_TRACE("ui.rmlui", "bgfx renderer initialized.");
 #elif defined(KARMA_RENDER_BACKEND_DILIGENT)
     if (!state->renderInterface) {
         spdlog::error("RmlUi: failed to initialize Diligent renderer.");
         return;
     }
-    spdlog::info("RmlUi: Diligent renderer initialized.");
+    KARMA_TRACE("ui.rmlui", "Diligent renderer initialized.");
 #endif
 
     if (!Rml::Initialise()) {
@@ -320,7 +330,7 @@ RmlUiBackend::RmlUiBackend(platform::Window &windowRefIn) : windowRef(&windowRef
     loadHudDocument();
     loadConsoleDocument();
 
-    spdlog::info("UiSystem: RmlUi backend initialized.");
+    KARMA_TRACE("ui.rmlui", "UiSystem: RmlUi backend initialized.");
 }
 
 RmlUiBackend::~RmlUiBackend() {

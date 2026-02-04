@@ -40,6 +40,7 @@
 #include "common/data_path_resolver.hpp"
 #include "common/file_utils.hpp"
 #include "karma/app/ui_context.h"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 
 namespace {
@@ -499,8 +500,12 @@ Rml::TextureHandle RenderInterface_BGFX::LoadTexture(Rml::Vector2i& texture_dime
         textures.emplace(handle, entry);
         texture_dimensions.x = entry.width;
         texture_dimensions.y = entry.height;
-        spdlog::trace("RmlUi(BGFX): external texture texid:{} -> handle={} size={}x{}",
-                      tex_token, handle, entry.width, entry.height);
+        KARMA_TRACE("ui.rmlui.bgfx",
+                    "external texture texid:{} -> handle={} size={}x{}",
+                    tex_token,
+                    handle,
+                    entry.width,
+                    entry.height);
         return handle;
     }
 
@@ -565,7 +570,7 @@ Rml::TextureHandle RenderInterface_BGFX::LoadTexture(Rml::Vector2i& texture_dime
     textures.emplace(handle, entry);
     texture_dimensions.x = width;
     texture_dimensions.y = height;
-    spdlog::trace("RmlUi(BGFX): LoadTexture handle={} size={}x{}", handle, width, height);
+    KARMA_TRACE("ui.rmlui.bgfx", "LoadTexture handle={} size={}x{}", handle, width, height);
     return handle;
 }
 
@@ -575,7 +580,7 @@ Rml::TextureHandle RenderInterface_BGFX::GenerateTexture(Rml::Span<const Rml::by
         return {};
     }
 
-    spdlog::trace("RmlUi(BGFX): GenerateTexture {}x{}", source_dimensions.x, source_dimensions.y);
+    KARMA_TRACE("ui.rmlui.bgfx", "GenerateTexture {}x{}", source_dimensions.x, source_dimensions.y);
 
     const bgfx::Memory* mem = bgfx::copy(source_data.data(),
                                          static_cast<uint32_t>(source_dimensions.x * source_dimensions.y * 4));
@@ -604,7 +609,7 @@ Rml::TextureHandle RenderInterface_BGFX::GenerateTexture(Rml::Span<const Rml::by
 
     const Rml::TextureHandle handle = static_cast<Rml::TextureHandle>(next_texture_id++);
     textures.emplace(handle, entry);
-    spdlog::trace("RmlUi(BGFX): GenerateTexture handle={} size={}x{}", handle, source_dimensions.x, source_dimensions.y);
+    KARMA_TRACE("ui.rmlui.bgfx", "GenerateTexture handle={} size={}x{}", handle, source_dimensions.x, source_dimensions.y);
     return handle;
 }
 

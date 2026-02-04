@@ -2,6 +2,7 @@
 #include "server/game.hpp"
 #include <string>
 #include <sstream>
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 #include "game/engine/server_engine.hpp"
 #include "plugin.hpp"
@@ -23,5 +24,5 @@ void Chat::handleMessage(const ClientMsg_Chat &chatMsg) {
         return;
     }
 
-    spdlog::info("Client: {}, Message: {}", fromClient->getName(), mutableMsg.text);
+    KARMA_TRACE("net.server", "Client: {}, Message: {}", fromClient->getName(), mutableMsg.text);
 }

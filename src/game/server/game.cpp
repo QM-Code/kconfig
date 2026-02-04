@@ -1,4 +1,5 @@
 #include "server/game.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 #include <algorithm>
 #include <utility>
@@ -70,9 +71,10 @@ Game::~Game() {
 
 void Game::update(TimeUtils::duration deltaTime) {
     for (const auto &reqMsg : engine.network->consumeMessages<ClientMsg_JoinRequest>()) {
-        spdlog::debug("Game::update: Join request from id {} (name='{}')",
-                      reqMsg.clientId,
-                      reqMsg.name);
+        KARMA_TRACE("net.server",
+                    "Game::update: Join request from id {} (name='{}')",
+                    reqMsg.clientId,
+                    reqMsg.name);
         bool nameTaken = getClientByName(reqMsg.name) != nullptr;
         if (!nameTaken) {
             for (const auto &entry : pendingJoinNames_) {
@@ -107,9 +109,10 @@ void Game::update(TimeUtils::duration deltaTime) {
     }
 
     for (const auto &connMsg : engine.network->consumeMessages<ClientMsg_PlayerJoin>()) {
-        spdlog::debug("Game::update: New client connection with id {} from IP {}",
-                      connMsg.clientId,
-                      connMsg.ip);
+        KARMA_TRACE("net.server",
+                    "Game::update: New client connection with id {} from IP {}",
+                    connMsg.clientId,
+                    connMsg.ip);
         if (approvedJoinIds_.find(connMsg.clientId) == approvedJoinIds_.end()) {
             engine.network->disconnectClient(connMsg.clientId, "Join request required.");
             continue;
@@ -161,7 +164,9 @@ void Game::update(TimeUtils::duration deltaTime) {
     }
 
     for (const auto &disconnMsg : engine.network->consumeMessages<ClientMsg_PlayerLeave>()) {
-        spdlog::info("Game::update: Client with id {} disconnected", disconnMsg.clientId);
+        KARMA_TRACE("net.server",
+                    "Game::update: Client with id {} disconnected",
+                    disconnMsg.clientId);
         pendingJoinNames_.erase(disconnMsg.clientId);
         approvedJoinIds_.erase(disconnMsg.clientId);
         removeClient(disconnMsg.clientId);

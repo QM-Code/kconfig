@@ -6,6 +6,7 @@ set(ENGINE_COMMON_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/common/i18n.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/data_path_resolver.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/data_dir_override.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/common/logging.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/file_utils.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/stb_image_impl.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/world_content.cpp

@@ -2,6 +2,7 @@
 
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/data_path_resolver.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 
 namespace {
@@ -91,7 +92,7 @@ WorldContent LoadWorldContent(const std::vector<karma::data::ConfigLayerSpec>& b
     if (content.name.empty()) {
         content.name = std::filesystem::path(content.rootDir).filename().string();
     }
-    spdlog::info("{}: Loaded world '{}'", logContext, content.name);
+    KARMA_TRACE("world", "{}: Loaded world '{}'", logContext, content.name);
     return content;
 }
 

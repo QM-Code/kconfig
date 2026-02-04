@@ -1,6 +1,7 @@
 #include "game/net/backends/enet/client_backend.hpp"
 
 #include "game/net/proto_codec.hpp"
+#include "karma/common/logging.hpp"
 #include "karma/network/transport_factory.hpp"
 #include "spdlog/spdlog.h"
 
@@ -66,7 +67,7 @@ void EnetClientBackend::update() {
             break;
         }
         case ::net::Event::Type::Disconnect: {
-            spdlog::info("{}", kDisconnectReason);
+            KARMA_TRACE("net.client", "{}", kDisconnectReason);
             pendingDisconnect_ = DisconnectEvent{ kDisconnectReason };
             serverEndpoint_.reset();
             for (auto &msgData : receivedMessages_) {
@@ -76,7 +77,7 @@ void EnetClientBackend::update() {
             break;
         }
         case ::net::Event::Type::DisconnectTimeout: {
-            spdlog::info("{}", kTimeoutReason);
+            KARMA_TRACE("net.client", "{}", kTimeoutReason);
             pendingDisconnect_ = DisconnectEvent{ kTimeoutReason };
             serverEndpoint_.reset();
             for (auto &msgData : receivedMessages_) {
@@ -104,12 +105,12 @@ bool EnetClientBackend::connect(const std::string &addr, uint16_t port, int time
     receivedMessages_.clear();
 
     if (!transport_->connect(addr, port, timeoutMs)) {
-        spdlog::info("Connection to server failed.");
+        KARMA_TRACE("net.client", "Connection to server failed.");
         serverEndpoint_.reset();
         return false;
     }
 
-    spdlog::info("Connected to server.");
+    KARMA_TRACE("net.client", "Connected to server.");
     auto remoteIp = transport_->getRemoteIp();
     auto remotePort = transport_->getRemotePort();
     serverEndpoint_ = ServerEndpointInfo{ remoteIp.value_or(addr), remotePort.value_or(port) };

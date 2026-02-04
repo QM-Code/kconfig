@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <fstream>
 #include "karma/common/json.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/config_store.hpp"
@@ -155,7 +156,8 @@ ClientConfig ClientConfig::Load(const std::string &path) {
     }
 
     if (!karma::config::ConfigStore::Initialized()) {
-        spdlog::debug("ClientConfig::Load: Config cache uninitialized; falling back to direct file load");
+        KARMA_TRACE("config",
+                    "ClientConfig::Load: Config cache uninitialized; falling back to direct file load");
         const auto defaultConfigPath = karma::data::Resolve("client/config.json");
         return LoadClientConfigFromFiles(defaultConfigPath, userConfigPath);
     }

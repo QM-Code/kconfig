@@ -1,6 +1,7 @@
 #include "common/config_store.hpp"
 
 #include "common/data_path_resolver.hpp"
+#include "karma/common/logging.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -269,7 +270,7 @@ std::vector<karma::config::ConfigLayer> loadLayers(const std::vector<karma::conf
         }
         path = TryCanonical(path);
         const std::string label = spec.label.empty() ? path.string() : spec.label;
-        spdlog::trace("config_store: loading config file '{}' (label: {})", path.string(), label);
+        KARMA_TRACE("config", "config_store: loading config file '{}' (label: {})", path.string(), label);
         auto jsonOpt = karma::data::LoadJsonFile(path, label, spec.missingLevel);
         if (!jsonOpt) {
             if (spec.required) {
@@ -312,7 +313,7 @@ void ConfigStore::Initialize(const std::vector<ConfigFileSpec> &defaultSpecs,
         : TryCanonical(userConfigPath);
 
     karma::json::Value userJson = karma::json::Object();
-    spdlog::trace("config_store: loading user config '{}'", resolvedUserPath.string());
+    KARMA_TRACE("config", "config_store: loading user config '{}'", resolvedUserPath.string());
     if (auto userOpt = karma::data::LoadJsonFile(resolvedUserPath, "user config", spdlog::level::debug)) {
         if (userOpt->is_object()) {
             userJson = std::move(*userOpt);
@@ -395,7 +396,7 @@ const karma::json::Value *ConfigStore::Get(std::string_view path) {
             saveUserUnlocked(nullptr, true);
         }
     }
-    spdlog::trace("config_store: request for key '{}'", path);
+    KARMA_TRACE("config", "config_store: request for key '{}'", path);
     return resolvePath(g_state.merged, path);
 }
 
@@ -411,7 +412,7 @@ bool ConfigStore::Set(std::string_view path, karma::json::Value value) {
     if (!g_state.initialized) {
         return false;
     }
-    spdlog::trace("config_store: writing key '{}'", path);
+    KARMA_TRACE("config", "config_store: writing key '{}'", path);
     if (!setValueAtPath(g_state.user, path, std::move(value))) {
         return false;
     }
@@ -433,7 +434,7 @@ bool ConfigStore::Erase(std::string_view path) {
     if (!g_state.initialized) {
         return false;
     }
-    spdlog::trace("config_store: erasing key '{}'", path);
+    KARMA_TRACE("config", "config_store: erasing key '{}'", path);
     if (!eraseValueAtPath(g_state.user, path)) {
         return false;
     }
@@ -458,7 +459,7 @@ bool ConfigStore::ReplaceUserConfig(karma::json::Value userConfig, std::string *
     if (!g_state.initialized) {
         return false;
     }
-    spdlog::trace("config_store: replacing entire user config");
+    KARMA_TRACE("config", "config_store: replacing entire user config");
     g_state.user = std::move(userConfig);
     g_state.userLayer = ConfigLayer{g_state.user, g_state.userConfigPath.parent_path(), "user config"};
     g_state.revision++;
@@ -539,7 +540,7 @@ bool ConfigStore::saveUserUnlocked(std::string *error, bool ignoreInterval) {
     try {
         karma::json::Value rounded = g_state.user;
         roundFloatValues(rounded);
-        spdlog::trace("config_store: writing user config '{}'", path.string());
+        KARMA_TRACE("config", "config_store: writing user config '{}'", path.string());
         file << rounded.dump(4) << '\n';
     } catch (const std::exception &ex) {
         if (error) {

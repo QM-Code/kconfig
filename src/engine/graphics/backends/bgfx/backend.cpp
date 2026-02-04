@@ -3,6 +3,7 @@
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
 #include "karma/common/file_utils.hpp"
+#include "karma/common/logging.hpp"
 #include "karma/graphics/backends/bgfx/texture_utils.hpp"
 #include "karma/geometry/mesh_loader.hpp"
 #include "platform/window.hpp"
@@ -59,14 +60,14 @@ NativeWindowInfo getNativeWindowInfo(platform::Window* window) {
         if (void* wlDisplay = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_DISPLAY_POINTER, nullptr)) {
             info.ndt = wlDisplay;
             void* wlSurface = SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr);
-            spdlog::trace("Graphics(Bgfx): Wayland handles display={} surface={}", info.ndt, wlSurface);
+            KARMA_TRACE("render.bgfx", "Graphics(Bgfx): Wayland handles display={} surface={}", info.ndt, wlSurface);
             if (wlSurface) {
                 info.nwh = wlSurface;
                 info.handleType = bgfx::NativeWindowHandleType::Wayland;
-                spdlog::trace("Graphics(Bgfx): using Wayland surface handle");
+                KARMA_TRACE("render.bgfx", "Graphics(Bgfx): using Wayland surface handle");
                 return info;
             }
-            spdlog::trace("Graphics(Bgfx): Wayland display found but no surface");
+            KARMA_TRACE("render.bgfx", "Graphics(Bgfx): Wayland display found but no surface");
             return {};
         }
     }
@@ -267,7 +268,7 @@ void SetBgfxRendererPreference(BgfxRendererPreference preference) {
 
 BgfxBackend::BgfxBackend(platform::Window& windowIn)
     : window(&windowIn) {
-    spdlog::trace("Graphics(Bgfx): ctor begin");
+    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): ctor begin");
     if (window) {
         window->getFramebufferSize(framebufferWidth, framebufferHeight);
         if (framebufferWidth <= 0) {
@@ -279,7 +280,7 @@ BgfxBackend::BgfxBackend(platform::Window& windowIn)
     }
 
     themeName = getThemeName();
-    spdlog::trace("Graphics(Bgfx): theme = '{}'", themeName);
+    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): theme = '{}'", themeName);
 
     const auto nativeInfo = getNativeWindowInfo(window);
     bgfx::PlatformData pd{};
@@ -289,7 +290,7 @@ BgfxBackend::BgfxBackend(platform::Window& windowIn)
 #if defined(KARMA_WINDOW_BACKEND_SDL3)
     pd.type = nativeInfo.handleType;
 #endif
-    spdlog::trace("Graphics(Bgfx): platform nwh={} ndt={} ctx={}", pd.nwh, pd.ndt, pd.context);
+    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): platform nwh={} ndt={} ctx={}", pd.nwh, pd.ndt, pd.context);
 
     if (!pd.ndt || !pd.nwh) {
         spdlog::error("Graphics(Bgfx): missing native display/window handle (ndt={}, nwh={})", pd.ndt, pd.nwh);
@@ -306,7 +307,7 @@ BgfxBackend::BgfxBackend(platform::Window& windowIn)
             init.type = bgfx::RendererType::Vulkan;
             break;
     }
-    spdlog::trace("Graphics(Bgfx): requested renderer {}", static_cast<int>(init.type));
+    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): requested renderer {}", static_cast<int>(init.type));
     init.vendorId = BGFX_PCI_ID_NONE;
     init.platformData = pd;
     init.resolution.width = static_cast<uint32_t>(framebufferWidth);
@@ -314,14 +315,14 @@ BgfxBackend::BgfxBackend(platform::Window& windowIn)
     init.resolution.reset = BGFX_RESET_VSYNC;
     initialized = bgfx::init(init);
 
-    spdlog::trace("Graphics(Bgfx): init result={} size={}x{}", initialized, framebufferWidth, framebufferHeight);
+    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): init result={} size={}x{}", initialized, framebufferWidth, framebufferHeight);
     if (initialized) {
         bgfx::setViewClear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x0d1620ff, 1.0f, 0);
         bgfx::setViewRect(0, 0, 0, static_cast<uint16_t>(framebufferWidth), static_cast<uint16_t>(framebufferHeight));
         bgfx::setViewTransform(0, nullptr, nullptr);
         buildTestResources();
         buildSkyboxResources();
-        spdlog::trace("Graphics(Bgfx): init ok renderer={} testReady={}",
+        KARMA_TRACE("render.bgfx", "Graphics(Bgfx): init ok renderer={} testReady={}",
                      static_cast<int>(bgfx::getRendererType()),
                      testReady);
     }
@@ -517,7 +518,7 @@ void BgfxBackend::setEntityModel(graphics::EntityId entity,
             bgfx::TextureHandle handle = loadTextureFromFile(themePath);
             if (bgfx::isValid(handle)) {
                 textureCache.emplace(themeKey, handle);
-                spdlog::trace("Graphics(Bgfx): loaded theme texture '{}' -> {}", themeKey, themePath.string());
+                KARMA_TRACE("render.bgfx", "Graphics(Bgfx): loaded theme texture '{}' -> {}", themeKey, themePath.string());
                 return handle;
             }
             spdlog::warn("Graphics(Bgfx): failed to load theme texture '{}'", themePath.string());
@@ -561,7 +562,7 @@ void BgfxBackend::setEntityModel(graphics::EntityId entity,
                     const bool isEmbeddedBuildingTop = submesh.albedo->key.find("embedded:2") != std::string::npos;
                     const bool isGrass = isEmbeddedGrass || isLikelyGrass(*submesh.albedo);
                     slot = isGrass ? "grass" : (isEmbeddedBuildingTop ? "building-top" : "building");
-                    spdlog::trace("Graphics(Bgfx): submesh tex='{}' grass={} theme='{}' slot='{}'",
+                    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): submesh tex='{}' grass={} theme='{}' slot='{}'",
                                  submesh.albedo->key, isGrass, themeName, slot);
                     if (isGrass) {
                         meshIt->second.isWorldGrass = true;
@@ -736,7 +737,7 @@ graphics::RenderTargetId BgfxBackend::createRenderTarget(const graphics::RenderT
     RenderTargetRecord record;
     record.desc = desc;
     if (!initialized) {
-        spdlog::trace("Graphics(Bgfx): created render target {} size={}x{} fb=false color=false depth=false (bgfx not initialized)",
+        KARMA_TRACE("render.bgfx", "Graphics(Bgfx): created render target {} size={}x{} fb=false color=false depth=false (bgfx not initialized)",
                       id, desc.width, desc.height);
         renderTargets[id] = record;
         return id;
@@ -775,7 +776,7 @@ graphics::RenderTargetId BgfxBackend::createRenderTarget(const graphics::RenderT
             record.frameBuffer = bgfx::createFrameBuffer(attachmentCount, attachments, false);
         }
     }
-    spdlog::trace("Graphics(Bgfx): created render target {} size={}x{} fb={} color={} depth={}",
+    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): created render target {} size={}x{} fb={} color={} depth={}",
                   id, desc.width, desc.height,
                   bgfx::isValid(record.frameBuffer),
                   bgfx::isValid(record.colorTexture),
@@ -839,7 +840,7 @@ void BgfxBackend::renderLayer(graphics::LayerId layer, graphics::RenderTargetId 
     const glm::mat4 proj = getProjectionMatrix();
     const uint16_t viewId = static_cast<uint16_t>(layer);
     if (viewId == kUiOverlayView) {
-        spdlog::debug("BGFX: renderLayer collision with UI view (layer={})", layer);
+        KARMA_TRACE("render.bgfx", "BGFX: renderLayer collision with UI view (layer={})", layer);
     }
     bgfx::setViewMode(viewId, bgfx::ViewMode::Sequential);
     bgfx::setViewTransform(viewId, glm::value_ptr(view), glm::value_ptr(proj));
@@ -1067,7 +1068,7 @@ unsigned int BgfxBackend::getRenderTargetTextureId(graphics::RenderTargetId targ
     const uint16_t idx = record.colorTexture.idx;
     auto lastIt = lastTextureIds.find(target);
     if (lastIt == lastTextureIds.end() || lastIt->second != idx) {
-        spdlog::trace("Graphics(Bgfx): render target {} texture idx={}", target, idx);
+        KARMA_TRACE("render.bgfx", "Graphics(Bgfx): render target {} texture idx={}", target, idx);
         lastTextureIds[target] = idx;
     }
     return static_cast<unsigned int>(idx + 1);
@@ -1508,13 +1509,13 @@ void BgfxBackend::buildSkyboxResources() {
     }
 
     const std::string mode = karma::config::ReadRequiredStringConfig("graphics.skybox.Mode");
-    spdlog::trace("Graphics(Bgfx): skybox mode='{}'", mode);
+    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): skybox mode='{}'", mode);
     if (mode != "cubemap") {
         return;
     }
 
     const std::string name = karma::config::ReadRequiredStringConfig("graphics.skybox.Cubemap.Name");
-    spdlog::trace("Graphics(Bgfx): skybox cubemap='{}'", name);
+    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): skybox cubemap='{}'", name);
     const std::array<std::string, 6> faces = {"right", "left", "up", "down", "front", "back"};
     std::array<std::vector<uint8_t>, 6> facePixels{};
     int faceWidth = 0;
@@ -1522,7 +1523,7 @@ void BgfxBackend::buildSkyboxResources() {
 
     for (size_t i = 0; i < faces.size(); ++i) {
         const std::filesystem::path facePath = skyboxPathFor(name, faces[i]);
-        spdlog::trace("Graphics(Bgfx): loading skybox face '{}'", facePath.string());
+        KARMA_TRACE("render.bgfx", "Graphics(Bgfx): loading skybox face '{}'", facePath.string());
         int width = 0;
         int height = 0;
         int channels = 0;
@@ -1552,7 +1553,7 @@ void BgfxBackend::buildSkyboxResources() {
         spdlog::warn("Graphics(Bgfx): failed to create skybox cubemap");
         return;
     }
-    spdlog::trace("Graphics(Bgfx): skybox cubemap created {}x{}", faceWidth, faceHeight);
+    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): skybox cubemap created {}x{}", faceWidth, faceHeight);
 
     const std::filesystem::path shaderDir = getBgfxShaderDir("skybox");
     const std::filesystem::path vsPath = shaderDir / "vs_skybox.bin";
@@ -1607,7 +1608,7 @@ void BgfxBackend::buildSkyboxResources() {
 
     skyboxVertexBuffer = bgfx::createVertexBuffer(bgfx::copy(cubeVerts, sizeof(cubeVerts)), skyboxLayout);
     skyboxReady = bgfx::isValid(skyboxVertexBuffer) && bgfx::isValid(skyboxProgram);
-    spdlog::trace("Graphics(Bgfx): skybox ready={}", skyboxReady);
+    KARMA_TRACE("render.bgfx", "Graphics(Bgfx): skybox ready={}", skyboxReady);
 }
 
 void BgfxBackend::ensureUiOverlayResources() {

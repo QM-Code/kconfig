@@ -8,6 +8,7 @@
 #include <filesystem>
 
 #include "karma/common/data_path_resolver.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 
 namespace ui {
@@ -361,8 +362,12 @@ void RmlUiConsole::onJoinRequested(int index) {
         entry.worldName,
         false
     });
-    spdlog::info("RmlUi Console: Join queued host={} port={} sourceHost={} worldName={}",
-                 entry.host, entry.port, entry.sourceHost, entry.worldName);
+    KARMA_TRACE("ui.rmlui",
+                "RmlUi Console: Join queued host={} port={} sourceHost={} worldName={}",
+                entry.host,
+                entry.port,
+                entry.sourceHost,
+                entry.worldName);
 }
 
 void RmlUiConsole::onRoamRequested(int index) {
@@ -379,8 +384,12 @@ void RmlUiConsole::onRoamRequested(int index) {
         entry.worldName,
         true
     });
-    spdlog::info("RmlUi Console: Roam queued host={} port={} sourceHost={} worldName={}",
-                 entry.host, entry.port, entry.sourceHost, entry.worldName);
+    KARMA_TRACE("ui.rmlui",
+                "RmlUi Console: Roam queued host={} port={} sourceHost={} worldName={}",
+                entry.host,
+                entry.port,
+                entry.sourceHost,
+                entry.worldName);
 }
 
 void RmlUiConsole::onQuitRequested() {

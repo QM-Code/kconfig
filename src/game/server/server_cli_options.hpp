@@ -16,6 +16,8 @@ struct ServerCLIOptions {
     int verbose = 0;
     std::string logLevel;
     bool logLevelExplicit = false;
+    std::string traceChannels;
+    bool traceExplicit = false;
     bool timestampLogging = false;
     std::string community;
     bool communityExplicit = false;

@@ -1,6 +1,7 @@
 #include "game/net/backends/enet/server_backend.hpp"
 
 #include "game/net/proto_codec.hpp"
+#include "karma/common/logging.hpp"
 #include "karma/network/transport_factory.hpp"
 #include "spdlog/spdlog.h"
 
@@ -15,7 +16,7 @@ EnetServerBackend::EnetServerBackend(uint16_t port, int maxClients, int numChann
         return;
     }
 
-    spdlog::info("Server started on port {}", port);
+    KARMA_TRACE("net.server", "Server started on port {}", port);
 }
 
 EnetServerBackend::~EnetServerBackend() {
@@ -156,7 +157,9 @@ void EnetServerBackend::disconnectClient(client_id clientId, const std::string &
         sendImpl(clientId, notice, true);
     }
 
-    spdlog::info("ServerNetwork::disconnectClient: Disconnecting client {}", clientId);
+    KARMA_TRACE("net.server",
+                "ServerNetwork::disconnectClient: Disconnecting client {}",
+                clientId);
     if (transport_) {
         transport_->disconnect(it->second);
     }

@@ -3,6 +3,7 @@
 #include "game/net/messages.hpp"
 #include "game/input/bindings.hpp"
 #include "game/input/state.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 #include "karma_extras/ui/bridges/renderer_bridge.hpp"
 #include "karma/common/config_store.hpp"
@@ -64,24 +65,24 @@ glm::vec3 ReadRequiredVec3Config(const char *path) {
 
 ClientEngine::ClientEngine(platform::Window &window) {
     network = new ClientNetwork();
-    spdlog::trace("ClientEngine: ClientNetwork initialized successfully");
-    spdlog::trace("ClientEngine: Renderer initializing");
+    KARMA_TRACE("engine.client", "ClientEngine: ClientNetwork initialized successfully");
+    KARMA_TRACE("engine.client", "ClientEngine: Renderer initializing");
     render = new Renderer(window);
-    spdlog::trace("ClientEngine: Renderer initialized successfully");
+    KARMA_TRACE("engine.client", "ClientEngine: Renderer initialized successfully");
     auto* rendererBridgeImpl = new RendererBridgeImpl(render);
     uiRenderBridge.reset(rendererBridgeImpl);
     physics = new PhysicsWorld();
-    spdlog::trace("ClientEngine: Physics initialized successfully");
+    KARMA_TRACE("engine.client", "ClientEngine: Physics initialized successfully");
     input = new Input(window, game_input::DefaultKeybindings());
-    spdlog::trace("ClientEngine: Input initialized successfully");
+    KARMA_TRACE("engine.client", "ClientEngine: Input initialized successfully");
     ui = new UiSystem(window);
     ui->setRendererBridge(rendererBridgeImpl);
     uiLayer = std::make_unique<UiLayerAdapter>(*ui);
-    spdlog::trace("ClientEngine: UiSystem initialized successfully");
+    KARMA_TRACE("engine.client", "ClientEngine: UiSystem initialized successfully");
     lastLanguage = karma::i18n::Get().language();
     ui->setDialogText(game_input::SpawnHintText(*input));
     audio = new Audio();
-    spdlog::trace("ClientEngine: Audio initialized successfully");
+    KARMA_TRACE("engine.client", "ClientEngine: Audio initialized successfully");
     ecsWorld = nullptr;
 }
 

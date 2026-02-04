@@ -2,6 +2,7 @@
 #include "server/game.hpp"
 #include "game/engine/server_engine.hpp"
 #include "karma/common/data_path_resolver.hpp"
+#include "karma/common/logging.hpp"
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/embed.h>
@@ -38,7 +39,8 @@ void PluginAPI::loadPythonPlugins(const karma::json::Value &configJson) {
     }
 
     if (configuredPlugins.empty()) {
-        spdlog::info("No plugins configured in world config; skipping Python plugin load.");
+        KARMA_TRACE("engine.server",
+                    "No plugins configured in world config; skipping Python plugin load.");
         g_loadedPlugins.clear();
         return;
     }
@@ -112,7 +114,10 @@ void PluginAPI::registerCallback(EventType type, pybind11::function func) {
         g_pluginCallbacks[type] = std::vector<pybind11::function>();
     }
     g_pluginCallbacks[type].push_back(func);
-    spdlog::debug("PluginAPI: Registered callback for event {} (total: {})", static_cast<int>(type), g_pluginCallbacks[type].size());
+    KARMA_TRACE("engine.server",
+                "PluginAPI: Registered callback for event {} (total: {})",
+                static_cast<int>(type),
+                g_pluginCallbacks[type].size());
 }
 
 void PluginAPI::sendChatMessage(client_id fromId, client_id toId, const std::string &text) {

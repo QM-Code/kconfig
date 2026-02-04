@@ -1,6 +1,6 @@
 #include "console.hpp"
 #include "client/game.hpp"
-#include "spdlog/spdlog.h"
+#include "karma/common/logging.hpp"
 
 Console::Console(Game &game) : game(game) {
 
@@ -14,7 +14,7 @@ void Console::focusChatInput() {
 void Console::update() {
     if (chatInFocus) {
         if (game.engine.ui->getChatInputBuffer().length() > 0) {
-            spdlog::trace("Console::update: Processing submitted chat input");
+            KARMA_TRACE("ui.rmlui", "Console::update: Processing submitted chat input");
             std::string message = game.engine.ui->getChatInputBuffer();
             std::string consoleMessage = message;
             bool includePlayerName = true;

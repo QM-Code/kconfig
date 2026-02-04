@@ -1,4 +1,5 @@
 #include "server/server_discovery.hpp"
+#include "karma/common/logging.hpp"
 #include "game/net/discovery_protocol.hpp"
 #include "spdlog/spdlog.h"
 
@@ -77,7 +78,9 @@ ServerDiscoveryBeacon::ServerDiscoveryBeacon(uint16_t listenPort, std::string se
 
     running = true;
     worker = std::thread(&ServerDiscoveryBeacon::run, this);
-    spdlog::info("ServerDiscoveryBeacon listening for LAN discovery on UDP {}", DiscoveryProtocol::PORT);
+    KARMA_TRACE("net.server",
+                "ServerDiscoveryBeacon listening for LAN discovery on UDP {}",
+                DiscoveryProtocol::PORT);
 }
 
 ServerDiscoveryBeacon::~ServerDiscoveryBeacon() {

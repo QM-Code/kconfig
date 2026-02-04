@@ -1,5 +1,6 @@
 #include "karma/graphics/backends/diligent/backend.hpp"
 #include "karma/graphics/backends/diligent/ui_bridge.hpp"
+#include "karma/common/logging.hpp"
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
@@ -72,7 +73,7 @@ void DILIGENT_CALL_TYPE DiligentMessageCallback(Diligent::DEBUG_MESSAGE_SEVERITY
     }
     switch (severity) {
         case Diligent::DEBUG_MESSAGE_SEVERITY_INFO:
-            spdlog::trace("Diligent: {}", message);
+            KARMA_TRACE("render.diligent.vulkan", "{}", message);
             break;
         case Diligent::DEBUG_MESSAGE_SEVERITY_WARNING:
             spdlog::warn("Diligent: {}", message);
@@ -84,7 +85,7 @@ void DILIGENT_CALL_TYPE DiligentMessageCallback(Diligent::DEBUG_MESSAGE_SEVERITY
             spdlog::critical("Diligent: {}", message);
             break;
         default:
-            spdlog::debug("Diligent: {}", message);
+            KARMA_TRACE("render.diligent.vulkan", "{}", message);
             break;
     }
 }
@@ -297,9 +298,12 @@ void DiligentBackend::beginFrame() {
     static bool logged = false;
     if (!logged) {
         const auto desc = swapChain_->GetDesc();
-        spdlog::info("Graphics(Diligent): swapchain RTV={} DSV={} size={}x{}",
-                     static_cast<void*>(rtv), static_cast<void*>(dsv),
-                     desc.Width, desc.Height);
+        KARMA_TRACE("render.diligent",
+                    "Graphics(Diligent): swapchain RTV={} DSV={} size={}x{}",
+                    static_cast<void*>(rtv),
+                    static_cast<void*>(dsv),
+                    desc.Width,
+                    desc.Height);
         logged = true;
     }
     if (rtv) {
@@ -1009,7 +1013,7 @@ void DiligentBackend::initDiligent() {
                     linuxWindow.WindowId = 0;
                     nativeWindow = Diligent::NativeWindow{linuxWindow};
                     nativeWindowReady = true;
-                    spdlog::info("Graphics(Diligent): using Wayland native window");
+                    KARMA_TRACE("render.diligent", "Graphics(Diligent): using Wayland native window");
                 }
             }
             if (!nativeWindowReady) {
@@ -1020,7 +1024,7 @@ void DiligentBackend::initDiligent() {
                     linuxWindow.WindowId = static_cast<uintptr_t>(x11Window);
                     nativeWindow = Diligent::NativeWindow{linuxWindow};
                     nativeWindowReady = true;
-                    spdlog::info("Graphics(Diligent): using X11 native window");
+                    KARMA_TRACE("render.diligent", "Graphics(Diligent): using X11 native window");
                 }
             }
         }
@@ -1058,7 +1062,7 @@ void DiligentBackend::initDiligent() {
     graphics_backend::diligent_ui::SetContext(device_, context_, swapChain_, framebufferWidth, framebufferHeight);
 #if defined(KARMA_UI_BACKEND_IMGUI)
 #endif
-    spdlog::info("Graphics(Diligent): Vulkan initialized");
+    KARMA_TRACE("render.diligent", "Graphics(Diligent): Vulkan initialized");
 }
 
 void DiligentBackend::ensurePipeline() {
@@ -1279,13 +1283,13 @@ void DiligentBackend::buildSkyboxResources() {
     }
 
     const std::string mode = karma::config::ReadRequiredStringConfig("graphics.skybox.Mode");
-    spdlog::info("Graphics(Diligent): skybox mode='{}'", mode);
+    KARMA_TRACE("render.diligent", "Graphics(Diligent): skybox mode='{}'", mode);
     if (mode != "cubemap") {
         return;
     }
 
     const std::string name = karma::config::ReadRequiredStringConfig("graphics.skybox.Cubemap.Name");
-    spdlog::info("Graphics(Diligent): skybox cubemap='{}'", name);
+    KARMA_TRACE("render.diligent", "Graphics(Diligent): skybox cubemap='{}'", name);
     const std::array<std::string, 6> faces = {"right", "left", "up", "down", "front", "back"};
     std::array<std::vector<uint8_t>, 6> facePixels{};
     int faceWidth = 0;
@@ -1480,7 +1484,7 @@ float4 main(float3 dir : TEXCOORD0) : SV_Target
     }
 
     skyboxReady = true;
-    spdlog::info("Graphics(Diligent): skybox ready={}", skyboxReady);
+    KARMA_TRACE("render.diligent", "Graphics(Diligent): skybox ready={}", skyboxReady);
 }
 
 void DiligentBackend::ensureUiOverlayPipeline() {

@@ -8,12 +8,12 @@
 #include "karma/components/mesh.h"
 #include "karma/components/transform.h"
 #include "karma/common/config_helpers.hpp"
+#include "karma/common/logging.hpp"
 #include "renderer/radar_components.hpp"
 #include <cmath>
 #include <string>
 #include <utility>
 #include <memory>
-#include "spdlog/spdlog.h"
 #include "shot.hpp"
 
 namespace components = karma::components;
@@ -54,7 +54,9 @@ Player::Player(Game &game,
         circle.radius = 1.2f;
         game.engine.ecsWorld->add(ecsEntity, circle);
         // Local player mesh rendering is skipped to avoid first-person camera inside the tank.
-        spdlog::info("Player: ECS entity created for local player (ecs_entity={})", ecsEntity.index);
+        KARMA_TRACE("game.client",
+                    "Player: ECS entity created for local player (ecs_entity={})",
+                    ecsEntity.index);
     }
 
     // Initialize controller extents from parameters once params are set

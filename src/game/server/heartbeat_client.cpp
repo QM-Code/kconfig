@@ -2,6 +2,7 @@
 
 #include <curl/curl.h>
 #include "karma/common/json.hpp"
+#include "karma/common/logging.hpp"
 #include <spdlog/spdlog.h>
 
 #include "karma/common/curl_global.hpp"
@@ -186,7 +187,7 @@ void HeartbeatClient::workerProc() {
             }
             spdlog::warn("HeartbeatClient: Failed to send heartbeat to {}: {}", baseUrl, reason);
         } else {
-            spdlog::debug("HeartbeatClient: Sent heartbeat to {}", baseUrl);
+            KARMA_TRACE("net.server", "HeartbeatClient: Sent heartbeat to {}", baseUrl);
         }
     }
 }

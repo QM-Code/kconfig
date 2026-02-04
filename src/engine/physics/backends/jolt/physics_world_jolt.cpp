@@ -2,6 +2,7 @@
 #include "physics/backends/jolt/player_controller_jolt.hpp"
 #include "physics/backends/jolt/rigid_body_jolt.hpp"
 #include "physics/backends/jolt/static_body_jolt.hpp"
+#include "karma/common/logging.hpp"
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
@@ -80,12 +81,15 @@ inline Vec3 toJph(const glm::vec3& v) { return Vec3(v.x, v.y, v.z); }
 inline glm::vec3 toGlm(const Vec3& v) { return glm::vec3(v.GetX(), v.GetY(), v.GetZ()); }
 
 void JoltTrace(const char* fmt, ...) {
+    if (!karma::logging::ShouldTraceChannel("physics.jolt")) {
+        return;
+    }
     va_list list;
     va_start(list, fmt);
     char buffer[1024];
     vsnprintf(buffer, sizeof(buffer), fmt, list);
     va_end(list);
-    spdlog::trace("Jolt: {}", buffer);
+    KARMA_TRACE("physics.jolt", "{}", buffer);
 }
 
 void initJoltOnce() {
@@ -185,7 +189,7 @@ std::unique_ptr<PhysicsPlayerControllerBackend> PhysicsWorldJolt::createPlayer(c
     controller->setRotation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
     controller->setVelocity(glm::vec3(0.0f));
     controller->setAngularVelocity(glm::vec3(0.0f));
-    spdlog::info("Created kinematic player controller");
+    KARMA_TRACE("physics.jolt", "Created kinematic player controller");
     return controller;
 }
 

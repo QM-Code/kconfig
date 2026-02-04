@@ -2,6 +2,7 @@
 
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/config_store.hpp"
+#include "karma/common/logging.hpp"
 #include "cxxopts.hpp"
 #include <algorithm>
 #include <cstdlib>
@@ -82,12 +83,26 @@ ClientCLIOptions ParseClientCLIOptions(int argc, char *argv[]) {
     options.add_options()
         ("strict-config", "Fail startup if required config keys are missing", cxxopts::value<bool>()->default_value("true"));
     options.add_options()
-        ("v,verbose", "Enable verbose logging (-v=debug, -vv=trace)")
-        ("L,log-level", "Logging level (trace, debug, info, warn, err, critical, off)", cxxopts::value<std::string>());
+        ("v,verbose", "Enable verbose logging (-v=debug)")
+        ("L,log-level", "Logging level (debug, info, warn, err, critical, off)", cxxopts::value<std::string>())
+        ("t,trace", "Trace channels (comma-separated)", cxxopts::value<std::string>());
     options.add_options()
         ("T,timestamp-logging", "Enable timestamped logging output");
     options.add_options()
         ("h,help", "Show help");
+
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view arg(argv[i]);
+        if (arg == "-t" || arg == "--trace") {
+            const bool hasValue = (i + 1 < argc) && argv[i + 1][0] != '-';
+            if (!hasValue) {
+                std::cerr << "Error: --trace/-t requires a comma-separated channel list.\n";
+                std::cerr << "\nAvailable trace channels:\n"
+                          << karma::logging::GetDefaultTraceChannelsHelp();
+                std::exit(1);
+            }
+        }
+    }
 
     cxxopts::ParseResult result;
     try {
@@ -127,6 +142,8 @@ ClientCLIOptions ParseClientCLIOptions(int argc, char *argv[]) {
     parsed.verbose = static_cast<int>(result.count("verbose"));
     parsed.logLevel = result.count("log-level") ? result["log-level"].as<std::string>() : std::string();
     parsed.logLevelExplicit = result.count("log-level") > 0;
+    parsed.traceChannels = result.count("trace") ? result["trace"].as<std::string>() : std::string();
+    parsed.traceExplicit = result.count("trace") > 0;
     parsed.timestampLogging = result.count("timestamp-logging") > 0;
     if (parsed.logLevelExplicit && !IsValidLogLevel(parsed.logLevel)) {
         std::cerr << "Error: invalid --log-level value '" << parsed.logLevel << "'.\n";
@@ -135,6 +152,16 @@ ClientCLIOptions ParseClientCLIOptions(int argc, char *argv[]) {
     }
     if (parsed.logLevelExplicit) {
         parsed.logLevel = NormalizeLogLevel(parsed.logLevel);
+        if (parsed.logLevel == "trace") {
+            std::cerr << "Error: --log-level trace is no longer supported. Use --trace/-t with a channel list.\n";
+            std::cerr << options.help() << std::endl;
+            std::exit(1);
+        }
+    }
+    if (parsed.traceExplicit && parsed.traceChannels.empty()) {
+        std::cerr << "Error: --trace/-t requires a comma-separated channel list.\n";
+        std::cerr << "\nAvailable trace channels:\n" << karma::logging::GetDefaultTraceChannelsHelp();
+        std::exit(1);
     }
     return parsed;
 }

@@ -1,6 +1,5 @@
 #include "karma/graphics/backend.hpp"
-
-#include <spdlog/spdlog.h>
+#include "karma/common/logging.hpp"
 
 #if defined(KARMA_RENDER_BACKEND_DILIGENT)
 #include "karma/graphics/backends/diligent/backend.hpp"
@@ -16,7 +15,7 @@ std::unique_ptr<Backend> CreateGraphicsBackend(platform::Window& window) {
 #if defined(KARMA_RENDER_BACKEND_DILIGENT)
     return std::make_unique<DiligentBackend>(window);
 #elif defined(KARMA_RENDER_BACKEND_BGFX)
-    spdlog::info("Graphics: selecting bgfx backend");
+    KARMA_TRACE("render.bgfx", "Graphics: selecting bgfx backend");
     return std::make_unique<BgfxBackend>(window);
 #else
     (void)window;

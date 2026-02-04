@@ -1,5 +1,6 @@
 #include "shot.hpp"
 #include "client/game.hpp"
+#include "karma/common/logging.hpp"
 #include "karma/components/mesh.h"
 #include "karma/components/transform.h"
 #include "karma_extras/ecs/render_components.h"
@@ -36,7 +37,10 @@ Shot::Shot(Game &game,
         game::renderer::RadarCircle circle{};
         circle.radius = 0.5f;
         game.engine.ecsWorld->add(ecsEntity, circle);
-        spdlog::info("Shot: ECS render enabled (shot_id={}, ecs_entity={})", id, ecsEntity.index);
+        KARMA_TRACE("game.client",
+                    "Shot: ECS render enabled (shot_id={}, ecs_entity={})",
+                    id,
+                    ecsEntity.index);
     }
 
     fireAudio.play(position);
@@ -77,7 +81,8 @@ void Shot::update(TimeUtils::duration deltaTime) {
         velocity = glm::reflect(dir, n) * speed;
 
         ricochetAudio.play(hitPoint);
-        spdlog::trace(
+        KARMA_TRACE(
+            "game.client",
             "Shot::update: Shot {} ricocheted at point ({:.6f}, {:.6f}, {:.6f}) with normal ({:.6f}, {:.6f}, {:.6f})",
             id,
             hitPoint.x, hitPoint.y, hitPoint.z,

@@ -6,7 +6,7 @@
 #include "karma/components/transform.h"
 #include "karma/ecs/world.h"
 #include "karma_extras/ecs/render_components.h"
-#include "spdlog/spdlog.h"
+#include "karma/common/logging.hpp"
 #include <cstdlib>
 #include <unordered_map>
 
@@ -29,10 +29,11 @@ public:
             debugAccum_ += dt;
             if (debugAccum_ >= 1.0f) {
                 debugAccum_ = 0.0f;
-                spdlog::info("RendererSystem: entities={} meshes={} renderEntities={}",
-                             world.storage<components::TransformComponent>().denseEntities().size(),
-                             world.storage<RenderMesh>().denseEntities().size(),
-                             world.storage<RenderEntity>().denseEntities().size());
+                KARMA_TRACE("render.frame",
+                            "RendererSystem: entities={} meshes={} renderEntities={}",
+                            world.storage<components::TransformComponent>().denseEntities().size(),
+                            world.storage<RenderMesh>().denseEntities().size(),
+                            world.storage<RenderEntity>().denseEntities().size());
             }
         }
         for (auto it = entities_.begin(); it != entities_.end(); ) {

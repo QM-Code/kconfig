@@ -1,5 +1,6 @@
 #include "client/server/server_discovery.hpp"
 #include "game/net/discovery_protocol.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 
 #include <cstring>
@@ -253,7 +254,7 @@ void ServerDiscovery::update() {
         }
 
         ++generation;
-        spdlog::info("Discovered LAN server {}:{} ({})", host, port, name);
+        KARMA_TRACE("net.client", "Discovered LAN server {}:{} ({})", host, port, name);
     }
 
     if (std::chrono::steady_clock::now() >= scanDeadline) {

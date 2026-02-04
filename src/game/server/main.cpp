@@ -10,6 +10,7 @@
 #include "game/common/data_path_spec.hpp"
 #include "karma/common/data_dir_override.hpp"
 #include "karma/common/data_path_resolver.hpp"
+#include "karma/common/logging.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
 #include "karma/common/config_validation.hpp"
@@ -52,11 +53,7 @@ spdlog::level::level_enum ParseLogLevel(const std::string &level) {
 }
 
 void ConfigureLogging(spdlog::level::level_enum level, bool includeTimestamp) {
-    if (includeTimestamp) {
-        spdlog::set_pattern("%Y-%m-%d %H:%M:%S.%e [%^%l%$] %v");
-    } else {
-        spdlog::set_pattern("[%^%l%$] %v");
-    }
+    karma::logging::ConfigureLogPatterns(includeTimestamp);
     spdlog::set_level(level);
 }
 
@@ -72,7 +69,9 @@ ServerEngine* g_engine = nullptr;
  * 
  */
 void signalHandler(int signum) {
-    spdlog::info("Interrupt signal ({}) received. Shutting down...", signum);
+    KARMA_TRACE("engine.server",
+                "Interrupt signal ({}) received. Shutting down...",
+                signum);
     g_running = false;
 }
 
@@ -164,10 +163,15 @@ int main(int argc, char *argv[]) {
 
     const spdlog::level::level_enum logLevel = cliOptions.logLevelExplicit
         ? ParseLogLevel(cliOptions.logLevel)
-        : (cliOptions.verbose >= 2 ? spdlog::level::trace
-           : cliOptions.verbose == 1 ? spdlog::level::debug
+        : (cliOptions.verbose >= 1 ? spdlog::level::debug
            : spdlog::level::info);
     ConfigureLogging(logLevel, cliOptions.timestampLogging);
+    if (cliOptions.traceExplicit) {
+        spdlog::set_level(spdlog::level::trace);
+    }
+    if (cliOptions.traceExplicit) {
+        karma::logging::EnableTraceChannels(cliOptions.traceChannels);
+    }
 
     if (!cliOptions.worldSpecified) {
         spdlog::error("No world directory specified. Use -w <directory> or -D to load the bundled default world.");
@@ -210,12 +214,12 @@ int main(int argc, char *argv[]) {
     std::string serverName = karma::config::ReadStringConfig("serverName", "BZ Server");
     std::string worldName = karma::config::ReadStringConfig("worldName", worldDirPath.filename().string());
     ServerEngine engine(port);
-    spdlog::trace("ServerEngine initialized successfully");
+    KARMA_TRACE("engine.server", "ServerEngine initialized successfully");
 
     const bool shouldZipWorld = cliOptions.customWorldProvided;
 
     Game game(engine, serverName, worldName, *worldConfigPtr, worldDirPath.string(), shouldZipWorld);
-    spdlog::trace("Game initialized successfully");
+    KARMA_TRACE("engine.server", "Game initialized successfully");
     g_engine = &engine;
     g_game = &game;
 
@@ -225,7 +229,7 @@ int main(int argc, char *argv[]) {
     const std::string communityOverride = cliOptions.communityExplicit ? cliOptions.community : std::string();
     communityHeartbeat.configureFromConfig(mergedConfig, port, communityOverride);
 
-    spdlog::trace("Loading plugins...");
+    KARMA_TRACE("engine.server", "Loading plugins...");
     py::scoped_interpreter guard{};
 
     // Redirect Python bytecode to a writable temp (or configured) directory
@@ -244,23 +248,25 @@ int main(int argc, char *argv[]) {
         fs::create_directories(pycachePrefix, ec);
         if (!ec) {
             sys.attr("pycache_prefix") = pycachePrefix.string();
-            spdlog::info("Python bytecode cache set to {}", pycachePrefix.string());
+            KARMA_TRACE("engine.server",
+                        "Python bytecode cache set to {}",
+                        pycachePrefix.string());
         } else {
             sys.attr("dont_write_bytecode") = true;
             spdlog::warn("Failed to create pycache dir {}; disabling bytecode write ({}).", pycachePrefix.string(), ec.message());
         }
     }
     PluginAPI::loadPythonPlugins(mergedConfig);
-    spdlog::trace("Plugins loaded successfully");
+    KARMA_TRACE("engine.server", "Plugins loaded successfully");
 
-    spdlog::trace("Starting main loop");
+    KARMA_TRACE("engine.server", "Starting main loop");
     std::cout << "> " << std::flush;
 
     ServerLoopAdapter adapter(engine, game, communityHeartbeat);
     karma::app::EngineApp app;
     app.context().physics = engine.physics;
     int result = 0;
-    spdlog::info("EngineApp loop enabled (start/tick)");
+    KARMA_TRACE("engine.server", "EngineApp loop enabled (start/tick)");
     if (!app.start(adapter, app.config())) {
         result = 1;
     } else {
@@ -268,6 +274,6 @@ int main(int argc, char *argv[]) {
             app.tick();
         }
     }
-    spdlog::info("Server shutdown complete");
+    KARMA_TRACE("engine.server", "Server shutdown complete");
     return result;
 }

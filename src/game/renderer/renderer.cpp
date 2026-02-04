@@ -2,6 +2,7 @@
 #include "renderer/radar_components.hpp"
 #include "karma_extras/ui/bridges/ui_render_target_bridge.hpp"
 #include "karma/graphics/resources.hpp"
+#include "karma/common/logging.hpp"
 
 #if defined(KARMA_UI_BACKEND_IMGUI)
 #if defined(KARMA_RENDER_BACKEND_BGFX)
@@ -12,7 +13,6 @@
 #endif
 
 #include "karma/platform/window.hpp"
-#include "spdlog/spdlog.h"
 #include <cmath>
 #include <unordered_set>
 
@@ -93,13 +93,19 @@ void Renderer::syncEcsRadar() {
                 radarRenderer_->setRotation(id, glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
                 radarRenderer_->setScale(id, glm::vec3(1.0f));
                 radarEcsEntities_.insert({entity, RadarEcsEntry{id, meshKey}});
-                spdlog::info("Renderer: ECS radar sync created (ecs_entity={}, render_id={}, mesh={})",
-                             entity.index, id, meshKey);
+                KARMA_TRACE("render.frame",
+                            "Renderer: ECS radar sync created (ecs_entity={}, render_id={}, mesh={})",
+                            entity.index,
+                            id,
+                            meshKey);
             } else if (it->second.mesh_key != meshKey) {
                 radarRenderer_->setModel(it->second.id, meshKey, true);
                 it->second.mesh_key = meshKey;
-                spdlog::info("Renderer: ECS radar sync updated (ecs_entity={}, render_id={}, mesh={})",
-                             entity.index, it->second.id, meshKey);
+                KARMA_TRACE("render.frame",
+                            "Renderer: ECS radar sync updated (ecs_entity={}, render_id={}, mesh={})",
+                            entity.index,
+                            it->second.id,
+                            meshKey);
             }
 
             if (transforms.has(entity)) {

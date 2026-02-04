@@ -1,6 +1,7 @@
 #include "server/world_session.hpp"
 
 #include "server/game.hpp"
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/world_archive.hpp"
@@ -37,7 +38,9 @@ ServerWorldSession::ServerWorldSession(Game &game,
         archiveCache = buildArchive();
         archiveCached = true;
     } else {
-        spdlog::debug("ServerWorldSession: Skipping archive generation for bundled world at {}", content_.rootDir.string());
+        KARMA_TRACE("net.server",
+                    "ServerWorldSession: Skipping archive generation for bundled world at {}",
+                    content_.rootDir.string());
     }
 
     physics = game.engine.physics->createStaticMesh(resolveAssetPath("world").string());
@@ -76,7 +79,7 @@ void ServerWorldSession::sendWorldInit(client_id clientId) {
     initHeaderMsg.worldData = worldData;
     game.engine.network->send<ServerMsg_Init>(clientId, &initHeaderMsg);
 
-    spdlog::trace("ServerWorldSession: Sent init message to client id {}", clientId);
+    KARMA_TRACE("net.server", "ServerWorldSession: Sent init message to client id {}", clientId);
 }
 
 std::filesystem::path ServerWorldSession::resolveAssetPath(const std::string &assetName) const {

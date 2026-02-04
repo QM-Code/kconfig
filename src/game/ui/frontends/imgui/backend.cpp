@@ -2,6 +2,7 @@
 
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/i18n.hpp"
+#include "karma/common/logging.hpp"
 #include "karma/platform/window.hpp"
 #include "spdlog/spdlog.h"
 #include "karma_extras/ui/bridges/ui_render_bridge.hpp"
@@ -50,13 +51,13 @@ ImGuiBackend::ImGuiBackend(platform::Window &windowRef) : window(&windowRef) {
 
     io.BackendRendererName = "bz3-imgui";
 
-    spdlog::info("UiSystem: ImGui add default font");
+    KARMA_TRACE("ui.imgui", "UiSystem: ImGui add default font");
     io.Fonts->AddFontDefault();
 
     const auto assets = ui::fonts::GetConsoleFontAssets(karma::i18n::Get().language(), true);
     const auto bigFontPath = karma::data::ResolveConfiguredAsset(assets.selection.regularFontKey);
     const std::string bigFontPathStr = bigFontPath.string();
-    spdlog::info("UiSystem: ImGui add big font from {}", bigFontPathStr);
+    KARMA_TRACE("ui.imgui", "UiSystem: ImGui add big font from {}", bigFontPathStr);
     bigFont = io.Fonts->AddFontFromFileTTF(
         bigFontPathStr.c_str(),
         100.0f
@@ -66,9 +67,9 @@ ImGuiBackend::ImGuiBackend(platform::Window &windowRef) : window(&windowRef) {
         spdlog::warn("UiSystem: Failed to load font at {}", bigFontPathStr);
     }
 
-    spdlog::info("UiSystem: ImGui console font init start");
+    KARMA_TRACE("ui.imgui", "UiSystem: ImGui console font init start");
     consoleView.initializeFonts(io);
-    spdlog::info("UiSystem: ImGui console font init done");
+    KARMA_TRACE("ui.imgui", "UiSystem: ImGui console font init done");
 
     hud.setShowFps(hudModel.visibility.fps);
 
@@ -82,9 +83,9 @@ ImGuiBackend::ImGuiBackend(platform::Window &windowRef) : window(&windowRef) {
 #endif
     });
 
-    spdlog::info("UiSystem: ImGui font atlas build start");
+    KARMA_TRACE("ui.imgui", "UiSystem: ImGui font atlas build start");
     io.Fonts->Build();
-    spdlog::info("UiSystem: ImGui font atlas build done");
+    KARMA_TRACE("ui.imgui", "UiSystem: ImGui font atlas build done");
     fontsDirty = true;
 }
 

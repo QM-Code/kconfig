@@ -1,5 +1,6 @@
 #include "karma/common/world_archive.hpp"
 
+#include "karma/common/logging.hpp"
 #include "spdlog/spdlog.h"
 
 #include <fstream>
@@ -118,7 +119,7 @@ bool ExtractWorldArchive(const ArchiveBytes& data, const fs::path& destDir) {
     }
 
     mz_zip_reader_end(&zip);
-    spdlog::info("WorldArchive: Unzipped {} files to {}", numFiles, destDir.string());
+    KARMA_TRACE("world", "WorldArchive: Unzipped {} files to {}", numFiles, destDir.string());
     return true;
 }
 

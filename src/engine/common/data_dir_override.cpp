@@ -2,6 +2,7 @@
 
 #include "common/data_path_resolver.hpp"
 #include "common/json.hpp"
+#include "karma/common/logging.hpp"
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
@@ -200,14 +201,14 @@ DataDirOverrideResult ApplyDataDirOverrideFromArgs(int argc, char *argv[], const
         if (cliDataDir) {
             ValidateDataDirOrExit(*cliDataDir, std::string("-d ") + cliDataDir->string());
             karma::data::SetDataRootOverride(*cliDataDir);
-            spdlog::debug("Using data directory from CLI override: {}", cliDataDir->string());
+            KARMA_TRACE("config", "Using data directory from CLI override: {}", cliDataDir->string());
             return {configPath, *cliDataDir};
         }
 
         if (configDataDir) {
             ValidateDataDirOrExit(*configDataDir, std::string("user config"), configPath);
             karma::data::SetDataRootOverride(*configDataDir);
-            spdlog::debug("Using data directory from user config: {}", configDataDir->string());
+            KARMA_TRACE("config", "Using data directory from user config: {}", configDataDir->string());
             return {configPath, *configDataDir};
         }
 
@@ -218,7 +219,7 @@ DataDirOverrideResult ApplyDataDirOverrideFromArgs(int argc, char *argv[], const
             const std::filesystem::path envPath(envDataDir);
             ValidateDataDirOrExit(envPath, std::string(spec.dataDirEnvVar) + ": " + envDataDir);
             karma::data::SetDataRootOverride(envPath);
-            spdlog::debug("Using data directory from {}: {}", spec.dataDirEnvVar, envPath.string());
+            KARMA_TRACE("config", "Using data directory from {}: {}", spec.dataDirEnvVar, envPath.string());
             return {configPath, envPath};
         }
 
