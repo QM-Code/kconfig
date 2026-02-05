@@ -309,7 +309,6 @@ class DiligentBackend final : public Backend {
             float aspect = (height_ > 0) ? float(width_) / float(height_) : 1.0f;
             glm::mat4 view = glm::lookAt(camera_.position, camera_.target, glm::vec3(0.0f, 1.0f, 0.0f));
             glm::mat4 proj = glm::perspective(glm::radians(camera_.fov_y_degrees), aspect, camera_.near_clip, camera_.far_clip);
-            proj[1][1] *= -1.0f; // Vulkan clip space
             Constants constants{};
             constants.u_modelViewProj = proj * view * item.transform;
             constants.u_color = mat.color;
@@ -442,8 +441,8 @@ float4 main(PSInput input) : SV_TARGET {
         pso_ci.GraphicsPipeline.PrimitiveTopology = Diligent::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         pso_ci.GraphicsPipeline.DepthStencilDesc.DepthEnable = true;
         pso_ci.GraphicsPipeline.RasterizerDesc.CullMode = Diligent::CULL_MODE_BACK;
-        // Vulkan projection flips Y; keep front-face consistent by treating CW as front.
-        pso_ci.GraphicsPipeline.RasterizerDesc.FrontCounterClockwise = false;
+        // Keep front-face consistent with BGFX (CCW).
+        pso_ci.GraphicsPipeline.RasterizerDesc.FrontCounterClockwise = true;
 
         Diligent::LayoutElement layout[] = {
             {0, 0, 3, Diligent::VT_FLOAT32, false},
@@ -459,8 +458,15 @@ float4 main(PSInput input) : SV_TARGET {
         Diligent::ShaderResourceVariableDesc vars[] = {
             {Diligent::SHADER_TYPE_PIXEL, "s_tex", Diligent::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE}
         };
+        Diligent::SamplerDesc sampler_desc{};
+        sampler_desc.MinFilter = Diligent::FILTER_TYPE_LINEAR;
+        sampler_desc.MagFilter = Diligent::FILTER_TYPE_LINEAR;
+        sampler_desc.MipFilter = Diligent::FILTER_TYPE_LINEAR;
+        sampler_desc.AddressU = Diligent::TEXTURE_ADDRESS_WRAP;
+        sampler_desc.AddressV = Diligent::TEXTURE_ADDRESS_WRAP;
+        sampler_desc.AddressW = Diligent::TEXTURE_ADDRESS_WRAP;
         Diligent::ImmutableSamplerDesc samplers[] = {
-            {Diligent::SHADER_TYPE_PIXEL, "s_tex_sampler", Diligent::SamplerDesc{}}
+            {Diligent::SHADER_TYPE_PIXEL, "s_tex_sampler", sampler_desc}
         };
         pso_ci.PSODesc.ResourceLayout.DefaultVariableType = Diligent::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
         pso_ci.PSODesc.ResourceLayout.Variables = vars;
