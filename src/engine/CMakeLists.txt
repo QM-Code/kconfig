@@ -20,6 +20,8 @@ set(ENGINE_CLIENT_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/physics/physics_system.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/ui_backend.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/ui_backend_imgui.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/ui/ui_backend_rmlui.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/ui/ui_rmlui_adapter_stub.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/ui_system.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/geometry/mesh_loader.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/scene/roaming_camera.cpp
@@ -45,9 +47,17 @@ endif()
 add_library(karma_engine_core STATIC ${ENGINE_CORE_SOURCES})
 add_library(karma_engine_client STATIC ${ENGINE_CLIENT_SOURCES})
 add_library(karma_engine ALIAS karma_engine_client)
+add_library(karma::engine_core ALIAS karma_engine_core)
+add_library(karma::engine_client ALIAS karma_engine_client)
+
+set_target_properties(karma_engine_core PROPERTIES EXPORT_NAME engine_core)
+set_target_properties(karma_engine_client PROPERTIES EXPORT_NAME engine_client)
 
 target_include_directories(karma_engine_core PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+target_include_directories(karma_engine_core PRIVATE
     ${PROJECT_SOURCE_DIR}/src/engine
 )
 
@@ -58,11 +68,19 @@ target_link_libraries(karma_engine_core PUBLIC
     miniz::miniz
     nlohmann_json::nlohmann_json
     CURL::libcurl
-    stb::stb
 )
+if(TARGET stb::stb)
+    get_target_property(_KARMA_STB_INCLUDE_DIRS stb::stb INTERFACE_INCLUDE_DIRECTORIES)
+    if(_KARMA_STB_INCLUDE_DIRS)
+        target_include_directories(karma_engine_core PRIVATE ${_KARMA_STB_INCLUDE_DIRS})
+    endif()
+endif()
 
 target_include_directories(karma_engine_client PUBLIC
-    ${PROJECT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+target_include_directories(karma_engine_client PRIVATE
     ${PROJECT_SOURCE_DIR}/src/engine
 )
 
@@ -71,27 +89,30 @@ target_link_libraries(karma_engine_client PUBLIC
 )
 
 find_package(imgui CONFIG QUIET)
+set(KARMA_ENGINE_HAS_IMGUI OFF)
 if(TARGET imgui::imgui)
     target_link_libraries(karma_engine_client PUBLIC imgui::imgui)
-    target_compile_definitions(karma_engine_client PUBLIC KARMA_HAS_IMGUI)
+    target_compile_definitions(karma_engine_client PRIVATE KARMA_HAS_IMGUI)
+    set(KARMA_ENGINE_HAS_IMGUI ON)
 endif()
+set(KARMA_ENGINE_HAS_IMGUI ${KARMA_ENGINE_HAS_IMGUI} PARENT_SCOPE)
 
 if(X11_FOUND)
     if(DEFINED X11_INCLUDE_DIR)
-        target_include_directories(karma_engine_client PUBLIC ${X11_INCLUDE_DIR})
+        target_include_directories(karma_engine_client PRIVATE ${X11_INCLUDE_DIR})
     endif()
     if(DEFINED X11_LIBRARIES)
         target_link_libraries(karma_engine_client PUBLIC ${X11_LIBRARIES})
     endif()
     if(DEFINED X11_XCB_LIB)
         target_link_libraries(karma_engine_client PUBLIC ${X11_XCB_LIB})
-        target_compile_definitions(karma_engine_client PUBLIC KARMA_HAS_X11_XCB)
+        target_compile_definitions(karma_engine_client PRIVATE KARMA_HAS_X11_XCB)
     elseif(DEFINED X11_X11_xcb_LIB)
         target_link_libraries(karma_engine_client PUBLIC ${X11_X11_xcb_LIB})
-        target_compile_definitions(karma_engine_client PUBLIC KARMA_HAS_X11_XCB)
+        target_compile_definitions(karma_engine_client PRIVATE KARMA_HAS_X11_XCB)
     elseif(TARGET X11::XCB)
         target_link_libraries(karma_engine_client PUBLIC X11::XCB)
-        target_compile_definitions(karma_engine_client PUBLIC KARMA_HAS_X11_XCB)
+        target_compile_definitions(karma_engine_client PRIVATE KARMA_HAS_X11_XCB)
     endif()
 endif()
 

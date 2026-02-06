@@ -2,6 +2,7 @@
 
 #include "karma/platform/events.hpp"
 #include "karma/renderer/types.hpp"
+#include "karma/ui/ui_draw_context.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -17,6 +18,7 @@ struct UiOverlayFrame {
     float height = 0.7f;
     bool wants_mouse_capture = false;
     bool wants_keyboard_capture = false;
+    bool allow_fallback = true;
 };
 
 class UiBackend {
@@ -26,10 +28,14 @@ class UiBackend {
     virtual bool init() = 0;
     virtual void shutdown() = 0;
     virtual void beginFrame(float dt, const std::vector<platform::Event>& events) = 0;
-    virtual void build(UiOverlayFrame& out) = 0;
+    virtual void build(const std::vector<UiDrawContext::ImGuiDrawCallback>& imgui_draw_callbacks,
+                       const std::vector<UiDrawContext::RmlUiDrawCallback>& rmlui_draw_callbacks,
+                       const std::vector<UiDrawContext::TextPanel>& text_panels,
+                       UiOverlayFrame& out) = 0;
 };
 
 std::unique_ptr<UiBackend> CreateSoftwareOverlayBackend();
 std::unique_ptr<UiBackend> CreateImGuiBackend();
+std::unique_ptr<UiBackend> CreateRmlUiBackend();
 
 } // namespace karma::ui

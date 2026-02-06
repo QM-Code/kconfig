@@ -3,9 +3,11 @@
 #include "client/net/client_connection.hpp"
 #include "karma/common/logging.hpp"
 #include "karma/input/input_system.hpp"
+#include "karma/ui/ui_draw_context.hpp"
 
 #include <spdlog/spdlog.h>
 #include <cstdlib>
+#include <string>
 #include <utility>
 
 namespace bz3 {
@@ -45,6 +47,29 @@ void Game::onUpdate(float dt) {
             spdlog::error("Game: network join was rejected, closing client.");
             std::exit(1);
         }
+    }
+}
+
+void Game::onUiUpdate(float dt, karma::ui::UiDrawContext& ui) {
+    (void)dt;
+    karma::ui::UiDrawContext::TextPanel panel{};
+    panel.title = "BZ3 Client";
+    panel.lines.push_back("Engine-owned UI lifecycle (game-submitted content)");
+    panel.lines.push_back("");
+    panel.lines.push_back("Player: " + startup_.player_name);
+    if (startup_.connect_on_start) {
+        panel.lines.push_back("Connect target: " + startup_.connect_addr + ":" +
+                              std::to_string(startup_.connect_port));
+        const bool connected = connection_ && connection_->isConnected();
+        panel.lines.push_back(std::string("Connection: ") + (connected ? "connected" : "connecting"));
+    } else {
+        panel.lines.push_back("Connection: offline");
+    }
+    ui.addTextPanel(std::move(panel));
+
+    if (ui.backendKind() == karma::ui::UiBackendKind::RmlUi) {
+        // Placeholder until RmlUi document/context bridge is wired.
+        ui.addRmlUiDraw([]() {});
     }
 }
 

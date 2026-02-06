@@ -19,10 +19,18 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg.json")
     set(VCPKG_FEATURE_FLAGS "manifests" CACHE STRING "vcpkg feature flags" FORCE)
 endif()
 
-project(bz3 LANGUAGES C CXX)
+project(bz3 VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+option(KARMA_INSTALL_ENGINE_SDK "Install engine SDK headers/libraries and CMake package" ON)
+set(KARMA_ENGINE_CMAKE_INSTALL_DIR
+    "${CMAKE_INSTALL_LIBDIR}/cmake/KarmaEngine"
+    CACHE PATH "Install directory for KarmaEngine CMake package files")
 
 set(KARMA_RENDER_BACKEND "bgfx" CACHE STRING "Render backend (bgfx|diligent)")
 set_property(CACHE KARMA_RENDER_BACKEND PROPERTY STRINGS bgfx diligent)
@@ -246,3 +254,68 @@ endif()
 
 add_subdirectory(src/engine)
 add_subdirectory(src/game)
+
+if(KARMA_INSTALL_ENGINE_SDK)
+    set(KARMA_ENGINE_PACKAGE_HAS_CLIENT ON)
+    set(KARMA_ENGINE_SDK_TARGETS
+        karma_engine_core
+        karma_engine_client
+    )
+    if(KARMA_RENDER_BACKEND STREQUAL "diligent")
+        # Diligent is currently consumed as in-tree targets, which cannot be exported
+        # in a relocatable SDK package without exporting the entire dependency graph.
+        set(KARMA_ENGINE_PACKAGE_HAS_CLIENT OFF)
+        set(KARMA_ENGINE_SDK_TARGETS
+            karma_engine_core
+        )
+        message(STATUS "KarmaEngine SDK export: installing core target only for diligent backend")
+    endif()
+
+    install(TARGETS
+        ${KARMA_ENGINE_SDK_TARGETS}
+        EXPORT KarmaEngineTargets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+
+    install(DIRECTORY
+        ${PROJECT_SOURCE_DIR}/include/karma
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+
+    install(EXPORT KarmaEngineTargets
+        FILE KarmaEngineTargets.cmake
+        NAMESPACE karma::
+        DESTINATION ${KARMA_ENGINE_CMAKE_INSTALL_DIR}
+    )
+
+    set(KARMA_ENGINE_PACKAGE_WITH_IMGUI OFF)
+    if(KARMA_ENGINE_HAS_IMGUI)
+        set(KARMA_ENGINE_PACKAGE_WITH_IMGUI ON)
+    endif()
+
+    set(KARMA_ENGINE_PACKAGE_WITH_X11 OFF)
+    if(X11_FOUND)
+        set(KARMA_ENGINE_PACKAGE_WITH_X11 ON)
+    endif()
+
+    configure_package_config_file(
+        ${PROJECT_SOURCE_DIR}/cmake/KarmaEngineConfig.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/KarmaEngineConfig.cmake
+        INSTALL_DESTINATION ${KARMA_ENGINE_CMAKE_INSTALL_DIR}
+    )
+
+    write_basic_package_version_file(
+        ${CMAKE_CURRENT_BINARY_DIR}/KarmaEngineConfigVersion.cmake
+        VERSION ${PROJECT_VERSION}
+        COMPATIBILITY SameMajorVersion
+    )
+
+    install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/KarmaEngineConfig.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/KarmaEngineConfigVersion.cmake
+        DESTINATION ${KARMA_ENGINE_CMAKE_INSTALL_DIR}
+    )
+endif()

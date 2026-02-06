@@ -30,7 +30,7 @@ std::string named_pattern;
 std::once_flag trace_color_once;
 bool trace_color_enabled = false;
 
-constexpr std::array<const char*, 20> kKnownTraceChannels = {
+constexpr std::array<const char*, 24> kKnownTraceChannels = {
     "config",
     "config.bindings",
     "ecs.world",
@@ -49,7 +49,11 @@ constexpr std::array<const char*, 20> kKnownTraceChannels = {
     "render.system",
     "ui.system",
     "ui.system.imgui",
+    "ui.system.imgui.frames",
+    "ui.system.rmlui",
+    "ui.system.rmlui.frames",
     "ui.system.overlay",
+    "ui.system.overlay.frames",
     "world"
 };
 

@@ -116,7 +116,7 @@ void EngineApp::tick() {
                         world_.entities().size());
 
     game_->onUpdate(dt);
-    game_->onUiUpdate(dt);
+    game_->onUiUpdate(dt, ui_system_.drawContext());
 
     int fb_w = 0;
     int fb_h = 0;

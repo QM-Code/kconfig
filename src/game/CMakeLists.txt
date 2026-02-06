@@ -45,12 +45,10 @@ set_target_properties(bz3-server PROPERTIES
 
 target_include_directories(bz3 PRIVATE
     ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/src/engine
     ${PROJECT_SOURCE_DIR}/src/game
 )
 target_include_directories(bz3-server PRIVATE
     ${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/src/engine
     ${PROJECT_SOURCE_DIR}/src/game
 )
 

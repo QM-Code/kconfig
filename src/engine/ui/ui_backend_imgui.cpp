@@ -347,12 +347,6 @@ void RasterizeDrawData(const ImDrawData* draw_data,
     }
 
     target_pixels.assign(static_cast<size_t>(target_w) * static_cast<size_t>(target_h) * 4u, 0);
-    for (size_t i = 0; i < target_pixels.size(); i += 4) {
-        target_pixels[i + 0] = 18;
-        target_pixels[i + 1] = 18;
-        target_pixels[i + 2] = 24;
-        target_pixels[i + 3] = 255;
-    }
     if (!draw_data || draw_data->CmdListsCount <= 0) {
         return;
     }
@@ -532,29 +526,62 @@ class ImGuiBackend final : public UiBackend {
         }
     }
 
-    void build(UiOverlayFrame& out) override {
+    void build(const std::vector<UiDrawContext::ImGuiDrawCallback>& imgui_draw_callbacks,
+               const std::vector<UiDrawContext::RmlUiDrawCallback>& rmlui_draw_callbacks,
+               const std::vector<UiDrawContext::TextPanel>& text_panels,
+               UiOverlayFrame& out) override {
         if (!context_) {
             return;
         }
+        (void)rmlui_draw_callbacks;
 
         ImGui::SetCurrentContext(context_);
         ImGui::NewFrame();
-        ImGui::SetNextWindowPos(ImVec2(24.0f, 24.0f), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(560.0f, 260.0f), ImGuiCond_Always);
-        ImGui::Begin("UI Backend Smoke", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
-        ImGui::Text("Backend: ImGui (engine-owned lifecycle)");
-        ImGui::Text("Bridge: software draw-data rasterization");
-        ImGui::Separator();
-        ImGui::Text("Output: %ux%u", output_width_, output_height_);
-        ImGui::Text("Draw lists: %u", last_stats_.cmd_lists);
-        ImGui::Text("Draw cmds: %u", last_stats_.cmds);
-        ImGui::Text("Vertices: %u", last_stats_.vertices);
-        ImGui::Text("Indices: %u", last_stats_.indices);
-        ImGui::End();
+
+        bool drew_ui = false;
+        for (const auto& panel : text_panels) {
+            ImGui::SetNextWindowPos(ImVec2(panel.x, panel.y), ImGuiCond_Always);
+            ImGui::SetNextWindowBgAlpha(panel.bg_alpha);
+            ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize;
+            if (panel.auto_size) {
+                flags |= ImGuiWindowFlags_AlwaysAutoResize;
+            }
+            ImGui::Begin(panel.title.c_str(), nullptr, flags);
+            for (const auto& line : panel.lines) {
+                ImGui::TextUnformatted(line.c_str());
+            }
+            ImGui::End();
+            drew_ui = true;
+        }
+
+        for (const auto& callback : imgui_draw_callbacks) {
+            if (!callback) {
+                continue;
+            }
+            callback();
+            drew_ui = true;
+        }
+        if (!drew_ui && logging::ShouldTraceChannel("ui.system.imgui.frames")) {
+            ImGui::SetNextWindowPos(ImVec2(24.0f, 24.0f), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(400.0f, 140.0f), ImGuiCond_Always);
+            ImGui::Begin("ImGui Backend Debug", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+            ImGui::Text("No game UI callbacks submitted.");
+            ImGui::Text("Enable only for backend diagnostics.");
+            ImGui::Separator();
+            ImGui::Text("Last draw lists=%u cmds=%u", last_stats_.cmd_lists, last_stats_.cmds);
+            ImGui::End();
+        }
         ImGui::Render();
+        const ImDrawData* draw_data = ImGui::GetDrawData();
+        if (!draw_data || draw_data->TotalIdxCount <= 0) {
+            out.allow_fallback = false;
+            out.wants_mouse_capture = ImGui::GetIO().WantCaptureMouse;
+            out.wants_keyboard_capture = ImGui::GetIO().WantCaptureKeyboard;
+            return;
+        }
 
         RasterStats stats{};
-        RasterizeDrawData(ImGui::GetDrawData(),
+        RasterizeDrawData(draw_data,
                           output_width_,
                           output_height_,
                           atlas_texture_id_,
@@ -634,7 +661,13 @@ class ImGuiBackend final : public UiBackend {
         (void)dt;
         (void)events;
     }
-    void build(UiOverlayFrame& out) override {
+    void build(const std::vector<UiDrawContext::ImGuiDrawCallback>& imgui_draw_callbacks,
+               const std::vector<UiDrawContext::RmlUiDrawCallback>& rmlui_draw_callbacks,
+               const std::vector<UiDrawContext::TextPanel>& text_panels,
+               UiOverlayFrame& out) override {
+        (void)imgui_draw_callbacks;
+        (void)rmlui_draw_callbacks;
+        (void)text_panels;
         (void)out;
     }
 };

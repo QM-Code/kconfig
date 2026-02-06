@@ -9,6 +9,7 @@
 
 #include <cmath>
 #include <string>
+#include <utility>
 
 #include <glm/glm.hpp>
 
@@ -93,9 +94,46 @@ Backend ParseBackendFromConfig(Backend current) {
     return current;
 }
 
+std::unique_ptr<UiBackend, UiBackendDeleter> adopt_backend(std::unique_ptr<UiBackend> backend) {
+    return std::unique_ptr<UiBackend, UiBackendDeleter>(backend.release());
+}
+
 } // namespace
 
 UiSystem::~UiSystem() = default;
+void UiBackendDeleter::operator()(UiBackend* backend) const { delete backend; }
+
+UiBackendKind UiSystem::backendKind() const {
+    switch (backend_) {
+        case Backend::ImGui:
+            return UiBackendKind::ImGui;
+        case Backend::RmlUi:
+            return UiBackendKind::RmlUi;
+        default:
+            return UiBackendKind::None;
+    }
+}
+
+void UiSystem::addImGuiDraw(ImGuiDrawCallback callback) {
+    if (!callback) {
+        return;
+    }
+    imgui_draw_callbacks_.push_back(std::move(callback));
+}
+
+void UiSystem::addRmlUiDraw(RmlUiDrawCallback callback) {
+    if (!callback) {
+        return;
+    }
+    rmlui_draw_callbacks_.push_back(std::move(callback));
+}
+
+void UiSystem::addTextPanel(TextPanel panel) {
+    if (panel.title.empty() && panel.lines.empty()) {
+        return;
+    }
+    text_panels_.push_back(std::move(panel));
+}
 
 void UiSystem::init(renderer::GraphicsDevice& graphics) {
     if (initialized_) {
@@ -107,6 +145,9 @@ void UiSystem::init(renderer::GraphicsDevice& graphics) {
     overlay_source_name_ = "none";
     wants_mouse_capture_ = false;
     wants_keyboard_capture_ = false;
+    imgui_draw_callbacks_.clear();
+    rmlui_draw_callbacks_.clear();
+    text_panels_.clear();
 
     backend_ = ParseBackendFromConfig(backend_);
     overlay_fallback_enabled_ = config::ReadBoolConfig({"ui.overlayFallback.Enabled"}, true);
@@ -121,20 +162,19 @@ void UiSystem::init(renderer::GraphicsDevice& graphics) {
 
     switch (backend_) {
         case Backend::ImGui:
-            backend_impl_ = CreateImGuiBackend();
+            backend_impl_ = adopt_backend(CreateImGuiBackend());
             break;
         case Backend::RmlUi:
-            // Temporary until RmlUi backend is wired: keep software backend for overlay path validation.
-            backend_impl_ = CreateSoftwareOverlayBackend();
+            backend_impl_ = adopt_backend(CreateRmlUiBackend());
             break;
         default:
-            backend_impl_ = CreateSoftwareOverlayBackend();
+            backend_impl_ = adopt_backend(CreateSoftwareOverlayBackend());
             break;
     }
     if (backend_impl_) {
         if (!backend_impl_->init()) {
             KARMA_TRACE("ui.system", "UiSystem: backend '{}' init failed", backend_impl_->name());
-            backend_impl_ = CreateSoftwareOverlayBackend();
+            backend_impl_ = adopt_backend(CreateSoftwareOverlayBackend());
             if (backend_impl_ && backend_impl_->init()) {
                 KARMA_TRACE("ui.system",
                             "UiSystem: fallback backend selected '{}'",
@@ -172,12 +212,18 @@ void UiSystem::shutdown(renderer::GraphicsDevice& graphics) {
     overlay_source_name_ = "none";
     wants_mouse_capture_ = false;
     wants_keyboard_capture_ = false;
+    imgui_draw_callbacks_.clear();
+    rmlui_draw_callbacks_.clear();
+    text_panels_.clear();
     graphics_ = nullptr;
     initialized_ = false;
 }
 
 void UiSystem::beginFrame(float dt, const std::vector<platform::Event>& events) {
     frame_dt_ = dt;
+    imgui_draw_callbacks_.clear();
+    rmlui_draw_callbacks_.clear();
+    text_panels_.clear();
     if (backend_impl_) {
         backend_impl_->beginFrame(dt, events);
     }
@@ -192,7 +238,7 @@ void UiSystem::update(renderer::RenderSystem& render) {
 
     UiOverlayFrame frame{};
     if (backend_impl_) {
-        backend_impl_->build(frame);
+        backend_impl_->build(imgui_draw_callbacks_, rmlui_draw_callbacks_, text_panels_, frame);
     }
     const bool prev_mouse_capture = wants_mouse_capture_;
     const bool prev_keyboard_capture = wants_keyboard_capture_;
@@ -220,7 +266,7 @@ void UiSystem::update(renderer::RenderSystem& render) {
         width = frame.width;
         height = frame.height;
         source = backend_impl_ ? backend_impl_->name() : "backend";
-    } else if (overlay_fallback_enabled_) {
+    } else if (overlay_fallback_enabled_ && frame.allow_fallback) {
         if (!fallback_texture_ready_) {
             fallback_texture_ = BuildFallbackTexture(64, 64);
             fallback_texture_ready_ = true;

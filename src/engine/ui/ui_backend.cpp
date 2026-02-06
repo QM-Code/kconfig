@@ -72,7 +72,13 @@ class SoftwareOverlayBackend final : public UiBackend {
         (void)events;
     }
 
-    void build(UiOverlayFrame& out) override {
+    void build(const std::vector<UiDrawContext::ImGuiDrawCallback>& imgui_draw_callbacks,
+               const std::vector<UiDrawContext::RmlUiDrawCallback>& rmlui_draw_callbacks,
+               const std::vector<UiDrawContext::TextPanel>& text_panels,
+               UiOverlayFrame& out) override {
+        (void)imgui_draw_callbacks;
+        (void)rmlui_draw_callbacks;
+        (void)text_panels;
         out.distance = distance_;
         out.width = width_;
         out.height = height_;

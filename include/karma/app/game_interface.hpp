@@ -5,6 +5,7 @@ namespace karma::renderer { class GraphicsDevice; class RenderSystem; }
 namespace karma::input { class InputContext; }
 namespace karma::ecs { class World; }
 namespace karma::scene { class Scene; }
+namespace karma::ui { class UiDrawContext; }
 
 namespace karma::app {
 
@@ -14,7 +15,10 @@ class GameInterface {
     virtual void onStart() = 0;
     virtual void onUpdate(float dt) = 0;
     virtual void onUiStart() {}
-    virtual void onUiUpdate(float dt) { (void)dt; }
+    virtual void onUiUpdate(float dt, ui::UiDrawContext& ui) {
+        (void)dt;
+        (void)ui;
+    }
     virtual void onUiShutdown() {}
     virtual void onShutdown() = 0;
 

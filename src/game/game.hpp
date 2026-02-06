@@ -25,6 +25,7 @@ class Game final : public karma::app::GameInterface {
     ~Game() override;
     void onStart() override;
     void onUpdate(float dt) override;
+    void onUiUpdate(float dt, karma::ui::UiDrawContext& ui) override;
     void onShutdown() override;
 
  private:

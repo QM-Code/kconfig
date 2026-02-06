@@ -1,3 +1,5 @@
 #pragma once
 
-#include "common/curl_global.hpp"
+namespace karma::net {
+bool EnsureCurlGlobalInit();
+}

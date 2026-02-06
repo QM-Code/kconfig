@@ -1,3 +1,61 @@
 #pragma once
 
-#include "common/data_path_resolver.hpp"
+#include <cstdint>
+#include <filesystem>
+#include <map>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "karma/common/json.hpp"
+#include <spdlog/spdlog.h>
+
+namespace karma::data {
+
+std::filesystem::path Resolve(const std::filesystem::path& relativePath);
+void SetDataRootOverride(const std::filesystem::path& path);
+
+std::optional<karma::json::Value> LoadJsonFile(const std::filesystem::path& path,
+                                               const std::string& label,
+                                               spdlog::level::level_enum missingLevel);
+
+std::filesystem::path UserConfigDirectory();
+std::filesystem::path EnsureUserConfigFile(const std::string& fileName);
+std::filesystem::path EnsureUserWorldsDirectory();
+std::filesystem::path EnsureUserWorldDirectoryForServer(const std::string& host, uint16_t port);
+
+struct ConfigLayerSpec {
+    std::filesystem::path relativePath;
+    std::string label;
+    spdlog::level::level_enum missingLevel = spdlog::level::warn;
+    bool required = false;
+};
+
+struct ConfigLayer {
+    karma::json::Value json;
+    std::filesystem::path baseDir;
+    std::string label;
+};
+
+std::vector<ConfigLayer> LoadConfigLayers(const std::vector<ConfigLayerSpec>& specs);
+void MergeJsonObjects(karma::json::Value& destination, const karma::json::Value& source);
+void CollectAssetEntries(const karma::json::Value& node,
+                         const std::filesystem::path& baseDir,
+                         std::map<std::string, std::filesystem::path>& assetMap,
+                         const std::string& prefix = "");
+
+struct DataPathSpec {
+    std::string appName = "app";
+    std::string dataDirEnvVar = "DATA_DIR";
+    std::filesystem::path requiredDataMarker;
+    std::vector<ConfigLayerSpec> fallbackAssetLayers;
+};
+
+void SetDataPathSpec(DataPathSpec spec);
+DataPathSpec GetDataPathSpec();
+std::filesystem::path ExecutableDirectory();
+std::filesystem::path ResolveConfiguredAsset(const std::string& assetKey,
+                                             const std::filesystem::path& defaultRelativePath = {});
+const std::filesystem::path& DataRoot();
+
+} // namespace karma::data
