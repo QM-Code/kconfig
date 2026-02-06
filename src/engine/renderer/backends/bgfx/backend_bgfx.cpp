@@ -68,6 +68,12 @@ struct Mesh {
 
 struct Material {
     float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    float emissive[3] = {0.0f, 0.0f, 0.0f};
+    float metallic = 0.0f;
+    float roughness = 1.0f;
+    renderer::MaterialAlphaMode alpha_mode = renderer::MaterialAlphaMode::Opaque;
+    float alpha_cutoff = 0.5f;
+    bool double_sided = false;
     bgfx::TextureHandle tex = BGFX_INVALID_HANDLE;
 };
 
@@ -306,6 +312,14 @@ class BgfxBackend final : public Backend {
         out.color[1] = material.base_color.g;
         out.color[2] = material.base_color.b;
         out.color[3] = material.base_color.a;
+        out.emissive[0] = material.emissive_color.r;
+        out.emissive[1] = material.emissive_color.g;
+        out.emissive[2] = material.emissive_color.b;
+        out.metallic = material.metallic_factor;
+        out.roughness = material.roughness_factor;
+        out.alpha_mode = material.alpha_mode;
+        out.alpha_cutoff = material.alpha_cutoff;
+        out.double_sided = material.double_sided;
         if (material.albedo && !material.albedo->pixels.empty()) {
             out.tex = createTextureFromData(*material.albedo);
             KARMA_TRACE("render.bgfx", "createMaterial texture={} {}x{}",
@@ -313,6 +327,11 @@ class BgfxBackend final : public Backend {
                         material.albedo->width,
                         material.albedo->height);
         }
+        KARMA_TRACE("render.bgfx",
+                    "createMaterial pbr metallic={:.3f} roughness={:.3f} emissive=({:.3f},{:.3f},{:.3f}) alphaMode={} cutoff={:.3f} doubleSided={}",
+                    out.metallic, out.roughness,
+                    out.emissive[0], out.emissive[1], out.emissive[2],
+                    static_cast<int>(out.alpha_mode), out.alpha_cutoff, out.double_sided ? 1 : 0);
         renderer::MaterialId id = next_material_id_++;
         materials_[id] = out;
         return id;
@@ -372,6 +391,8 @@ class BgfxBackend final : public Backend {
             const float light_color[4] = {light_.color.r, light_.color.g, light_.color.b, light_.color.a};
             const float ambient_color[4] = {light_.ambient.r, light_.ambient.g, light_.ambient.b, light_.ambient.a};
             const float unlit[4] = {light_.unlit, 0.0f, 0.0f, 0.0f};
+            // TODO(bz3-rewrite): Consume MaterialDesc PBR fields in BGFX shaders/uniforms
+            // (metallic/roughness/emissive/alpha mode) instead of only base color + albedo.
             bgfx::setUniform(u_light_dir_, light_dir);
             bgfx::setUniform(u_light_color_, light_color);
             bgfx::setUniform(u_ambient_color_, ambient_color);

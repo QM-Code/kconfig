@@ -1,4 +1,4 @@
-#include "client/cli_options.hpp"
+#include "server/cli_options.hpp"
 
 #include "karma/common/logging.hpp"
 
@@ -8,25 +8,24 @@
 #include <string>
 #include <string_view>
 
-namespace bz3::client {
+namespace bz3::server {
 
 namespace {
 
 void PrintHelp() {
     std::cout
-        << "Usage: bz3 [options]\n"
+        << "Usage: bz3-server [options]\n"
         << "\n"
         << "Options:\n"
         << "  -h, --help                      Show this help message\n"
         << "  -v, --verbose                   Enable debug-level logging\n"
         << "  -t, --trace <channels>          Enable comma-separated trace channels\n"
-        << "  -n, --name <name>               Player name (parsed; not yet wired)\n"
-        << "  -a, --addr <address>            Server address (parsed; not yet wired)\n"
+        << "  -w, --world <dir>               World directory\n"
+        << "  -D, --default-world             Use 'defaultWorld' from server config\n"
         << "  -p, --port <port>               Server port (parsed; not yet wired)\n"
         << "  -d, --data-dir <dir>            Data directory override\n"
         << "  -c, --config <path>             User config file path override\n"
-        << "      --language <code>           Language override (applied to config)\n"
-        << "      --dev-quick-start           Dev flag (parsed; not yet wired)\n"
+        << "  -C, --community <url>           Community endpoint (parsed; not yet wired)\n"
         << "      --strict-config=<bool>      Required-config validation (default: true)\n"
         << "  -T, --timestamp-logging         Enable timestamped log output\n";
 }
@@ -42,6 +41,14 @@ std::string RequireValue(const std::string& option, int& i, int argc, char** arg
         Fail("Option '" + option + "' requires a value.");
     }
     return argv[++i];
+}
+
+bool StartsWith(std::string_view value, std::string_view prefix) {
+    return value.size() >= prefix.size() && value.substr(0, prefix.size()) == prefix;
+}
+
+std::string ValueAfterEquals(const std::string& arg, std::string_view prefix) {
+    return arg.substr(prefix.size());
 }
 
 uint16_t ParsePort(const std::string& value) {
@@ -81,14 +88,6 @@ void RequireTraceList(int argc, char** argv) {
     }
 }
 
-bool StartsWith(std::string_view value, std::string_view prefix) {
-    return value.size() >= prefix.size() && value.substr(0, prefix.size()) == prefix;
-}
-
-std::string ValueAfterEquals(const std::string& arg, std::string_view prefix) {
-    return arg.substr(prefix.size());
-}
-
 } // namespace
 
 CLIOptions ParseCLIOptions(int argc, char** argv) {
@@ -112,24 +111,20 @@ CLIOptions ParseCLIOptions(int argc, char** argv) {
         } else if (StartsWith(arg, "--trace=")) {
             opts.trace_channels = ValueAfterEquals(arg, "--trace=");
             opts.trace_explicit = true;
-        } else if (arg == "-n" || arg == "--name") {
-            opts.player_name = RequireValue(arg, i, argc, argv);
-            opts.name_explicit = true;
-        } else if (StartsWith(arg, "--name=")) {
-            opts.player_name = ValueAfterEquals(arg, "--name=");
-            opts.name_explicit = true;
-        } else if (arg == "-a" || arg == "--addr") {
-            opts.connect_addr = RequireValue(arg, i, argc, argv);
-            opts.addr_explicit = true;
-        } else if (StartsWith(arg, "--addr=")) {
-            opts.connect_addr = ValueAfterEquals(arg, "--addr=");
-            opts.addr_explicit = true;
+        } else if (arg == "-w" || arg == "--world") {
+            opts.world_dir = RequireValue(arg, i, argc, argv);
+            opts.world_specified = true;
+        } else if (StartsWith(arg, "--world=")) {
+            opts.world_dir = ValueAfterEquals(arg, "--world=");
+            opts.world_specified = true;
+        } else if (arg == "-D" || arg == "--default-world") {
+            opts.use_default_world = true;
         } else if (arg == "-p" || arg == "--port") {
-            opts.connect_port = ParsePort(RequireValue(arg, i, argc, argv));
-            opts.port_explicit = true;
+            opts.host_port = ParsePort(RequireValue(arg, i, argc, argv));
+            opts.host_port_explicit = true;
         } else if (StartsWith(arg, "--port=")) {
-            opts.connect_port = ParsePort(ValueAfterEquals(arg, "--port="));
-            opts.port_explicit = true;
+            opts.host_port = ParsePort(ValueAfterEquals(arg, "--port="));
+            opts.host_port_explicit = true;
         } else if (arg == "-d" || arg == "--data-dir") {
             opts.data_dir = RequireValue(arg, i, argc, argv);
             opts.data_dir_explicit = true;
@@ -142,14 +137,12 @@ CLIOptions ParseCLIOptions(int argc, char** argv) {
         } else if (StartsWith(arg, "--config=")) {
             opts.user_config_path = ValueAfterEquals(arg, "--config=");
             opts.user_config_explicit = true;
-        } else if (arg == "--language") {
-            opts.language = RequireValue(arg, i, argc, argv);
-            opts.language_explicit = true;
-        } else if (StartsWith(arg, "--language=")) {
-            opts.language = ValueAfterEquals(arg, "--language=");
-            opts.language_explicit = true;
-        } else if (arg == "--dev-quick-start") {
-            opts.dev_quick_start = true;
+        } else if (arg == "-C" || arg == "--community") {
+            opts.community = RequireValue(arg, i, argc, argv);
+            opts.community_explicit = true;
+        } else if (StartsWith(arg, "--community=")) {
+            opts.community = ValueAfterEquals(arg, "--community=");
+            opts.community_explicit = true;
         } else if (arg == "--strict-config") {
             opts.strict_config = true;
         } else if (StartsWith(arg, "--strict-config=")) {
@@ -157,6 +150,10 @@ CLIOptions ParseCLIOptions(int argc, char** argv) {
         } else {
             Fail("Unknown option '" + arg + "'.");
         }
+    }
+
+    if (opts.world_specified && opts.use_default_world) {
+        Fail("Cannot specify both -w/--world and -D/--default-world.");
     }
 
     if (opts.trace_explicit && opts.trace_channels.empty()) {
@@ -169,4 +166,4 @@ CLIOptions ParseCLIOptions(int argc, char** argv) {
     return opts;
 }
 
-} // namespace bz3::client
+} // namespace bz3::server

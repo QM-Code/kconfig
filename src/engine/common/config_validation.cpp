@@ -89,9 +89,9 @@ std::vector<RequiredKey> CommonKeys() {
         {"graphics.theme", RequiredType::String},
         {"graphics.skybox.Mode", RequiredType::String},
         {"graphics.skybox.Cubemap.Name", RequiredType::String},
-        {"graphics.Camera.FovDegrees", RequiredType::Float},
-        {"graphics.Camera.NearPlane", RequiredType::Float},
-        {"graphics.Camera.FarPlane", RequiredType::Float}
+        {"camera.default.fovYDegrees", RequiredType::Float},
+        {"camera.default.nearClip", RequiredType::Float},
+        {"camera.default.farClip", RequiredType::Float}
     });
     return keys;
 }
@@ -140,7 +140,12 @@ std::vector<RequiredKey> ClientRequiredKeys() {
 }
 
 std::vector<RequiredKey> ServerRequiredKeys() {
-    return CommonKeys();
+    std::vector<RequiredKey> keys;
+    keys.reserve(1);
+    AppendKeys(keys, {
+        {"language", RequiredType::String}
+    });
+    return keys;
 }
 
 } // namespace karma::config

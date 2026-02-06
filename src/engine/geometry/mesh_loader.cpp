@@ -9,6 +9,7 @@
 #include <cfloat>
 #include <algorithm>
 #include <assimp/Importer.hpp>
+#include <assimp/material.h>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
@@ -60,6 +61,48 @@ std::optional<renderer::MeshData::TextureData> loadTextureFromMemory(const unsig
     stbi_image_free(data);
     KARMA_TRACE("render.mesh", "MeshLoader: decoded embedded texture '{}' {}x{}", label ? label : "(embedded)", width, height);
     return tex;
+}
+
+std::optional<renderer::MeshData::TextureData> loadTextureFromAssimpReference(const aiScene* scene,
+                                                                               const std::filesystem::path& path,
+                                                                               const aiString& texPath) {
+    if (!scene) {
+        return std::nullopt;
+    }
+    std::string texName = texPath.C_Str();
+    if (texName.empty()) {
+        return std::nullopt;
+    }
+    if (texName[0] == '*') {
+        const int texIndex = std::atoi(texName.c_str() + 1);
+        if (texIndex >= 0 && texIndex < static_cast<int>(scene->mNumTextures)) {
+            const aiTexture* tex = scene->mTextures[texIndex];
+            if (tex && tex->mHeight == 0) {
+                return loadTextureFromMemory(
+                    reinterpret_cast<const unsigned char*>(tex->pcData),
+                    tex->mWidth,
+                    tex->mFilename.C_Str());
+            }
+            spdlog::warn("MeshLoader: embedded texture '{}' has raw data; skipping", texName);
+        }
+        return std::nullopt;
+    }
+    const auto texFile = path.parent_path() / texName;
+    return loadTextureFromFile(texFile);
+}
+
+std::optional<renderer::MeshData::TextureData> loadMaterialTexture(const aiScene* scene,
+                                                                   aiMaterial* material,
+                                                                   const std::filesystem::path& path,
+                                                                   aiTextureType type) {
+    if (!scene || !material) {
+        return std::nullopt;
+    }
+    aiString texPath;
+    if (material->GetTexture(type, 0, &texPath) != AI_SUCCESS) {
+        return std::nullopt;
+    }
+    return loadTextureFromAssimpReference(scene, path, texPath);
 }
 
 bool loadMeshData(const aiScene* scene,
@@ -132,30 +175,60 @@ bool loadMeshData(const aiScene* scene,
                 material->Get(AI_MATKEY_COLOR_DIFFUSE, color) == AI_SUCCESS) {
                 out_material.base_color = glm::vec4(color.r, color.g, color.b, color.a);
             }
-        }
-        aiString texPath;
-        if (material && material->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) == AI_SUCCESS) {
-            std::string texName = texPath.C_Str();
-            if (!texName.empty()) {
-                if (texName[0] == '*') {
-                    const int texIndex = std::atoi(texName.c_str() + 1);
-                    if (texIndex >= 0 && texIndex < static_cast<int>(scene->mNumTextures)) {
-                        const aiTexture* tex = scene->mTextures[texIndex];
-                        if (tex && tex->mHeight == 0) {
-                            out.albedo = loadTextureFromMemory(
-                                reinterpret_cast<const unsigned char*>(tex->pcData),
-                                tex->mWidth,
-                                tex->mFilename.C_Str());
-                        } else {
-                            spdlog::warn("MeshLoader: embedded texture '{}' has raw data; skipping", texName);
-                        }
-                    }
+
+            ai_real metallic = out_material.metallic_factor;
+            if (material->Get(AI_MATKEY_METALLIC_FACTOR, metallic) == AI_SUCCESS) {
+                out_material.metallic_factor = std::clamp(static_cast<float>(metallic), 0.0f, 1.0f);
+            }
+
+            ai_real roughness = out_material.roughness_factor;
+            if (material->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness) == AI_SUCCESS) {
+                out_material.roughness_factor = std::clamp(static_cast<float>(roughness), 0.0f, 1.0f);
+            }
+
+            aiColor3D emissive(0.0f, 0.0f, 0.0f);
+            if (material->Get(AI_MATKEY_COLOR_EMISSIVE, emissive) == AI_SUCCESS) {
+                out_material.emissive_color = glm::vec3(emissive.r, emissive.g, emissive.b);
+            }
+
+            int two_sided = 0;
+            if (material->Get(AI_MATKEY_TWOSIDED, two_sided) == AI_SUCCESS) {
+                out_material.double_sided = (two_sided != 0);
+            }
+
+#ifdef AI_MATKEY_GLTF_ALPHAMODE
+            aiString alpha_mode;
+            if (material->Get(AI_MATKEY_GLTF_ALPHAMODE, alpha_mode) == AI_SUCCESS) {
+                const std::string mode = alpha_mode.C_Str();
+                if (mode == "MASK") {
+                    out_material.alpha_mode = renderer::MaterialAlphaMode::Mask;
+                } else if (mode == "BLEND") {
+                    out_material.alpha_mode = renderer::MaterialAlphaMode::Blend;
                 } else {
-                    const auto texFile = path.parent_path() / texName;
-                    out.albedo = loadTextureFromFile(texFile);
+                    out_material.alpha_mode = renderer::MaterialAlphaMode::Opaque;
                 }
             }
+#endif
+
+#ifdef AI_MATKEY_GLTF_ALPHACUTOFF
+            ai_real alpha_cutoff = out_material.alpha_cutoff;
+            if (material->Get(AI_MATKEY_GLTF_ALPHACUTOFF, alpha_cutoff) == AI_SUCCESS) {
+                out_material.alpha_cutoff = std::clamp(static_cast<float>(alpha_cutoff), 0.0f, 1.0f);
+            }
+#endif
         }
+
+        out_material.albedo = loadMaterialTexture(scene, material, path, aiTextureType_BASE_COLOR);
+        if (!out_material.albedo) {
+            out_material.albedo = loadMaterialTexture(scene, material, path, aiTextureType_DIFFUSE);
+        }
+        out.albedo = out_material.albedo;
+
+        out_material.metallic_roughness = loadMaterialTexture(scene, material, path, aiTextureType_METALNESS);
+        if (!out_material.metallic_roughness) {
+            out_material.metallic_roughness = loadMaterialTexture(scene, material, path, aiTextureType_DIFFUSE_ROUGHNESS);
+        }
+        out_material.emissive = loadMaterialTexture(scene, material, path, aiTextureType_EMISSIVE);
     }
 
     return true;

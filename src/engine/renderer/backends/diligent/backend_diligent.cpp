@@ -41,6 +41,12 @@ struct Mesh {
 
 struct Material {
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec3 emissive{0.0f, 0.0f, 0.0f};
+    float metallic = 0.0f;
+    float roughness = 1.0f;
+    renderer::MaterialAlphaMode alpha_mode = renderer::MaterialAlphaMode::Opaque;
+    float alpha_cutoff = 0.5f;
+    bool double_sided = false;
     Diligent::RefCntAutoPtr<Diligent::ITextureView> srv;
 };
 
@@ -258,11 +264,22 @@ class DiligentBackend final : public Backend {
         }
         Material out;
         out.color = material.base_color;
+        out.emissive = material.emissive_color;
+        out.metallic = material.metallic_factor;
+        out.roughness = material.roughness_factor;
+        out.alpha_mode = material.alpha_mode;
+        out.alpha_cutoff = material.alpha_cutoff;
+        out.double_sided = material.double_sided;
         if (material.albedo && !material.albedo->pixels.empty()) {
             out.srv = createTextureView(*material.albedo);
             KARMA_TRACE("render.diligent", "createMaterial texture={} {}x{}",
                         out.srv ? 1 : 0, material.albedo->width, material.albedo->height);
         }
+        KARMA_TRACE("render.diligent",
+                    "createMaterial pbr metallic={:.3f} roughness={:.3f} emissive=({:.3f},{:.3f},{:.3f}) alphaMode={} cutoff={:.3f} doubleSided={}",
+                    out.metallic, out.roughness,
+                    out.emissive.r, out.emissive.g, out.emissive.b,
+                    static_cast<int>(out.alpha_mode), out.alpha_cutoff, out.double_sided ? 1 : 0);
         renderer::MaterialId id = next_material_id_++;
         materials_[id] = out;
         return id;
@@ -418,6 +435,8 @@ SamplerState s_tex_sampler;
 float4 main(PSInput input) : SV_TARGET {
     float3 n = normalize(input.Nor);
     float4 texColor = s_tex.Sample(s_tex_sampler, input.UV);
+    // TODO(bz3-rewrite): Upgrade this path to full PBR using MaterialDesc fields
+    // (metallic/roughness/emissive/alpha mode) once backend-uniform plumbing is in place.
     float4 baseColor = u_color * texColor;
     if (u_unlit.x > 0.5) {
         return baseColor;

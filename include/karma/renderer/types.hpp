@@ -19,6 +19,12 @@ constexpr MaterialId kInvalidMaterial = 0;
 constexpr TextureId kInvalidTexture = 0;
 constexpr RenderTargetId kDefaultRenderTarget = 0;
 
+enum class MaterialAlphaMode : uint8_t {
+    Opaque = 0,
+    Mask = 1,
+    Blend = 2,
+};
+
 struct MeshData {
     std::vector<glm::vec3> positions;
     std::vector<glm::vec3> normals;
@@ -36,6 +42,14 @@ struct MeshData {
 struct MaterialDesc {
     glm::vec4 base_color{1.0f, 1.0f, 1.0f, 1.0f};
     std::optional<MeshData::TextureData> albedo;
+    float metallic_factor = 0.0f;
+    float roughness_factor = 1.0f;
+    glm::vec3 emissive_color{0.0f, 0.0f, 0.0f};
+    MaterialAlphaMode alpha_mode = MaterialAlphaMode::Opaque;
+    float alpha_cutoff = 0.5f;
+    bool double_sided = false;
+    std::optional<MeshData::TextureData> metallic_roughness;
+    std::optional<MeshData::TextureData> emissive;
 };
 
 struct CameraData {
