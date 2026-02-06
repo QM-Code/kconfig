@@ -22,7 +22,7 @@ void ConfigureLogging(const CLIOptions& options) {
 void ConfigureDataAndConfig(int argc, char** argv) {
     karma::data::DataPathSpec spec;
     spec.appName = "bz3";
-    spec.dataDirEnvVar = "KARMA_DATA_DIR";
+    spec.dataDirEnvVar = "BZ3_DATA_DIR";
     spec.requiredDataMarker = "common/config.json";
     karma::data::SetDataPathSpec(spec);
 

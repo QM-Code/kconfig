@@ -6,7 +6,7 @@ i18n, file helpers, and global setup.
 
 ## Key responsibilities
 - Config store and helpers (required-config reads, layered configs)
-- Data root resolution (`KARMA_DATA_DIR`) and asset lookup
+- Data root resolution (host-defined env var via `DataPathSpec`) and asset lookup
 - i18n string loading and language selection
 - File utilities and basic helpers
 - Global setup (curl init, stb image impl)

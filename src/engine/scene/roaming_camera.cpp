@@ -38,9 +38,9 @@ void RoamingCameraController::loadFromConfig() {
     config_.start_position = ReadVec3Config("game.roamingCamera.StartPosition");
     config_.start_target = ReadVec3Config("game.roamingCamera.StartTarget");
 
-    camera_.fov_y_degrees = config::ReadRequiredFloatConfig("render.camera.FovYDegrees");
-    camera_.near_clip = config::ReadRequiredFloatConfig("render.camera.NearClip");
-    camera_.far_clip = config::ReadRequiredFloatConfig("render.camera.FarClip");
+    camera_.fov_y_degrees = config::ReadRequiredFloatConfig("camera.default.fovYDegrees");
+    camera_.near_clip = config::ReadRequiredFloatConfig("camera.default.nearClip");
+    camera_.far_clip = config::ReadRequiredFloatConfig("camera.default.farClip");
 }
 
 void RoamingCameraController::initialize(renderer::RenderSystem& render) {

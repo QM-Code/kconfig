@@ -417,7 +417,7 @@ std::unordered_map<std::string, std::filesystem::path> BuildAssetLookupFromLayer
             if (!assetsIt->is_object()) {
                 spdlog::warn("data_path_resolver: 'assets' in {} is not an object; skipping", layer.baseDir.string());
             } else {
-                CollectAssetEntries(*assetsIt, layer.baseDir, flattened);
+                CollectAssetEntries(*assetsIt, layer.baseDir, flattened, "assets");
             }
         }
 
@@ -432,15 +432,10 @@ std::unordered_map<std::string, std::filesystem::path> BuildAssetLookupFromLayer
     }
 
     std::unordered_map<std::string, std::filesystem::path> lookup;
-    lookup.reserve(flattened.size() * 2);
+    lookup.reserve(flattened.size());
 
     for (const auto &[key, resolvedPath] : flattened) {
         lookup[key] = resolvedPath;
-
-        const auto separator = key.find_last_of('.');
-        if (separator != std::string::npos) {
-            lookup[key.substr(separator + 1)] = resolvedPath;
-        }
     }
 
     return lookup;

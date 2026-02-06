@@ -17,6 +17,7 @@ set(ENGINE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/ui/ui_system.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/geometry/mesh_loader.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/scene/roaming_camera.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/scene/scene_bootstrap.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/platform/window_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/platform/backends/window_sdl3.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/platform/backends/window_sdl2_stub.cpp

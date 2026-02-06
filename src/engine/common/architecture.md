@@ -6,7 +6,7 @@
 - Config changes are revisioned and can be watched by UI or systems.
 
 ## Data path resolution
-- `KARMA_DATA_DIR` sets the root.
+- Host app sets the data root env var name through `DataPathSpec` (for BZ3, `BZ3_DATA_DIR`).
 - Data path resolver builds asset lookup tables from layered configs.
 
 ## i18n

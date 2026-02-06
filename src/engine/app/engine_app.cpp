@@ -49,6 +49,9 @@ void EngineApp::initSubsystems() {
 }
 
 void EngineApp::shutdownSubsystems() {
+    if (graphics_) {
+        scene::ReleaseStartupSceneResources(*graphics_, world_, startup_scene_resources_);
+    }
     render_system_.reset();
     graphics_.reset();
     window_.reset();
@@ -64,6 +67,15 @@ void EngineApp::start(GameInterface& game, const EngineConfig& config) {
     if (!window_ || !graphics_ || !render_system_) {
         return;
     }
+
+    if (!scene::PopulateStartupWorld(*graphics_,
+                                     world_,
+                                     startup_scene_resources_)) {
+        spdlog::error("EngineApp: startup scene bootstrap failed, aborting start");
+        shutdownSubsystems();
+        return;
+    }
+
     game_ = &game;
     game_->bind(*window_, *graphics_, *render_system_, world_, scene_, input_system_);
     game_->onStart();

@@ -10,6 +10,7 @@
 #include "karma/ecs/world.hpp"
 #include "karma/scene/roaming_camera.hpp"
 #include "karma/scene/scene.hpp"
+#include "karma/scene/scene_bootstrap.hpp"
 
 namespace karma::app {
 
@@ -48,6 +49,7 @@ class EngineApp {
     std::unique_ptr<renderer::RenderSystem> render_system_;
     ecs::World world_{};
     scene::Scene scene_;
+    scene::StartupSceneResources startup_scene_resources_{};
     input::InputContext input_system_{};
     scene::RoamingCameraController roaming_camera_{};
 

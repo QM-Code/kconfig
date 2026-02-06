@@ -242,22 +242,14 @@ std::unordered_map<std::string, std::filesystem::path> buildAssetLookup(
         }
         const auto assetsIt = layer.json.find("assets");
         if (assetsIt != layer.json.end() && assetsIt->is_object()) {
-            collectAssetEntries(*assetsIt, layer.baseDir, lookup);
+            collectAssetEntries(*assetsIt, layer.baseDir, lookup, "assets");
         }
         const auto fontsIt = layer.json.find("fonts");
         if (fontsIt != layer.json.end() && fontsIt->is_object()) {
             collectAssetEntries(*fontsIt, layer.baseDir, lookup, "fonts");
         }
     }
-
-    std::unordered_map<std::string, std::filesystem::path> expanded = lookup;
-    for (const auto &[key, resolvedPath] : lookup) {
-        const auto separator = key.find_last_of('.');
-        if (separator != std::string::npos) {
-            expanded[key.substr(separator + 1)] = resolvedPath;
-        }
-    }
-    return expanded;
+    return lookup;
 }
 
 std::vector<karma::config::ConfigLayer> loadLayers(const std::vector<karma::config::ConfigFileSpec> &specs) {
@@ -616,7 +608,21 @@ std::filesystem::path ConfigStore::ResolveAssetPath(const std::string &assetKey,
     std::lock_guard<std::mutex> lock(g_state.mutex);
     const auto it = g_state.assetLookup.find(assetKey);
     if (it != g_state.assetLookup.end()) {
+        KARMA_TRACE("config",
+                    "config_store: resolved asset key '{}' -> '{}'",
+                    assetKey,
+                    it->second.string());
         return it->second;
+    }
+    if (defaultPath.empty()) {
+        KARMA_TRACE("config",
+                    "config_store: missing asset key '{}' (no default path)",
+                    assetKey);
+    } else {
+        KARMA_TRACE("config",
+                    "config_store: missing asset key '{}', using default '{}'",
+                    assetKey,
+                    defaultPath.string());
     }
     return defaultPath;
 }

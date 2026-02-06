@@ -1,26 +1,15 @@
 #pragma once
 
 #include "karma/app/game_interface.hpp"
-#include "karma/ecs/entity.hpp"
-#include "karma/renderer/types.hpp"
-
-#include <string>
-#include <vector>
 
 namespace bz3 {
 
 class Game final : public karma::app::GameInterface {
  public:
-    explicit Game(std::string model_key = {});
+    Game() = default;
     void onStart() override;
     void onUpdate(float dt) override;
     void onShutdown() override;
-
- private:
-    std::vector<karma::ecs::Entity> model_entities_{};
-    std::string model_key_;
-    std::vector<karma::renderer::MeshId> model_meshes_{};
-    karma::renderer::MaterialId model_material_ = karma::renderer::kInvalidMaterial;
 };
 
 } // namespace bz3
