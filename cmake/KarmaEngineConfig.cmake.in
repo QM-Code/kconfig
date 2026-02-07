@@ -8,6 +8,12 @@ if(@KARMA_ENGINE_PACKAGE_HAS_CLIENT@ AND @KARMA_ENGINE_PACKAGE_WITH_IMGUI@)
     endif()
 endif()
 
+if(@KARMA_ENGINE_PACKAGE_HAS_CLIENT@ AND @KARMA_ENGINE_PACKAGE_WITH_RMLUI@)
+    if(NOT TARGET RmlUi::RmlUi)
+        find_dependency(RmlUi CONFIG REQUIRED)
+    endif()
+endif()
+
 find_dependency(glm REQUIRED)
 find_dependency(assimp REQUIRED)
 find_dependency(spdlog REQUIRED)
