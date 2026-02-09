@@ -115,10 +115,27 @@ if(KARMA_PHYSICS_BACKEND_JOLT_ENABLED)
 endif()
 
 if(KARMA_PHYSICS_BACKEND_PHYSX_ENABLED)
+    find_package(unofficial-omniverse-physx-sdk CONFIG REQUIRED)
+    set(KARMA_PHYSX_LIBS
+        unofficial::omniverse-physx-sdk::sdk
+        unofficial::omniverse-physx-sdk::PhysXCharacterKinematic
+        unofficial::omniverse-physx-sdk::PhysXExtensions
+        unofficial::omniverse-physx-sdk::PhysXCooking
+        unofficial::omniverse-physx-sdk::PhysXCommon
+        unofficial::omniverse-physx-sdk::PhysXFoundation
+        unofficial::omniverse-physx-sdk::PhysXPvdSDK
+        unofficial::omniverse-physx-sdk::PhysXVehicle
+    )
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(karma_engine_core PUBLIC "-Wl,--start-group" ${KARMA_PHYSX_LIBS} "-Wl,--end-group")
+    else()
+        target_link_libraries(karma_engine_core PUBLIC ${KARMA_PHYSX_LIBS})
+    endif()
     target_compile_definitions(karma_engine_core PRIVATE KARMA_HAS_PHYSICS_PHYSX)
 endif()
 
 if(KARMA_AUDIO_BACKEND_SDL3AUDIO_ENABLED)
+    target_link_libraries(karma_engine_core PUBLIC SDL3::SDL3)
     target_compile_definitions(karma_engine_core PRIVATE KARMA_HAS_AUDIO_SDL3AUDIO)
 endif()
 
@@ -211,5 +228,43 @@ if(KARMA_RENDER_BACKEND_DILIGENT_ENABLED)
         target_include_directories(karma_engine_client PRIVATE ${DiligentEngine_SOURCE_DIR})
         target_include_directories(karma_engine_client PRIVATE ${DiligentEngine_SOURCE_DIR}/DiligentCore)
         target_include_directories(karma_engine_client PRIVATE ${DiligentEngine_SOURCE_DIR}/DiligentTools)
+    endif()
+endif()
+
+if(BUILD_TESTING)
+    add_executable(physics_backend_parity_test
+        ${PROJECT_SOURCE_DIR}/src/engine/physics/tests/physics_backend_parity_test.cpp
+    )
+    target_link_libraries(physics_backend_parity_test PRIVATE karma_engine_core)
+    target_include_directories(physics_backend_parity_test PRIVATE ${PROJECT_SOURCE_DIR}/src/engine)
+
+    add_executable(audio_backend_smoke_test
+        ${PROJECT_SOURCE_DIR}/src/engine/audio/tests/audio_backend_smoke_test.cpp
+    )
+    target_link_libraries(audio_backend_smoke_test PRIVATE karma_engine_core)
+    target_include_directories(audio_backend_smoke_test PRIVATE ${PROJECT_SOURCE_DIR}/src/engine)
+
+    if(KARMA_PHYSICS_BACKEND_JOLT_ENABLED)
+        add_test(NAME physics_backend_parity_jolt
+                 COMMAND physics_backend_parity_test --backend jolt)
+    endif()
+
+    if(KARMA_PHYSICS_BACKEND_PHYSX_ENABLED)
+        add_test(NAME physics_backend_parity_physx
+                 COMMAND physics_backend_parity_test --backend physx)
+    endif()
+
+    if(KARMA_AUDIO_BACKEND_SDL3AUDIO_ENABLED)
+        add_test(NAME audio_backend_smoke_sdl3audio
+                 COMMAND audio_backend_smoke_test --backend sdl3audio)
+        set_tests_properties(audio_backend_smoke_sdl3audio PROPERTIES
+                             ENVIRONMENT "SDL_AUDIODRIVER=dummy")
+    endif()
+
+    if(KARMA_AUDIO_BACKEND_MINIAUDIO_ENABLED)
+        add_test(NAME audio_backend_smoke_miniaudio
+                 COMMAND audio_backend_smoke_test --backend miniaudio)
+        set_tests_properties(audio_backend_smoke_miniaudio PROPERTIES
+                             ENVIRONMENT "KARMA_MINIAUDIO_FORCE_NULL=1;SDL_AUDIODRIVER=dummy")
     endif()
 endif()

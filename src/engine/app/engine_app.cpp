@@ -185,7 +185,7 @@ void EngineApp::start(GameInterface& game, const EngineConfig& config) {
     }
 
     game_ = &game;
-    game_->bind(*window_, *graphics_, *render_system_, world_, scene_, input_system_);
+    game_->bind(*window_, *graphics_, *render_system_, world_, scene_, input_system_, audio_system_);
     game_->onStart();
     game_->onUiStart();
     KARMA_TRACE("ecs.world", "EngineApp: world ready entities={}", world_.entities().size());

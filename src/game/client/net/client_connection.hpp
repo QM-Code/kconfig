@@ -1,16 +1,32 @@
 #pragma once
 
+#include "net/protocol_codec.hpp"
+
+#include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
+#include <vector>
 
 struct _ENetHost;
 struct _ENetPeer;
 
 namespace bz3::client::net {
 
+enum class AudioEvent {
+    PlayerSpawn,
+    PlayerDeath,
+    ShotFire
+};
+
 class ClientConnection {
  public:
-    ClientConnection(std::string host, uint16_t port, std::string player_name);
+    using AudioEventCallback = std::function<void(AudioEvent)>;
+
+    ClientConnection(std::string host,
+                     uint16_t port,
+                     std::string player_name,
+                     AudioEventCallback audio_event_callback = {});
     ~ClientConnection();
 
     ClientConnection(const ClientConnection&) = delete;
@@ -23,6 +39,8 @@ class ClientConnection {
     void shutdown();
     bool isConnected() const;
     bool shouldExit() const;
+    bool sendRequestPlayerSpawn();
+    bool sendCreateShot();
 
  private:
     bool sendJoinRequest();
@@ -46,6 +64,30 @@ class ClientConnection {
     bool join_bootstrap_complete_logged_ = false;
     std::string init_world_name_{};
     std::string init_server_name_{};
+    struct PendingWorldPackageState {
+        bool active = false;
+        std::string world_name{};
+        std::string world_id{};
+        std::string world_revision{};
+        std::string world_hash{};
+        std::string world_content_hash{};
+        std::string world_manifest_hash{};
+        uint32_t world_manifest_file_count = 0;
+        uint64_t world_size = 0;
+        std::vector<bz3::net::WorldManifestEntry> world_manifest{};
+    };
+    struct ActiveWorldTransferState {
+        bool active = false;
+        std::string transfer_id{};
+        uint64_t total_bytes_expected = 0;
+        uint32_t chunk_size = 0;
+        uint32_t next_chunk_index = 0;
+        std::vector<std::byte> payload{};
+    };
+    PendingWorldPackageState pending_world_package_{};
+    ActiveWorldTransferState active_world_transfer_{};
+    AudioEventCallback audio_event_callback_{};
+    uint32_t next_local_shot_id_ = 1;
 };
 
 } // namespace bz3::client::net

@@ -6,7 +6,9 @@
 #include "karma/common/logging.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <vector>
@@ -42,17 +44,33 @@ class ScriptedServerEventSource final : public ServerEventSource {
 
         while (next_index_ < schedule_.size() && schedule_[next_index_].at_seconds <= elapsed_seconds) {
             const auto& scheduled = schedule_[next_index_];
-            if (scheduled.event.type == ServerInputEvent::Type::ClientJoin) {
-                KARMA_TRACE("engine.server",
-                            "ServerEventSource: scripted join client_id={} name='{}' at={:.2f}s",
-                            scheduled.event.join.client_id,
-                            scheduled.event.join.player_name,
-                            scheduled.at_seconds);
-            } else {
-                KARMA_TRACE("engine.server",
-                            "ServerEventSource: scripted leave client_id={} at={:.2f}s",
-                            scheduled.event.leave.client_id,
-                            scheduled.at_seconds);
+            switch (scheduled.event.type) {
+                case ServerInputEvent::Type::ClientJoin:
+                    KARMA_TRACE("engine.server",
+                                "ServerEventSource: scripted join client_id={} name='{}' at={:.2f}s",
+                                scheduled.event.join.client_id,
+                                scheduled.event.join.player_name,
+                                scheduled.at_seconds);
+                    break;
+                case ServerInputEvent::Type::ClientLeave:
+                    KARMA_TRACE("engine.server",
+                                "ServerEventSource: scripted leave client_id={} at={:.2f}s",
+                                scheduled.event.leave.client_id,
+                                scheduled.at_seconds);
+                    break;
+                case ServerInputEvent::Type::ClientRequestSpawn:
+                    KARMA_TRACE("engine.server",
+                                "ServerEventSource: scripted request-spawn client_id={} at={:.2f}s",
+                                scheduled.event.request_spawn.client_id,
+                                scheduled.at_seconds);
+                    break;
+                case ServerInputEvent::Type::ClientCreateShot:
+                    KARMA_TRACE("engine.server",
+                                "ServerEventSource: scripted create-shot client_id={} local_id={} at={:.2f}s",
+                                scheduled.event.create_shot.client_id,
+                                scheduled.event.create_shot.local_shot_id,
+                                scheduled.at_seconds);
+                    break;
             }
             ready.push_back(scheduled.event);
             ++next_index_;
@@ -103,6 +121,31 @@ bool ReadUint32(const karma::json::Value& value, const char* key, uint32_t* out)
     return false;
 }
 
+bool ReadFloat(const karma::json::Value& value, const char* key, float* out) {
+    double raw = 0.0;
+    if (!ReadDouble(value, key, &raw)) {
+        return false;
+    }
+    if (!std::isfinite(raw)) {
+        return false;
+    }
+    *out = static_cast<float>(raw);
+    return std::isfinite(*out);
+}
+
+std::string NormalizeEventType(std::string type) {
+    std::transform(type.begin(),
+                   type.end(),
+                   type.begin(),
+                   [](unsigned char c) -> char {
+                       if (c == '-') {
+                           return '_';
+                       }
+                       return static_cast<char>(std::tolower(c));
+                   });
+    return type;
+}
+
 std::vector<ScheduledEvent> LoadScriptedEventsFromConfig() {
     std::vector<ScheduledEvent> schedule;
     const auto* events_value = karma::config::ConfigStore::Get("server.startupEvents");
@@ -132,7 +175,7 @@ std::vector<ScheduledEvent> LoadScriptedEventsFromConfig() {
             scheduled.at_seconds = 0.0;
         }
 
-        const std::string type = type_it->get<std::string>();
+        const std::string type = NormalizeEventType(type_it->get<std::string>());
         if (type == "join") {
             scheduled.event.type = ServerInputEvent::Type::ClientJoin;
             if (!ReadUint32(item, "clientId", &scheduled.event.join.client_id)) {
@@ -152,8 +195,30 @@ std::vector<ScheduledEvent> LoadScriptedEventsFromConfig() {
                 spdlog::warn("server.startupEvents leave item missing numeric 'clientId'; skipping");
                 continue;
             }
+        } else if (type == "request_spawn" || type == "spawn") {
+            scheduled.event.type = ServerInputEvent::Type::ClientRequestSpawn;
+            if (!ReadUint32(item, "clientId", &scheduled.event.request_spawn.client_id)) {
+                spdlog::warn("server.startupEvents request_spawn item missing numeric 'clientId'; skipping");
+                continue;
+            }
+        } else if (type == "create_shot") {
+            scheduled.event.type = ServerInputEvent::Type::ClientCreateShot;
+            if (!ReadUint32(item, "clientId", &scheduled.event.create_shot.client_id)
+                || !ReadUint32(item, "localShotId", &scheduled.event.create_shot.local_shot_id)
+                || !ReadFloat(item, "posX", &scheduled.event.create_shot.pos_x)
+                || !ReadFloat(item, "posY", &scheduled.event.create_shot.pos_y)
+                || !ReadFloat(item, "posZ", &scheduled.event.create_shot.pos_z)
+                || !ReadFloat(item, "velX", &scheduled.event.create_shot.vel_x)
+                || !ReadFloat(item, "velY", &scheduled.event.create_shot.vel_y)
+                || !ReadFloat(item, "velZ", &scheduled.event.create_shot.vel_z)) {
+                spdlog::warn(
+                    "server.startupEvents create_shot item requires numeric fields: clientId, localShotId, posX, posY, posZ, velX, velY, velZ; skipping");
+                continue;
+            }
         } else {
-            spdlog::warn("server.startupEvents item has unknown type '{}'; expected 'join' or 'leave'", type);
+            spdlog::warn(
+                "server.startupEvents item has unknown type '{}'; expected join|leave|request_spawn|create_shot",
+                type);
             continue;
         }
 

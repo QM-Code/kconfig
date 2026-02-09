@@ -163,6 +163,10 @@ bool ServerGame::onClientLeave(uint32_t client_id) {
     return disconnected;
 }
 
+bool ServerGame::hasClient(uint32_t client_id) const {
+    return session_by_client_id_.contains(client_id);
+}
+
 void ServerGame::onStart() {
     if (!world) {
         return;

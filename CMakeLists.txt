@@ -26,6 +26,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+include(CTest)
 
 option(KARMA_INSTALL_ENGINE_SDK "Install engine SDK headers/libraries and CMake package" ON)
 set(KARMA_ENGINE_CMAKE_INSTALL_DIR
@@ -208,7 +209,7 @@ if(NOT stb_FOUND)
     add_library(stb::stb ALIAS stb)
 endif()
 
-if(KARMA_WINDOW_BACKEND STREQUAL "sdl3")
+if(KARMA_WINDOW_BACKEND STREQUAL "sdl3" OR KARMA_AUDIO_BACKEND_SDL3AUDIO_ENABLED)
     find_package(SDL3 CONFIG REQUIRED)
 endif()
 

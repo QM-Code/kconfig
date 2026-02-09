@@ -2,6 +2,7 @@
 #include "server/domain/world_session.hpp"
 #include "server/net/event_source.hpp"
 #include "server/server_game.hpp"
+#include "server/runtime_event_rules.hpp"
 
 #include "karma/app/engine_server_app.hpp"
 #include "karma/audio/backend.hpp"
@@ -14,6 +15,7 @@
 
 #include <atomic>
 #include <algorithm>
+#include <cstddef>
 #include <csignal>
 #include <memory>
 #include <optional>
@@ -141,6 +143,38 @@ int RunRuntime(const CLIOptions& options) {
         || karma::config::ReadBoolConfig({"audio.serverEnabled"}, false);
     ServerGame game{world_context->world_name};
     std::unique_ptr<net::ServerEventSource> event_source = net::CreateServerEventSource(options);
+    uint32_t next_global_shot_id = 1;
+    RuntimeEventRuleHandlers runtime_handlers{};
+    runtime_handlers.has_client = [&game](uint32_t client_id) {
+        return game.hasClient(client_id);
+    };
+    runtime_handlers.on_client_leave = [&game](uint32_t client_id) {
+        return game.onClientLeave(client_id);
+    };
+    runtime_handlers.on_player_death = [event_source_ptr = event_source.get()](uint32_t client_id) {
+        event_source_ptr->onPlayerDeath(client_id);
+    };
+    runtime_handlers.on_player_spawn = [event_source_ptr = event_source.get()](uint32_t client_id) {
+        event_source_ptr->onPlayerSpawn(client_id);
+    };
+    runtime_handlers.on_create_shot =
+        [event_source_ptr = event_source.get()](uint32_t source_client_id,
+                                                uint32_t global_shot_id,
+                                                float pos_x,
+                                                float pos_y,
+                                                float pos_z,
+                                                float vel_x,
+                                                float vel_y,
+                                                float vel_z) {
+            event_source_ptr->onCreateShot(source_client_id,
+                                           global_shot_id,
+                                           pos_x,
+                                           pos_y,
+                                           pos_z,
+                                           vel_x,
+                                           vel_y,
+                                           vel_z);
+        };
     karma::app::EngineServerApp app{};
     app.start(game, engineConfig);
 
@@ -164,16 +198,74 @@ int RunRuntime(const CLIOptions& options) {
                             : (game.lastJoinRejectReason().empty()
                                    ? std::string("Join rejected by server.")
                                    : game.lastJoinRejectReason());
+                    static const std::vector<std::byte> empty_world_package{};
+                    const auto& world_package =
+                        world_context->world_package_enabled ? world_context->world_package : empty_world_package;
+                    std::vector<net::WorldManifestEntry> world_manifest{};
+                    world_manifest.reserve(world_context->world_manifest.size());
+                    for (const auto& entry : world_context->world_manifest) {
+                        world_manifest.push_back(net::WorldManifestEntry{
+                            .path = entry.path,
+                            .size = entry.size,
+                            .hash = entry.hash});
+                    }
                     event_source->onJoinResult(event.join.client_id,
                                                accepted,
                                                reason,
                                                world_context->world_name,
-                                               sessions);
+                                               world_context->world_id,
+                                               world_context->world_revision,
+                                               world_context->world_package_hash,
+                                               world_context->world_content_hash,
+                                               world_context->world_manifest_hash,
+                                               world_context->world_manifest_file_count,
+                                               world_context->world_package_size,
+                                               sessions,
+                                               world_manifest,
+                                               world_package);
                     break;
                 }
                 case net::ServerInputEvent::Type::ClientLeave:
-                    game.onClientLeave(event.leave.client_id);
+                case net::ServerInputEvent::Type::ClientRequestSpawn:
+                case net::ServerInputEvent::Type::ClientCreateShot: {
+                    const auto rule_result =
+                        ApplyRuntimeEventRules(event, runtime_handlers, &next_global_shot_id);
+                    if (rule_result == RuntimeEventRuleResult::Applied) {
+                        break;
+                    }
+
+                    if (rule_result == RuntimeEventRuleResult::IgnoredUnknownClient) {
+                        if (event.type == net::ServerInputEvent::Type::ClientLeave) {
+                            KARMA_TRACE("net.server",
+                                        "RunRuntime: ignoring leave for unknown client_id={}",
+                                        event.leave.client_id);
+                        } else if (event.type == net::ServerInputEvent::Type::ClientRequestSpawn) {
+                            KARMA_TRACE("net.server",
+                                        "RunRuntime: ignoring spawn request for unknown client_id={}",
+                                        event.request_spawn.client_id);
+                        } else {
+                            KARMA_TRACE("net.server",
+                                        "RunRuntime: ignoring create_shot for unknown client_id={} local_shot_id={}",
+                                        event.create_shot.client_id,
+                                        event.create_shot.local_shot_id);
+                        }
+                        break;
+                    }
+
+                    if (rule_result == RuntimeEventRuleResult::IgnoredLeaveFailed
+                        && event.type == net::ServerInputEvent::Type::ClientLeave) {
+                        KARMA_TRACE("net.server",
+                                    "RunRuntime: leave ignored because client_id={} disconnect failed",
+                                    event.leave.client_id);
+                        break;
+                    }
+
+                    KARMA_TRACE("net.server",
+                                "RunRuntime: runtime event rule not applied type={} result={}",
+                                static_cast<int>(event.type),
+                                static_cast<int>(rule_result));
                     break;
+                }
             }
         }
         app.tick();

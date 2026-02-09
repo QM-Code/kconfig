@@ -9,7 +9,6 @@ struct CLIOptions {
     bool verbose = false;
     bool trace_explicit = false;
     bool world_specified = false;
-    bool use_default_world = false;
     uint16_t host_port = 0;
     bool host_port_explicit = false;
     std::string data_dir;

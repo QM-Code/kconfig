@@ -66,8 +66,8 @@ struct ContentMount {
 void SetDataPathSpec(DataPathSpec spec);
 DataPathSpec GetDataPathSpec();
 
-// Registers package metadata for future package-backed content loading.
-// Current Resolve() behavior remains filesystem-root based.
+// Registers a package overlay mount.
+// Resolve() checks package mounts first (mount-point aware), then falls back to the filesystem data root.
 void RegisterPackageMount(const std::string& id,
                           const std::filesystem::path& packagePath,
                           const std::filesystem::path& mountPoint = {});

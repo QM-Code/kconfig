@@ -6,6 +6,7 @@ namespace karma::input { class InputContext; }
 namespace karma::ecs { class World; }
 namespace karma::scene { class Scene; }
 namespace karma::ui { class UiDrawContext; }
+namespace karma::audio { class AudioSystem; }
 
 namespace karma::app {
 
@@ -29,17 +30,19 @@ class GameInterface {
     ecs::World* world = nullptr;
     scene::Scene* scene = nullptr;
     input::InputContext* input = nullptr;
+    audio::AudioSystem* audio = nullptr;
 
  private:
     friend class EngineApp;
     void bind(platform::Window& w, renderer::GraphicsDevice& g, renderer::RenderSystem& r, ecs::World& world_ref, scene::Scene& s,
-              input::InputContext& in) {
+              input::InputContext& in, audio::AudioSystem& audio_system) {
         window = &w;
         graphics = &g;
         render = &r;
         world = &world_ref;
         scene = &s;
         input = &in;
+        audio = &audio_system;
     }
 };
 

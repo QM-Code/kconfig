@@ -90,6 +90,7 @@ message ServerMsg_CreateShot {
   uint32 global_shot_id = 1;
   Vec3 position = 2;
   Vec3 velocity = 3;
+  uint32 source_client_id = 4;
 }
 
 message ServerMsg_RemoveShot {
@@ -103,6 +104,12 @@ message ServerMsg_Chat {
   string text = 3;
 }
 
+message WorldManifestEntry {
+  string path = 1;
+  uint64 size = 2;
+  string hash = 3;
+}
+
 message ServerMsg_Init {
   uint32 client_id = 1;
   string server_name = 2;
@@ -111,6 +118,14 @@ message ServerMsg_Init {
   string world_name = 5;
   uint32 protocol_version = 6;
   repeated string features = 7;
+  string world_hash = 8;
+  uint64 world_size = 9;
+  string world_id = 10;
+  string world_revision = 11;
+  string world_content_hash = 12;
+  string world_manifest_hash = 13;
+  uint32 world_manifest_file_count = 14;
+  repeated WorldManifestEntry world_manifest = 15;
 }
 
 message ServerMsg_JoinResponse {
@@ -125,6 +140,30 @@ message SessionSnapshotSession {
 
 message ServerMsg_SessionSnapshot {
   repeated SessionSnapshotSession sessions = 1;
+}
+
+message ServerMsg_WorldTransferBegin {
+  string transfer_id = 1;
+  string world_id = 2;
+  string world_revision = 3;
+  uint64 total_bytes = 4;
+  uint32 chunk_size = 5;
+  string world_hash = 6;
+  string world_content_hash = 7;
+}
+
+message ServerMsg_WorldTransferChunk {
+  string transfer_id = 1;
+  uint32 chunk_index = 2;
+  bytes chunk_data = 3;
+}
+
+message ServerMsg_WorldTransferEnd {
+  string transfer_id = 1;
+  uint32 chunk_count = 2;
+  uint64 total_bytes = 3;
+  string world_hash = 4;
+  string world_content_hash = 5;
 }
 
 // Wrapper for "ServerMsg { type; }"
@@ -145,6 +184,9 @@ message ServerMsg {
     CHAT = 12;
     JOIN_RESPONSE = 13;
     SESSION_SNAPSHOT = 14;
+    WORLD_TRANSFER_BEGIN = 15;
+    WORLD_TRANSFER_CHUNK = 16;
+    WORLD_TRANSFER_END = 17;
   }
 
   // Optional: keep a type field if you want quick switching/logging.
@@ -165,6 +207,9 @@ message ServerMsg {
     ServerMsg_Chat chat = 13;
     ServerMsg_JoinResponse join_response = 14;
     ServerMsg_SessionSnapshot session_snapshot = 15;
+    ServerMsg_WorldTransferBegin world_transfer_begin = 16;
+    ServerMsg_WorldTransferChunk world_transfer_chunk = 17;
+    ServerMsg_WorldTransferEnd world_transfer_end = 18;
   }
 }
 
@@ -184,6 +229,13 @@ message ClientMsg_PlayerJoin {
 message ClientMsg_JoinRequest {
   string name = 1;
   uint32 protocol_version = 2;
+  string cached_world_hash = 3;
+  string cached_world_id = 4;
+  string cached_world_revision = 5;
+  string cached_world_content_hash = 6;
+  string cached_world_manifest_hash = 7;
+  uint32 cached_world_manifest_file_count = 8;
+  repeated WorldManifestEntry cached_world_manifest = 9;
 }
 
 message ClientMsg_PlayerLeave {

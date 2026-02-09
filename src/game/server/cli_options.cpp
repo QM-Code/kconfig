@@ -24,7 +24,6 @@ void PrintHelp() {
         << "  -v, --verbose                   Enable debug-level logging\n"
         << "  -t, --trace <channels>          Enable comma-separated trace channels\n"
         << "  -w, --world <dir>               World directory\n"
-        << "  -D, --default-world             Use 'defaultWorld' from server config\n"
         << "  -p, --port <port>               Server port (parsed; not yet wired)\n"
         << "  -d, --data-dir <dir>            Data directory override\n"
         << "  -c, --config <path>             User config file path override\n"
@@ -150,8 +149,6 @@ CLIOptions ParseCLIOptions(int argc, char** argv) {
         } else if (StartsWith(arg, "--world=")) {
             opts.world_dir = ValueAfterEquals(arg, "--world=");
             opts.world_specified = true;
-        } else if (arg == "-D" || arg == "--default-world") {
-            opts.use_default_world = true;
         } else if (arg == "-p" || arg == "--port") {
             opts.host_port = ParsePort(RequireValue(arg, i, argc, argv));
             opts.host_port_explicit = true;
@@ -203,10 +200,6 @@ CLIOptions ParseCLIOptions(int argc, char** argv) {
         } else {
             Fail("Unknown option '" + arg + "'.");
         }
-    }
-
-    if (opts.world_specified && opts.use_default_world) {
-        Fail("Cannot specify both -w/--world and -D/--default-world.");
     }
 
     if (opts.trace_explicit && opts.trace_channels.empty()) {

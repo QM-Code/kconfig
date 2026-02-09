@@ -19,6 +19,7 @@
 
 #include "common/config_store.hpp"
 #include "common/json.hpp"
+#include "karma/common/logging.hpp"
 #include <spdlog/spdlog.h>
 
 #if defined(_WIN32)
@@ -123,6 +124,81 @@ std::filesystem::path NormalizeMountPoint(const std::filesystem::path &mountPoin
     return normalized;
 }
 
+std::filesystem::path NormalizeRelativePathForLookup(const std::filesystem::path &relativePath) {
+    std::filesystem::path normalized = relativePath.lexically_normal();
+    if (normalized == ".") {
+        return {};
+    }
+    if (normalized.is_absolute()) {
+        normalized = normalized.relative_path();
+    }
+    return normalized;
+}
+
+size_t CountPathComponents(const std::filesystem::path &path) {
+    size_t count = 0;
+    for (const auto &component : path) {
+        if (component.empty() || component == ".") {
+            continue;
+        }
+        ++count;
+    }
+    return count;
+}
+
+bool TryMapRelativePathToMountPoint(const std::filesystem::path &relativePath,
+                                    const std::filesystem::path &mountPoint,
+                                    std::filesystem::path &pathWithinMount) {
+    pathWithinMount.clear();
+    if (mountPoint.empty()) {
+        pathWithinMount = relativePath;
+        return true;
+    }
+
+    auto relativeIt = relativePath.begin();
+    for (auto mountIt = mountPoint.begin(); mountIt != mountPoint.end(); ++mountIt, ++relativeIt) {
+        if (relativeIt == relativePath.end() || *relativeIt != *mountIt) {
+            return false;
+        }
+    }
+
+    for (; relativeIt != relativePath.end(); ++relativeIt) {
+        pathWithinMount /= *relativeIt;
+    }
+    return true;
+}
+
+void TraceMountTable(const std::optional<ContentMount> &filesystemMount,
+                     const std::vector<ContentMount> &packageMounts,
+                     const char *reason) {
+    if (!karma::logging::ShouldTraceChannel("content.mount")) {
+        return;
+    }
+
+    KARMA_TRACE("content.mount",
+                "ContentMounts: {} filesystem={} packages={}",
+                reason,
+                filesystemMount.has_value() ? 1 : 0,
+                packageMounts.size());
+    if (filesystemMount.has_value()) {
+        KARMA_TRACE("content.mount",
+                    "ContentMounts: fs id='{}' source='{}' mount='{}'",
+                    filesystemMount->id,
+                    filesystemMount->source.string(),
+                    filesystemMount->mountPoint.string());
+    }
+
+    for (size_t index = 0; index < packageMounts.size(); ++index) {
+        const auto &mount = packageMounts[index];
+        KARMA_TRACE("content.mount",
+                    "ContentMounts: package[{}] id='{}' source='{}' mount='{}'",
+                    index,
+                    mount.id,
+                    mount.source.string(),
+                    mount.mountPoint.string());
+    }
+}
+
 class ContentMountManager {
   public:
     void setFilesystemRoot(const std::filesystem::path &root) {
@@ -133,6 +209,7 @@ class ContentMountManager {
             .source = root,
             .mountPoint = {}
         };
+        TraceMountTable(filesystem_mount_, package_mounts_, "filesystem-root-updated");
     }
 
     void registerPackageMount(const std::string &id,
@@ -158,14 +235,20 @@ class ContentMountManager {
         });
         if (existing != package_mounts_.end()) {
             *existing = std::move(mount);
+            TraceMountTable(filesystem_mount_, package_mounts_, "package-updated");
             return;
         }
         package_mounts_.push_back(std::move(mount));
+        TraceMountTable(filesystem_mount_, package_mounts_, "package-registered");
     }
 
     void clearPackageMounts() {
         std::lock_guard<std::mutex> lock(mutex_);
+        if (package_mounts_.empty()) {
+            return;
+        }
         package_mounts_.clear();
+        TraceMountTable(filesystem_mount_, package_mounts_, "packages-cleared");
     }
 
     std::vector<ContentMount> snapshot() const {
@@ -184,10 +267,46 @@ class ContentMountManager {
         if (!filesystem_mount_.has_value()) {
             throw std::runtime_error("data_path_resolver: content mounts are not initialized");
         }
-        return TryCanonical(filesystem_mount_->source / relativePath);
+        const auto normalizedPath = NormalizeRelativePathForLookup(relativePath);
+        if (const auto mountedPath = resolveFromPackageMountsLocked(normalizedPath); mountedPath.has_value()) {
+            return *mountedPath;
+        }
+        return TryCanonical(filesystem_mount_->source / normalizedPath);
     }
 
   private:
+    std::optional<std::filesystem::path> resolveFromPackageMountsLocked(const std::filesystem::path &relativePath) const {
+        std::optional<std::filesystem::path> resolved;
+        size_t bestSpecificity = 0;
+        size_t bestOrder = 0;
+        bool found = false;
+
+        for (size_t index = 0; index < package_mounts_.size(); ++index) {
+            const auto &mount = package_mounts_[index];
+
+            std::filesystem::path pathWithinMount;
+            if (!TryMapRelativePathToMountPoint(relativePath, mount.mountPoint, pathWithinMount)) {
+                continue;
+            }
+
+            const auto candidatePath = mount.source / pathWithinMount;
+            std::error_code existsEc;
+            if (!std::filesystem::exists(candidatePath, existsEc) || existsEc) {
+                continue;
+            }
+
+            const size_t specificity = CountPathComponents(mount.mountPoint);
+            if (!found || specificity > bestSpecificity || (specificity == bestSpecificity && index > bestOrder)) {
+                resolved = TryCanonical(candidatePath);
+                bestSpecificity = specificity;
+                bestOrder = index;
+                found = true;
+            }
+        }
+
+        return resolved;
+    }
+
     mutable std::mutex mutex_;
     std::optional<ContentMount> filesystem_mount_;
     std::vector<ContentMount> package_mounts_;
@@ -257,7 +376,8 @@ void RegisterPackageMount(const std::string &id,
     if (resolvedPackagePath.is_absolute()) {
         resolvedPackagePath = TryCanonical(resolvedPackagePath);
     } else {
-        resolvedPackagePath = Resolve(resolvedPackagePath);
+        // Package mount sources are always relative to the base data root.
+        resolvedPackagePath = TryCanonical(DataRoot() / resolvedPackagePath);
     }
 
     g_mountManager.registerPackageMount(id, resolvedPackagePath, mountPoint);

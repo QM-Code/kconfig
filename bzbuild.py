@@ -22,11 +22,15 @@ def usage(exit_code: int = 1) -> None:
     prog = os.path.basename(sys.argv[0])
     print(
         f"Usage: {prog} [-c|--configure] [-a|--all] "
+        "[--test-physics] [--test-audio] [--test-engine] "
         "[build-<platform>-<renderer>-<physics>-<ui>-<audio>]",
         file=sys.stderr,
     )
     print("  -c, --configure   run cmake -S configure step before building", file=sys.stderr)
     print("  -a, --all         build consolidated dev profile into build-dev/", file=sys.stderr)
+    print("  --test-physics    run physics backend parity tests via ctest after build", file=sys.stderr)
+    print("  --test-audio      run audio backend smoke tests via ctest after build", file=sys.stderr)
+    print("  --test-engine     run both physics and audio backend tests via ctest after build", file=sys.stderr)
     raise SystemExit(exit_code)
 
 
@@ -144,6 +148,8 @@ def main() -> int:
     args = sys.argv[1:]
     run_configure = False
     all_build = False
+    run_physics_tests = False
+    run_audio_tests = False
     build_dir_arg = ""
 
     i = 0
@@ -155,6 +161,13 @@ def main() -> int:
             run_configure = True
         elif arg in ("-a", "--all"):
             all_build = True
+        elif arg == "--test-physics":
+            run_physics_tests = True
+        elif arg == "--test-audio":
+            run_audio_tests = True
+        elif arg == "--test-engine":
+            run_physics_tests = True
+            run_audio_tests = True
         elif arg.startswith("-"):
             fail(f"unknown option '{arg}'")
         else:
@@ -198,6 +211,8 @@ def main() -> int:
         cmake_args.append("-DKARMA_PHYSICS_BACKENDS=jolt;physx")
         cmake_args.append("-DKARMA_UI_BACKENDS=imgui;rmlui")
         cmake_args.append("-DKARMA_AUDIO_BACKENDS=sdl3audio;miniaudio")
+    if run_physics_tests or run_audio_tests:
+        cmake_args.append("-DBUILD_TESTING=ON")
 
     # Default to offline-safe FetchContent behavior to avoid unexpected
     # dependency git updates during normal local builds.
@@ -237,6 +252,10 @@ def main() -> int:
         run(["cmake", "-S", ".", "-B", build_dir, *cmake_args], env=env)
 
     run(["cmake", "--build", build_dir, "-j4"], env=env)
+    if run_physics_tests:
+        run(["ctest", "--test-dir", build_dir, "-R", "physics_backend_parity", "--output-on-failure"], env=env)
+    if run_audio_tests:
+        run(["ctest", "--test-dir", build_dir, "-R", "audio_backend_smoke", "--output-on-failure"], env=env)
     return 0
 
 

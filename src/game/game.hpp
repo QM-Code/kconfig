@@ -8,6 +8,7 @@
 
 namespace bz3::client::net {
 class ClientConnection;
+enum class AudioEvent;
 }
 
 namespace bz3 {
@@ -29,8 +30,13 @@ class Game final : public karma::app::GameInterface {
     void onShutdown() override;
 
  private:
+    void onAudioEvent(client::net::AudioEvent event);
+    void playOneShotAsset(const char* asset_key, float gain = 1.0f, float pitch = 1.0f);
+
     GameStartupOptions startup_{};
     std::unique_ptr<client::net::ClientConnection> connection_{};
+    bool spawn_was_down_ = false;
+    bool fire_was_down_ = false;
 };
 
 } // namespace bz3

@@ -30,12 +30,13 @@ std::string named_pattern;
 std::once_flag trace_color_once;
 bool trace_color_enabled = false;
 
-constexpr std::array<const char*, 32> kKnownTraceChannels = {
+constexpr std::array<const char*, 33> kKnownTraceChannels = {
     "audio.system",
     "audio.sdl3audio",
     "audio.miniaudio",
     "config",
     "config.bindings",
+    "content.mount",
     "ecs.world",
     "engine.app",
     "engine.sim",
@@ -184,6 +185,7 @@ const char* TraceCategoryColor(const std::string& category) {
         {"render", ansi_colors.at("bright_red")},
         {"console", ansi_colors.at("bright_yellow")},
         {"config", ansi_colors.at("bright_cyan")},
+        {"content", ansi_colors.at("bright_cyan")},
         {"net", ansi_colors.at("bright_green")},
         {"ecs", ansi_colors.at("bright_green")},
         {"physics", ansi_colors.at("green")},

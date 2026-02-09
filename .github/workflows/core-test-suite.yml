@@ -1,0 +1,67 @@
+name: Core Test Suite
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-cache
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            pkg-config \
+            zip \
+            unzip \
+            tar \
+            curl \
+            autoconf \
+            automake \
+            libtool
+
+      - name: Cache vcpkg Binary Artifacts
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.vcpkg-cache
+          key: vcpkg-bin-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'CMakeLists.txt') }}
+          restore-keys: |
+            vcpkg-bin-${{ runner.os }}-
+
+      - name: Bootstrap vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "${RUNNER_TEMP}/vcpkg"
+          "${RUNNER_TEMP}/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+          echo "VCPKG_ROOT=${RUNNER_TEMP}/vcpkg" >> "${GITHUB_ENV}"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-dev \
+            -DBUILD_TESTING=ON \
+            -DFETCHCONTENT_UPDATES_DISCONNECTED=ON \
+            -DKARMA_RENDER_BACKENDS='bgfx;diligent' \
+            -DKARMA_PHYSICS_BACKENDS='jolt;physx' \
+            -DKARMA_AUDIO_BACKENDS='sdl3audio;miniaudio' \
+            -DKARMA_ENABLE_RMLUI_BACKEND=ON
+
+      - name: Run Engine Backend Test Suite
+        run: ./scripts/test-engine-backends.sh
+
+      - name: Run Server Network Test Suite
+        run: ./scripts/test-server-net.sh

@@ -1,6 +1,8 @@
 #include "game.hpp"
 
 #include "client/net/client_connection.hpp"
+#include "karma/audio/backend.hpp"
+#include "karma/audio/audio_system.hpp"
 #include "karma/common/logging.hpp"
 #include "karma/input/input_system.hpp"
 #include "karma/ui/ui_draw_context.hpp"
@@ -28,7 +30,8 @@ void Game::onStart() {
     connection_ = std::make_unique<client::net::ClientConnection>(
         startup_.connect_addr,
         startup_.connect_port,
-        startup_.player_name);
+        startup_.player_name,
+        [this](client::net::AudioEvent event) { onAudioEvent(event); });
     if (!connection_->start()) {
         KARMA_TRACE("net.client",
                     "Game: startup connect failed addr='{}' port={} name='{}'",
@@ -48,6 +51,37 @@ void Game::onUpdate(float dt) {
             std::exit(1);
         }
     }
+
+    if (!input) {
+        spawn_was_down_ = false;
+        fire_was_down_ = false;
+        return;
+    }
+
+    const bool spawn_down = input->game().actionDown("spawn");
+    const bool fire_down = input->game().actionDown("fire");
+
+    const bool spawn_pressed =
+        input->game().actionPressed("spawn") || (spawn_down && !spawn_was_down_);
+    const bool fire_pressed =
+        input->game().actionPressed("fire") || (fire_down && !fire_was_down_);
+
+    if (spawn_pressed) {
+        if (connection_ && connection_->isConnected()) {
+            (void)connection_->sendRequestPlayerSpawn();
+        }
+    }
+
+    if (fire_pressed) {
+        // Play local fire immediately for responsive feedback.
+        onAudioEvent(client::net::AudioEvent::ShotFire);
+        if (connection_ && connection_->isConnected()) {
+            (void)connection_->sendCreateShot();
+        }
+    }
+
+    spawn_was_down_ = spawn_down;
+    fire_was_down_ = fire_down;
 }
 
 void Game::onUiUpdate(float dt, karma::ui::UiDrawContext& ui) {
@@ -73,6 +107,35 @@ void Game::onShutdown() {
         connection_->shutdown();
         connection_.reset();
     }
+}
+
+void Game::onAudioEvent(client::net::AudioEvent event) {
+    switch (event) {
+        case client::net::AudioEvent::PlayerSpawn:
+            playOneShotAsset("assets.audio.player.Spawn", 1.0f, 1.0f);
+            break;
+        case client::net::AudioEvent::PlayerDeath:
+            playOneShotAsset("assets.audio.player.Die", 1.0f, 1.0f);
+            break;
+        case client::net::AudioEvent::ShotFire:
+            playOneShotAsset("assets.audio.shot.Fire", 0.65f, 1.0f);
+            break;
+        default:
+            break;
+    }
+}
+
+void Game::playOneShotAsset(const char* asset_key, float gain, float pitch) {
+    if (!audio || !asset_key || *asset_key == '\0') {
+        return;
+    }
+
+    karma::audio_backend::PlayRequest request{};
+    request.asset_path = asset_key;
+    request.gain = gain;
+    request.pitch = pitch;
+    request.loop = false;
+    audio->playOneShot(request);
 }
 
 } // namespace bz3

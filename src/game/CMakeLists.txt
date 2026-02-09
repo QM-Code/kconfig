@@ -32,6 +32,7 @@ add_executable(bz3-server
     ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/net/event_source.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/runtime.cpp
+    ${PROJECT_SOURCE_DIR}/src/game/server/runtime_event_rules.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/server_game.cpp
     ${PROJECT_SOURCE_DIR}/src/game/net/protocol_codec.cpp
 )
@@ -63,4 +64,125 @@ if(TARGET enet_static)
 elseif(TARGET enet)
     target_link_libraries(bz3 PRIVATE enet)
     target_link_libraries(bz3-server PRIVATE enet)
+endif()
+
+if(BUILD_TESTING)
+    add_executable(enet_environment_probe_test
+        ${PROJECT_SOURCE_DIR}/src/game/tests/enet_environment_probe_test.cpp
+    )
+    if(TARGET enet_static)
+        target_link_libraries(enet_environment_probe_test PRIVATE enet_static)
+    elseif(TARGET enet)
+        target_link_libraries(enet_environment_probe_test PRIVATE enet)
+    endif()
+    add_test(NAME enet_environment_probe_test
+             COMMAND enet_environment_probe_test)
+    set_tests_properties(enet_environment_probe_test PROPERTIES
+                         RUN_SERIAL TRUE
+                         SKIP_RETURN_CODE 77)
+
+    add_executable(server_net_contract_test
+        ${PROJECT_SOURCE_DIR}/src/game/tests/server_net_contract_test.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/net/protocol_codec.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/net/event_source.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
+    )
+    target_include_directories(server_net_contract_test PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src/game
+    )
+    target_link_libraries(server_net_contract_test PRIVATE karma_engine_core)
+    target_link_libraries(server_net_contract_test PRIVATE bz3_proto)
+
+    if(TARGET enet_static)
+        target_link_libraries(server_net_contract_test PRIVATE enet_static)
+    elseif(TARGET enet)
+        target_link_libraries(server_net_contract_test PRIVATE enet)
+    endif()
+
+    add_test(NAME server_net_contract_test
+             COMMAND server_net_contract_test)
+
+    add_executable(server_runtime_event_rules_test
+        ${PROJECT_SOURCE_DIR}/src/game/tests/server_runtime_event_rules_test.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/runtime_event_rules.cpp
+    )
+    target_include_directories(server_runtime_event_rules_test PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src/game
+    )
+    add_test(NAME server_runtime_event_rules_test
+             COMMAND server_runtime_event_rules_test)
+
+    add_executable(enet_loopback_integration_test
+        ${PROJECT_SOURCE_DIR}/src/game/tests/enet_loopback_integration_test.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/net/protocol_codec.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
+    )
+    target_include_directories(enet_loopback_integration_test PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src/game
+    )
+    target_link_libraries(enet_loopback_integration_test PRIVATE karma_engine_core)
+    target_link_libraries(enet_loopback_integration_test PRIVATE bz3_proto)
+
+    if(TARGET enet_static)
+        target_link_libraries(enet_loopback_integration_test PRIVATE enet_static)
+    elseif(TARGET enet)
+        target_link_libraries(enet_loopback_integration_test PRIVATE enet)
+    endif()
+
+    add_test(NAME enet_loopback_integration_test
+             COMMAND enet_loopback_integration_test)
+    set_tests_properties(enet_loopback_integration_test PROPERTIES
+                         RUN_SERIAL TRUE
+                         SKIP_RETURN_CODE 77)
+
+    add_executable(enet_multiclient_loopback_test
+        ${PROJECT_SOURCE_DIR}/src/game/tests/enet_multiclient_loopback_test.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/net/protocol_codec.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
+    )
+    target_include_directories(enet_multiclient_loopback_test PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src/game
+    )
+    target_link_libraries(enet_multiclient_loopback_test PRIVATE karma_engine_core)
+    target_link_libraries(enet_multiclient_loopback_test PRIVATE bz3_proto)
+
+    if(TARGET enet_static)
+        target_link_libraries(enet_multiclient_loopback_test PRIVATE enet_static)
+    elseif(TARGET enet)
+        target_link_libraries(enet_multiclient_loopback_test PRIVATE enet)
+    endif()
+
+    add_test(NAME enet_multiclient_loopback_test
+             COMMAND enet_multiclient_loopback_test)
+    set_tests_properties(enet_multiclient_loopback_test PROPERTIES
+                         RUN_SERIAL TRUE
+                         SKIP_RETURN_CODE 77)
+
+    add_executable(enet_disconnect_lifecycle_integration_test
+        ${PROJECT_SOURCE_DIR}/src/game/tests/enet_disconnect_lifecycle_integration_test.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/net/protocol_codec.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
+    )
+    target_include_directories(enet_disconnect_lifecycle_integration_test PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src/game
+    )
+    target_link_libraries(enet_disconnect_lifecycle_integration_test PRIVATE karma_engine_core)
+    target_link_libraries(enet_disconnect_lifecycle_integration_test PRIVATE bz3_proto)
+
+    if(TARGET enet_static)
+        target_link_libraries(enet_disconnect_lifecycle_integration_test PRIVATE enet_static)
+    elseif(TARGET enet)
+        target_link_libraries(enet_disconnect_lifecycle_integration_test PRIVATE enet)
+    endif()
+
+    add_test(NAME enet_disconnect_lifecycle_integration_test
+             COMMAND enet_disconnect_lifecycle_integration_test)
+    set_tests_properties(enet_disconnect_lifecycle_integration_test PROPERTIES
+                         RUN_SERIAL TRUE
+                         SKIP_RETURN_CODE 77)
 endif()

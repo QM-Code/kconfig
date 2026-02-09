@@ -1,0 +1,423 @@
+#include "net/protocol.hpp"
+#include "net/protocol_codec.hpp"
+#include "server/net/enet_event_source.hpp"
+
+#include "karma/common/config_store.hpp"
+
+#include <enet.h>
+
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <iostream>
+#include <memory>
+#include <optional>
+#include <string>
+#include <thread>
+#include <vector>
+
+namespace {
+
+enum class TestResult {
+    Pass,
+    Skip,
+    Fail
+};
+
+struct ServerFixture {
+    uint16_t port = 0;
+    std::unique_ptr<bz3::server::net::ServerEventSource> source{};
+};
+
+struct ClientCapture {
+    bool connected = false;
+    bool disconnected = false;
+};
+
+struct ClientEndpoint {
+    ENetHost* host = nullptr;
+    ENetPeer* peer = nullptr;
+    ClientCapture capture{};
+};
+
+constexpr int kSkipReturnCode = 77;
+
+void PrintSkip(const std::string& message) {
+    std::cerr << "SKIP: " << message << "\n";
+}
+
+TestResult FailTest(const std::string& message) {
+    std::cerr << "FAIL: " << message << "\n";
+    return TestResult::Fail;
+}
+
+bool Expect(bool condition, const std::string& message) {
+    if (!condition) {
+        std::cerr << "FAIL: " << message << "\n";
+        return false;
+    }
+    return true;
+}
+
+std::filesystem::path MakeTestConfigPath() {
+    const auto nonce = static_cast<unsigned long long>(
+        std::chrono::steady_clock::now().time_since_epoch().count());
+    return std::filesystem::temp_directory_path() /
+           ("bz3-enet-disconnect-" + std::to_string(nonce) + ".json");
+}
+
+void InitEmptyConfig() {
+    karma::config::ConfigStore::Initialize({}, MakeTestConfigPath());
+    (void)karma::config::ConfigStore::Set("config.SaveIntervalSeconds", 5.0);
+    (void)karma::config::ConfigStore::Set("config.MergeIntervalSeconds", 5.0);
+}
+
+std::optional<ServerFixture> CreateServerFixture() {
+    constexpr uint16_t kFirstPort = 32150;
+    constexpr uint16_t kLastPort = 32200;
+    for (uint16_t port = kFirstPort; port < kLastPort; ++port) {
+        auto source = bz3::server::net::CreateEnetServerEventSource(port);
+        if (source) {
+            return ServerFixture{port, std::move(source)};
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<ClientEndpoint> CreateClientEndpoint(uint16_t port) {
+    ENetHost* host = enet_host_create(nullptr, 1, 2, 0, 0);
+    if (!host) {
+        return std::nullopt;
+    }
+
+    ENetAddress address{};
+    if (enet_address_set_host(&address, "127.0.0.1") != 0) {
+        enet_host_destroy(host);
+        return std::nullopt;
+    }
+    address.port = port;
+
+    ENetPeer* peer = enet_host_connect(host, &address, 2, 0);
+    if (!peer) {
+        enet_host_destroy(host);
+        return std::nullopt;
+    }
+
+    ClientEndpoint endpoint{};
+    endpoint.host = host;
+    endpoint.peer = peer;
+    return endpoint;
+}
+
+void DestroyClientEndpoint(ClientEndpoint* endpoint) {
+    if (!endpoint) {
+        return;
+    }
+    if (endpoint->host) {
+        enet_host_destroy(endpoint->host);
+        endpoint->host = nullptr;
+    }
+    endpoint->peer = nullptr;
+}
+
+void PumpClient(ClientEndpoint* endpoint) {
+    if (!endpoint || !endpoint->host) {
+        return;
+    }
+
+    ENetEvent event{};
+    while (enet_host_service(endpoint->host, &event, 0) > 0) {
+        switch (event.type) {
+            case ENET_EVENT_TYPE_CONNECT:
+                endpoint->capture.connected = true;
+                break;
+            case ENET_EVENT_TYPE_DISCONNECT:
+            case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT:
+                endpoint->capture.disconnected = true;
+                break;
+            case ENET_EVENT_TYPE_RECEIVE:
+                enet_packet_destroy(event.packet);
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+template <typename StepFn, typename DoneFn>
+bool WaitUntil(std::chrono::milliseconds timeout, StepFn&& step, DoneFn&& done) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (std::chrono::steady_clock::now() < deadline) {
+        step();
+        if (done()) {
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    step();
+    return done();
+}
+
+bool SendPayload(ClientEndpoint* endpoint, const std::vector<std::byte>& payload) {
+    if (!endpoint || !endpoint->host || !endpoint->peer || payload.empty()) {
+        return false;
+    }
+
+    ENetPacket* packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
+    if (!packet) {
+        return false;
+    }
+    if (enet_peer_send(endpoint->peer, 0, packet) != 0) {
+        enet_packet_destroy(packet);
+        return false;
+    }
+    enet_host_flush(endpoint->host);
+    return true;
+}
+
+size_t CountEvents(const std::vector<bz3::server::net::ServerInputEvent>& events,
+                   bz3::server::net::ServerInputEvent::Type type,
+                   uint32_t client_id) {
+    size_t count = 0;
+    for (const auto& event : events) {
+        if (event.type != type) {
+            continue;
+        }
+        uint32_t event_client_id = 0;
+        switch (type) {
+            case bz3::server::net::ServerInputEvent::Type::ClientJoin:
+                event_client_id = event.join.client_id;
+                break;
+            case bz3::server::net::ServerInputEvent::Type::ClientLeave:
+                event_client_id = event.leave.client_id;
+                break;
+            case bz3::server::net::ServerInputEvent::Type::ClientRequestSpawn:
+                event_client_id = event.request_spawn.client_id;
+                break;
+            case bz3::server::net::ServerInputEvent::Type::ClientCreateShot:
+                event_client_id = event.create_shot.client_id;
+                break;
+        }
+        if (event_client_id == client_id) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+std::optional<uint32_t> FindJoinedClientId(const std::vector<bz3::server::net::ServerInputEvent>& events,
+                                           const std::string& player_name) {
+    for (const auto& event : events) {
+        if (event.type == bz3::server::net::ServerInputEvent::Type::ClientJoin
+            && event.join.player_name == player_name) {
+            return event.join.client_id;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<uint32_t> FindCreateShotClientId(const std::vector<bz3::server::net::ServerInputEvent>& events,
+                                               uint32_t local_shot_id) {
+    for (const auto& event : events) {
+        if (event.type == bz3::server::net::ServerInputEvent::Type::ClientCreateShot
+            && event.create_shot.local_shot_id == local_shot_id) {
+            return event.create_shot.client_id;
+        }
+    }
+    return std::nullopt;
+}
+
+TestResult TestDisconnectLifecycle() {
+    InitEmptyConfig();
+    auto fixture = CreateServerFixture();
+    if (!fixture.has_value()) {
+        PrintSkip("unable to create ENet server fixture");
+        return TestResult::Skip;
+    }
+
+    auto client_a_opt = CreateClientEndpoint(fixture->port);
+    if (!client_a_opt.has_value()) {
+        PrintSkip("unable to create first ENet client");
+        return TestResult::Skip;
+    }
+    ClientEndpoint client_a = std::move(*client_a_opt);
+    std::vector<bz3::server::net::ServerInputEvent> server_events{};
+
+    const auto step_a = [&]() {
+        auto polled = fixture->source->poll();
+        server_events.insert(server_events.end(), polled.begin(), polled.end());
+        PumpClient(&client_a);
+    };
+
+    if (!WaitUntil(std::chrono::milliseconds(1200), step_a, [&]() { return client_a.capture.connected; })) {
+        DestroyClientEndpoint(&client_a);
+        return FailTest("disconnect-test: timed out waiting for first client connect");
+    }
+
+    if (!SendPayload(&client_a,
+                     bz3::net::EncodeClientJoinRequest(
+                         "alpha", bz3::net::kProtocolVersion, "", "", "", "", "", 0))) {
+        DestroyClientEndpoint(&client_a);
+        return FailTest("disconnect-test: failed sending alpha join");
+    }
+
+    if (!WaitUntil(std::chrono::milliseconds(1200), step_a, [&]() {
+            return FindJoinedClientId(server_events, "alpha").has_value();
+        })) {
+        DestroyClientEndpoint(&client_a);
+        return FailTest("disconnect-test: timed out waiting for alpha ClientJoin");
+    }
+
+    const auto first_id_opt = FindJoinedClientId(server_events, "alpha");
+    if (!first_id_opt.has_value()) {
+        DestroyClientEndpoint(&client_a);
+        return FailTest("disconnect-test: missing alpha client id after join");
+    }
+    const uint32_t first_id = *first_id_opt;
+
+    server_events.clear();
+    enet_peer_disconnect(client_a.peer, 0);
+    if (!WaitUntil(std::chrono::milliseconds(1200), step_a, [&]() {
+            return client_a.capture.disconnected
+                   && CountEvents(
+                          server_events, bz3::server::net::ServerInputEvent::Type::ClientLeave, first_id)
+                          >= 1;
+        })) {
+        DestroyClientEndpoint(&client_a);
+        return FailTest("disconnect-test: timed out waiting for leave event from disconnect");
+    }
+
+    for (int i = 0; i < 60; ++i) {
+        step_a();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    if (!Expect(
+            CountEvents(server_events, bz3::server::net::ServerInputEvent::Type::ClientLeave, first_id) == 1,
+            "disconnect-test: expected exactly one leave event for first client")) {
+        DestroyClientEndpoint(&client_a);
+        return TestResult::Fail;
+    }
+    DestroyClientEndpoint(&client_a);
+
+    server_events.clear();
+    auto client_b_opt = CreateClientEndpoint(fixture->port);
+    if (!client_b_opt.has_value()) {
+        PrintSkip("unable to create second ENet client");
+        return TestResult::Skip;
+    }
+    ClientEndpoint client_b = std::move(*client_b_opt);
+    const auto step_b = [&]() {
+        auto polled = fixture->source->poll();
+        server_events.insert(server_events.end(), polled.begin(), polled.end());
+        PumpClient(&client_b);
+    };
+
+    if (!WaitUntil(std::chrono::milliseconds(1200), step_b, [&]() { return client_b.capture.connected; })) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: timed out waiting for second client connect");
+    }
+
+    if (!SendPayload(&client_b,
+                     bz3::net::EncodeClientJoinRequest(
+                         "beta", bz3::net::kProtocolVersion, "", "", "", "", "", 0))) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: failed sending beta join");
+    }
+
+    if (!WaitUntil(std::chrono::milliseconds(1200), step_b, [&]() {
+            return FindJoinedClientId(server_events, "beta").has_value();
+        })) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: timed out waiting for beta ClientJoin");
+    }
+
+    const auto second_id_opt = FindJoinedClientId(server_events, "beta");
+    if (!second_id_opt.has_value()) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: missing beta client id after join");
+    }
+    const uint32_t second_id = *second_id_opt;
+    if (!Expect(first_id != second_id, "disconnect-test: reconnect reused stale client id")) {
+        DestroyClientEndpoint(&client_b);
+        return TestResult::Fail;
+    }
+
+    server_events.clear();
+    constexpr uint32_t kLocalShotId = 4242;
+    if (!SendPayload(&client_b,
+                     bz3::net::EncodeClientCreateShot(first_id,
+                                                      kLocalShotId,
+                                                      bz3::net::Vec3{1.0f, 2.0f, 3.0f},
+                                                      bz3::net::Vec3{4.0f, 5.0f, 6.0f}))) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: failed sending create_shot from second client");
+    }
+
+    if (!WaitUntil(std::chrono::milliseconds(1200), step_b, [&]() {
+            return FindCreateShotClientId(server_events, kLocalShotId).has_value();
+        })) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: timed out waiting for create_shot after reconnect");
+    }
+
+    const auto shot_source_opt = FindCreateShotClientId(server_events, kLocalShotId);
+    if (!shot_source_opt.has_value()) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: missing create_shot event source");
+    }
+    if (!Expect(*shot_source_opt == second_id,
+                "disconnect-test: create_shot used stale client id instead of current connection id")) {
+        DestroyClientEndpoint(&client_b);
+        return TestResult::Fail;
+    }
+
+    server_events.clear();
+    if (!SendPayload(&client_b, bz3::net::EncodeClientLeave(first_id))) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: failed sending explicit leave");
+    }
+
+    if (!WaitUntil(std::chrono::milliseconds(1200), step_b, [&]() {
+            return CountEvents(server_events,
+                               bz3::server::net::ServerInputEvent::Type::ClientLeave,
+                               second_id)
+                   >= 1;
+        })) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: timed out waiting for explicit leave event");
+    }
+
+    enet_peer_disconnect(client_b.peer, 0);
+    if (!WaitUntil(std::chrono::milliseconds(600), step_b, [&]() { return client_b.capture.disconnected; })) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: timed out waiting for disconnect after explicit leave");
+    }
+
+    for (int i = 0; i < 60; ++i) {
+        step_b();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    if (!Expect(
+            CountEvents(server_events, bz3::server::net::ServerInputEvent::Type::ClientLeave, second_id) == 1,
+            "disconnect-test: explicit leave + disconnect emitted duplicate leave event")) {
+        DestroyClientEndpoint(&client_b);
+        return TestResult::Fail;
+    }
+
+    DestroyClientEndpoint(&client_b);
+    return TestResult::Pass;
+}
+
+} // namespace
+
+int main() {
+    const auto result = TestDisconnectLifecycle();
+    if (result == TestResult::Pass) {
+        return 0;
+    }
+    if (result == TestResult::Skip) {
+        return kSkipReturnCode;
+    }
+    return 1;
+}
