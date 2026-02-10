@@ -206,6 +206,25 @@ size_t CountEvents(const std::vector<bz3::server::net::ServerInputEvent>& events
     return count;
 }
 
+bool HasJoinBeforeLeaveForClient(const std::vector<bz3::server::net::ServerInputEvent>& events,
+                                 uint32_t client_id) {
+    std::optional<size_t> join_index{};
+    std::optional<size_t> leave_index{};
+    for (size_t index = 0; index < events.size(); ++index) {
+        const auto& event = events[index];
+        if (event.type == bz3::server::net::ServerInputEvent::Type::ClientJoin
+            && event.join.client_id == client_id && !join_index.has_value()) {
+            join_index = index;
+            continue;
+        }
+        if (event.type == bz3::server::net::ServerInputEvent::Type::ClientLeave
+            && event.leave.client_id == client_id && !leave_index.has_value()) {
+            leave_index = index;
+        }
+    }
+    return join_index.has_value() && leave_index.has_value() && *join_index < *leave_index;
+}
+
 std::optional<uint32_t> FindJoinedClientId(const std::vector<bz3::server::net::ServerInputEvent>& events,
                                            const std::string& player_name) {
     for (const auto& event : events) {
@@ -277,6 +296,7 @@ TestResult TestDisconnectLifecycle() {
     const uint32_t first_id = *first_id_opt;
 
     server_events.clear();
+    enet_peer_disconnect(client_a.peer, 0);
     enet_peer_disconnect(client_a.peer, 0);
     if (!WaitUntil(std::chrono::milliseconds(1200), step_a, [&]() {
             return client_a.capture.disconnected
@@ -388,6 +408,36 @@ TestResult TestDisconnectLifecycle() {
         return FailTest("disconnect-test: timed out waiting for explicit leave event");
     }
 
+    if (!SendPayload(&client_b, bz3::net::EncodeClientRequestPlayerSpawn(second_id + 1))) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: failed sending request_spawn after explicit leave");
+    }
+    if (!SendPayload(&client_b,
+                     bz3::net::EncodeClientCreateShot(second_id + 1,
+                                                      4343,
+                                                      bz3::net::Vec3{1.0f, 2.0f, 3.0f},
+                                                      bz3::net::Vec3{4.0f, 5.0f, 6.0f}))) {
+        DestroyClientEndpoint(&client_b);
+        return FailTest("disconnect-test: failed sending create_shot after explicit leave");
+    }
+
+    for (int i = 0; i < 80; ++i) {
+        step_b();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    if (!Expect(CountEvents(server_events, bz3::server::net::ServerInputEvent::Type::ClientRequestSpawn, second_id)
+                    == 0,
+                "disconnect-test: post-leave request_spawn should be ignored")) {
+        DestroyClientEndpoint(&client_b);
+        return TestResult::Fail;
+    }
+    if (!Expect(CountEvents(server_events, bz3::server::net::ServerInputEvent::Type::ClientCreateShot, second_id)
+                    == 0,
+                "disconnect-test: post-leave create_shot should be ignored")) {
+        DestroyClientEndpoint(&client_b);
+        return TestResult::Fail;
+    }
+
     enet_peer_disconnect(client_b.peer, 0);
     if (!WaitUntil(std::chrono::milliseconds(600), step_b, [&]() { return client_b.capture.disconnected; })) {
         DestroyClientEndpoint(&client_b);
@@ -406,6 +456,101 @@ TestResult TestDisconnectLifecycle() {
     }
 
     DestroyClientEndpoint(&client_b);
+
+    std::optional<uint32_t> previous_churn_id{};
+    for (int cycle = 0; cycle < 2; ++cycle) {
+        server_events.clear();
+        auto churn_client_opt = CreateClientEndpoint(fixture->port);
+        if (!churn_client_opt.has_value()) {
+            PrintSkip("unable to create churn ENet client");
+            return TestResult::Skip;
+        }
+        ClientEndpoint churn_client = std::move(*churn_client_opt);
+        const auto churn_step = [&]() {
+            auto polled = fixture->source->poll();
+            server_events.insert(server_events.end(), polled.begin(), polled.end());
+            PumpClient(&churn_client);
+        };
+
+        if (!WaitUntil(std::chrono::milliseconds(1200),
+                       churn_step,
+                       [&]() { return churn_client.capture.connected; })) {
+            DestroyClientEndpoint(&churn_client);
+            return FailTest("disconnect-test: timed out waiting for churn client connect");
+        }
+
+        const std::string churn_name = "churn-" + std::to_string(cycle);
+        if (!SendPayload(&churn_client,
+                         bz3::net::EncodeClientJoinRequest(
+                             churn_name, bz3::net::kProtocolVersion, "", "", "", "", "", 0))) {
+            DestroyClientEndpoint(&churn_client);
+            return FailTest("disconnect-test: failed sending churn join");
+        }
+
+        if (!WaitUntil(std::chrono::milliseconds(1200), churn_step, [&]() {
+                return FindJoinedClientId(server_events, churn_name).has_value();
+            })) {
+            DestroyClientEndpoint(&churn_client);
+            return FailTest("disconnect-test: timed out waiting for churn ClientJoin");
+        }
+
+        const auto churn_id_opt = FindJoinedClientId(server_events, churn_name);
+        if (!churn_id_opt.has_value()) {
+            DestroyClientEndpoint(&churn_client);
+            return FailTest("disconnect-test: missing churn client id after join");
+        }
+        const uint32_t churn_id = *churn_id_opt;
+        if (!Expect(!previous_churn_id.has_value() || *previous_churn_id != churn_id,
+                    "disconnect-test: rapid reconnect reused stale client id")) {
+            DestroyClientEndpoint(&churn_client);
+            return TestResult::Fail;
+        }
+
+        const uint32_t leave_payload_id = previous_churn_id.has_value() ? *previous_churn_id : churn_id;
+        if (!SendPayload(&churn_client, bz3::net::EncodeClientLeave(leave_payload_id))) {
+            DestroyClientEndpoint(&churn_client);
+            return FailTest("disconnect-test: failed sending churn leave");
+        }
+        enet_peer_disconnect(churn_client.peer, 0);
+        enet_peer_disconnect(churn_client.peer, 0);
+
+        if (!WaitUntil(std::chrono::milliseconds(1200), churn_step, [&]() {
+                return churn_client.capture.disconnected
+                       && CountEvents(server_events,
+                                      bz3::server::net::ServerInputEvent::Type::ClientLeave,
+                                      churn_id)
+                              >= 1;
+            })) {
+            DestroyClientEndpoint(&churn_client);
+            return FailTest("disconnect-test: timed out waiting for churn leave/disconnect");
+        }
+
+        for (int i = 0; i < 60; ++i) {
+            churn_step();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        if (!Expect(CountEvents(server_events, bz3::server::net::ServerInputEvent::Type::ClientJoin, churn_id)
+                        == 1,
+                    "disconnect-test: churn cycle expected exactly one join event")) {
+            DestroyClientEndpoint(&churn_client);
+            return TestResult::Fail;
+        }
+        if (!Expect(CountEvents(server_events, bz3::server::net::ServerInputEvent::Type::ClientLeave, churn_id)
+                        == 1,
+                    "disconnect-test: churn cycle emitted duplicate leave event")) {
+            DestroyClientEndpoint(&churn_client);
+            return TestResult::Fail;
+        }
+        if (!Expect(HasJoinBeforeLeaveForClient(server_events, churn_id),
+                    "disconnect-test: churn cycle emitted leave before join for same client")) {
+            DestroyClientEndpoint(&churn_client);
+            return TestResult::Fail;
+        }
+
+        previous_churn_id = churn_id;
+        DestroyClientEndpoint(&churn_client);
+    }
+
     return TestResult::Pass;
 }
 

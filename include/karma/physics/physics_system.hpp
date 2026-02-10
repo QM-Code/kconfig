@@ -25,6 +25,8 @@ class PhysicsSystem {
     void destroyBody(physics_backend::BodyId body);
     bool setBodyTransform(physics_backend::BodyId body, const physics_backend::BodyTransform& transform);
     bool getBodyTransform(physics_backend::BodyId body, physics_backend::BodyTransform& out_transform) const;
+    bool setBodyGravityEnabled(physics_backend::BodyId body, bool enabled);
+    bool getBodyGravityEnabled(physics_backend::BodyId body, bool& out_enabled) const;
     bool raycastClosest(const glm::vec3& origin,
                         const glm::vec3& direction,
                         float max_distance,

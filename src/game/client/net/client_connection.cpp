@@ -147,6 +147,35 @@ std::string Hash64Hex(uint64_t hash) {
     return out.str();
 }
 
+bool IsChunkInTransferBounds(uint64_t total_bytes,
+                             uint32_t chunk_size,
+                             uint32_t chunk_index,
+                             size_t chunk_bytes) {
+    if (chunk_size == 0) {
+        return false;
+    }
+    const uint64_t chunk_offset = static_cast<uint64_t>(chunk_index) * chunk_size;
+    if (chunk_offset > total_bytes) {
+        return false;
+    }
+    const uint64_t remaining_bytes = total_bytes - chunk_offset;
+    return static_cast<uint64_t>(chunk_bytes) <= remaining_bytes;
+}
+
+bool ChunkMatchesBufferedPayload(const std::vector<std::byte>& payload,
+                                 size_t chunk_offset,
+                                 const std::vector<std::byte>& chunk_data) {
+    if (chunk_offset > payload.size()) {
+        return false;
+    }
+    if (chunk_data.size() > (payload.size() - chunk_offset)) {
+        return false;
+    }
+    return std::equal(chunk_data.begin(),
+                      chunk_data.end(),
+                      payload.begin() + static_cast<std::ptrdiff_t>(chunk_offset));
+}
+
 std::string SanitizeCachePathComponent(std::string_view input, std::string_view fallback_prefix) {
     std::string sanitized{};
     sanitized.reserve(input.size());
@@ -1642,18 +1671,10 @@ void ClientConnection::poll() {
                                 }
                                 break;
                             }
-                            case bz3::net::ServerMessageType::WorldTransferBegin:
+                            case bz3::net::ServerMessageType::WorldTransferBegin: {
                                 if (!pending_world_package_.active) {
                                     spdlog::error("ClientConnection: unexpected world transfer begin transfer_id='{}' (no pending world init)",
                                                   message->transfer_id);
-                                    should_exit_ = true;
-                                    enet_peer_disconnect(peer_, 0);
-                                    break;
-                                }
-                                if (active_world_transfer_.active) {
-                                    spdlog::error("ClientConnection: duplicate world transfer begin transfer_id='{}' active_transfer='{}'",
-                                                  message->transfer_id,
-                                                  active_world_transfer_.transfer_id);
                                     should_exit_ = true;
                                     enet_peer_disconnect(peer_, 0);
                                     break;
@@ -1687,27 +1708,78 @@ void ClientConnection::poll() {
                                     enet_peer_disconnect(peer_, 0);
                                     break;
                                 }
-                                active_world_transfer_.active = true;
-                                active_world_transfer_.transfer_id = message->transfer_id;
-                                active_world_transfer_.is_delta = message->transfer_is_delta;
-                                active_world_transfer_.delta_base_world_id =
-                                    message->transfer_delta_base_world_id;
-                                active_world_transfer_.delta_base_world_revision =
-                                    message->transfer_delta_base_world_revision;
-                                active_world_transfer_.delta_base_world_hash =
-                                    message->transfer_delta_base_world_hash;
-                                active_world_transfer_.delta_base_world_content_hash =
-                                    message->transfer_delta_base_world_content_hash;
-                                active_world_transfer_.total_bytes_expected = message->transfer_total_bytes;
-                                active_world_transfer_.chunk_size = message->transfer_chunk_size;
-                                active_world_transfer_.next_chunk_index = 0;
-                                active_world_transfer_.payload.clear();
-                                if (message->transfer_total_bytes > 0) {
-                                    active_world_transfer_.payload.reserve(
-                                        static_cast<size_t>(message->transfer_total_bytes));
+                                if (message->transfer_total_bytes > 0 && message->transfer_chunk_size == 0) {
+                                    spdlog::error("ClientConnection: world transfer begin invalid chunk size transfer_id='{}' total_bytes={} chunk_size={}",
+                                                  message->transfer_id,
+                                                  message->transfer_total_bytes,
+                                                  message->transfer_chunk_size);
+                                    should_exit_ = true;
+                                    enet_peer_disconnect(peer_, 0);
+                                    break;
                                 }
+
+                                bool resumed_transfer = false;
+                                uint32_t resumed_chunks = 0;
+                                size_t resumed_bytes = 0;
+                                if (active_world_transfer_.active) {
+                                    const bool transfer_compatible =
+                                        active_world_transfer_.total_bytes_expected ==
+                                            message->transfer_total_bytes &&
+                                        active_world_transfer_.chunk_size ==
+                                            message->transfer_chunk_size &&
+                                        active_world_transfer_.is_delta ==
+                                            message->transfer_is_delta &&
+                                        active_world_transfer_.delta_base_world_id ==
+                                            message->transfer_delta_base_world_id &&
+                                        active_world_transfer_.delta_base_world_revision ==
+                                            message->transfer_delta_base_world_revision &&
+                                        active_world_transfer_.delta_base_world_hash ==
+                                            message->transfer_delta_base_world_hash &&
+                                        active_world_transfer_.delta_base_world_content_hash ==
+                                            message->transfer_delta_base_world_content_hash &&
+                                        active_world_transfer_.payload.size() <=
+                                            message->transfer_total_bytes;
+                                    if (!transfer_compatible) {
+                                        KARMA_TRACE("net.client",
+                                                    "ClientConnection: world transfer restart reset transfer_id='{}' previous_transfer_id='{}' previous_chunks={} previous_bytes={} total_bytes={} chunk_size={}",
+                                                    message->transfer_id,
+                                                    active_world_transfer_.transfer_id,
+                                                    active_world_transfer_.next_chunk_index,
+                                                    active_world_transfer_.payload.size(),
+                                                    message->transfer_total_bytes,
+                                                    message->transfer_chunk_size);
+                                        active_world_transfer_ = {};
+                                    } else {
+                                        resumed_transfer = active_world_transfer_.next_chunk_index > 0;
+                                        resumed_chunks = active_world_transfer_.next_chunk_index;
+                                        resumed_bytes = active_world_transfer_.payload.size();
+                                    }
+                                }
+
+                                if (!active_world_transfer_.active) {
+                                    active_world_transfer_.active = true;
+                                    active_world_transfer_.is_delta = message->transfer_is_delta;
+                                    active_world_transfer_.delta_base_world_id =
+                                        message->transfer_delta_base_world_id;
+                                    active_world_transfer_.delta_base_world_revision =
+                                        message->transfer_delta_base_world_revision;
+                                    active_world_transfer_.delta_base_world_hash =
+                                        message->transfer_delta_base_world_hash;
+                                    active_world_transfer_.delta_base_world_content_hash =
+                                        message->transfer_delta_base_world_content_hash;
+                                    active_world_transfer_.total_bytes_expected =
+                                        message->transfer_total_bytes;
+                                    active_world_transfer_.chunk_size = message->transfer_chunk_size;
+                                    active_world_transfer_.next_chunk_index = 0;
+                                    active_world_transfer_.payload.clear();
+                                    if (message->transfer_total_bytes > 0) {
+                                        active_world_transfer_.payload.reserve(
+                                            static_cast<size_t>(message->transfer_total_bytes));
+                                    }
+                                }
+                                active_world_transfer_.transfer_id = message->transfer_id;
                                 KARMA_TRACE("net.client",
-                                            "ClientConnection: world transfer begin transfer_id='{}' mode={} world='{}' id='{}' rev='{}' total_bytes={} chunk_size={} base_id='{}' base_rev='{}'",
+                                            "ClientConnection: world transfer begin transfer_id='{}' mode={} world='{}' id='{}' rev='{}' total_bytes={} chunk_size={} base_id='{}' base_rev='{}' resume={} resumed_chunks={} resumed_bytes={}",
                                             active_world_transfer_.transfer_id,
                                             active_world_transfer_.is_delta ? "delta" : "full",
                                             pending_world_package_.world_name,
@@ -1720,9 +1792,13 @@ void ClientConnection::poll() {
                                                 : active_world_transfer_.delta_base_world_id,
                                             active_world_transfer_.delta_base_world_revision.empty()
                                                 ? "-"
-                                                : active_world_transfer_.delta_base_world_revision);
+                                                : active_world_transfer_.delta_base_world_revision,
+                                            resumed_transfer ? 1 : 0,
+                                            resumed_chunks,
+                                            resumed_bytes);
                                 break;
-                            case bz3::net::ServerMessageType::WorldTransferChunk:
+                            }
+                            case bz3::net::ServerMessageType::WorldTransferChunk: {
                                 if (!active_world_transfer_.active) {
                                     spdlog::error("ClientConnection: unexpected world transfer chunk transfer_id='{}' (no active transfer)",
                                                   message->transfer_id);
@@ -1738,11 +1814,60 @@ void ClientConnection::poll() {
                                     enet_peer_disconnect(peer_, 0);
                                     break;
                                 }
-                                if (message->transfer_chunk_index != active_world_transfer_.next_chunk_index) {
-                                    spdlog::error("ClientConnection: world transfer chunk index mismatch transfer_id='{}' expected={} got={}",
+                                if (!IsChunkInTransferBounds(active_world_transfer_.total_bytes_expected,
+                                                             active_world_transfer_.chunk_size,
+                                                             message->transfer_chunk_index,
+                                                             message->transfer_chunk_data.size())) {
+                                    spdlog::error("ClientConnection: world transfer chunk bounds mismatch transfer_id='{}' chunk_index={} chunk_bytes={} total_bytes={} chunk_size={}",
+                                                  active_world_transfer_.transfer_id,
+                                                  message->transfer_chunk_index,
+                                                  message->transfer_chunk_data.size(),
+                                                  active_world_transfer_.total_bytes_expected,
+                                                  active_world_transfer_.chunk_size);
+                                    should_exit_ = true;
+                                    enet_peer_disconnect(peer_, 0);
+                                    break;
+                                }
+                                const uint64_t chunk_offset_u64 =
+                                    static_cast<uint64_t>(message->transfer_chunk_index) *
+                                    active_world_transfer_.chunk_size;
+                                const size_t chunk_offset = static_cast<size_t>(chunk_offset_u64);
+                                if (message->transfer_chunk_index < active_world_transfer_.next_chunk_index) {
+                                    if (!ChunkMatchesBufferedPayload(active_world_transfer_.payload,
+                                                                     chunk_offset,
+                                                                     message->transfer_chunk_data)) {
+                                        spdlog::error("ClientConnection: world transfer chunk retry mismatch transfer_id='{}' chunk_index={} buffered_bytes={} chunk_bytes={}",
+                                                      active_world_transfer_.transfer_id,
+                                                      message->transfer_chunk_index,
+                                                      active_world_transfer_.payload.size(),
+                                                      message->transfer_chunk_data.size());
+                                        should_exit_ = true;
+                                        enet_peer_disconnect(peer_, 0);
+                                        break;
+                                    }
+                                    KARMA_TRACE("net.client",
+                                                "ClientConnection: world transfer retry chunk acknowledged transfer_id='{}' chunk_index={} buffered_chunks={} buffered_bytes={}",
+                                                active_world_transfer_.transfer_id,
+                                                message->transfer_chunk_index,
+                                                active_world_transfer_.next_chunk_index,
+                                                active_world_transfer_.payload.size());
+                                    break;
+                                }
+                                if (message->transfer_chunk_index > active_world_transfer_.next_chunk_index) {
+                                    spdlog::error("ClientConnection: world transfer chunk gap transfer_id='{}' expected={} got={}",
                                                   active_world_transfer_.transfer_id,
                                                   active_world_transfer_.next_chunk_index,
                                                   message->transfer_chunk_index);
+                                    should_exit_ = true;
+                                    enet_peer_disconnect(peer_, 0);
+                                    break;
+                                }
+                                if (chunk_offset != active_world_transfer_.payload.size()) {
+                                    spdlog::error("ClientConnection: world transfer chunk offset mismatch transfer_id='{}' chunk_index={} offset={} buffered_bytes={}",
+                                                  active_world_transfer_.transfer_id,
+                                                  message->transfer_chunk_index,
+                                                  chunk_offset,
+                                                  active_world_transfer_.payload.size());
                                     should_exit_ = true;
                                     enet_peer_disconnect(peer_, 0);
                                     break;
@@ -1752,6 +1877,7 @@ void ClientConnection::poll() {
                                                                       message->transfer_chunk_data.end());
                                 ++active_world_transfer_.next_chunk_index;
                                 break;
+                            }
                             case bz3::net::ServerMessageType::WorldTransferEnd:
                                 if (!pending_world_package_.active || !active_world_transfer_.active) {
                                     spdlog::error("ClientConnection: unexpected world transfer end transfer_id='{}' (pending_init={} active_transfer={})",

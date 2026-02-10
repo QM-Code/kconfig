@@ -1,4 +1,5 @@
 #include "audio/backends/backend_factory_internal.hpp"
+#include "audio/backends/spatialization_internal.hpp"
 
 #include "karma/common/config_store.hpp"
 #include "karma/common/data_path_resolver.hpp"
@@ -239,6 +240,13 @@ class MiniaudioBackend final : public Backend {
                     sample_rate_,
                     channel_count_,
                     using_null_backend_ ? "null" : "default");
+        if (channel_count_ > 2) {
+            KARMA_TRACE("audio.miniaudio",
+                        "AudioBackend[miniaudio]: output channels={} using spatial routing policy={} "
+                        "(channels>=2 use stereo-derived fallback)",
+                        channel_count_,
+                        detail::SpatialRoutingPolicyName());
+        }
         return true;
     }
 
@@ -289,12 +297,14 @@ class MiniaudioBackend final : public Backend {
     }
 
     void setListener(const ListenerState& state) override {
-        listener_ = state;
+        std::lock_guard<std::mutex> lock(listener_mutex_);
+        listener_ = detail::SanitizeListenerState(state);
     }
 
     void playOneShot(const PlayRequest& request) override {
-        AddVoice(request, false);
-        ++frame_play_requests_;
+        if (AddVoice(request, false) != kInvalidVoiceId) {
+            ++frame_play_requests_;
+        }
     }
 
     VoiceId startVoice(const PlayRequest& request) override {
@@ -315,6 +325,7 @@ class MiniaudioBackend final : public Backend {
     struct VoiceState {
         float gain = 1.0f;
         float pitch = 1.0f;
+        std::optional<glm::vec3> world_position{};
         std::shared_ptr<const DecodedClip> clip{};
         double frame_cursor = 0.0;
         float tone_frequency_hz = 440.0f;
@@ -413,11 +424,18 @@ class MiniaudioBackend final : public Backend {
         if (!initialized_) {
             return kInvalidVoiceId;
         }
+        const auto world_position = detail::SanitizeEmitterPosition(request.world_position);
+        if (request.world_position.has_value() && !world_position.has_value()) {
+            KARMA_TRACE("audio.miniaudio",
+                        "AudioBackend[miniaudio]: rejected voice with non-finite world_position");
+            return kInvalidVoiceId;
+        }
 
         VoiceState voice{};
         voice.gain = ClampGain(request.gain);
         voice.pitch = ClampPitch(request.pitch);
         voice.loop = request.loop;
+        voice.world_position = world_position;
         voice.clip = ResolveClip(request.asset_path);
 
         if (!voice.clip) {
@@ -447,11 +465,12 @@ class MiniaudioBackend final : public Backend {
         const size_t sample_count = static_cast<size_t>(frame_count * channel_count_);
         std::fill(output, output + sample_count, 0.0f);
 
+        const ListenerState listener = CurrentListener();
         std::lock_guard<std::mutex> lock(voices_mutex_);
         for (auto it = voices_.begin(); it != voices_.end();) {
             VoiceState& voice = it->second;
-            const bool finished = voice.clip ? MixDecodedVoice(voice, output, frame_count)
-                                             : MixToneVoice(voice, output, frame_count);
+            const bool finished = voice.clip ? MixDecodedVoice(voice, output, frame_count, listener)
+                                             : MixToneVoice(voice, output, frame_count, listener);
 
             if (finished) {
                 it = voices_.erase(it);
@@ -465,10 +484,14 @@ class MiniaudioBackend final : public Backend {
         }
     }
 
-    bool MixDecodedVoice(VoiceState& voice, float* output, int frame_count) const {
+    bool MixDecodedVoice(VoiceState& voice,
+                         float* output,
+                         int frame_count,
+                         const ListenerState& listener) const {
         if (!voice.clip || voice.clip->frame_count == 0) {
             return true;
         }
+        const auto spatial_gains = detail::ComputeSpatialGains(listener, voice.world_position);
 
         const auto& clip = *voice.clip;
         const uint64_t clip_frames = clip.frame_count;
@@ -512,7 +535,8 @@ class MiniaudioBackend final : public Backend {
                 const float sample =
                     static_cast<float>((1.0 - frac) * static_cast<double>(sample0) +
                                        frac * static_cast<double>(sample1));
-                output[dst_base + static_cast<size_t>(channel)] += sample * voice.gain;
+                const float channel_gain = detail::ChannelSpatialGain(spatial_gains, channel, channel_count_);
+                output[dst_base + static_cast<size_t>(channel)] += sample * voice.gain * channel_gain;
             }
 
             voice.frame_cursor += static_cast<double>(voice.pitch);
@@ -524,8 +548,12 @@ class MiniaudioBackend final : public Backend {
         return !voice.loop && voice.frame_cursor >= static_cast<double>(clip_frames);
     }
 
-    bool MixToneVoice(VoiceState& voice, float* output, int frame_count) const {
+    bool MixToneVoice(VoiceState& voice,
+                      float* output,
+                      int frame_count,
+                      const ListenerState& listener) const {
         const float phase_step = (kTwoPi * voice.tone_frequency_hz * voice.pitch) / sample_rate_;
+        const auto spatial_gains = detail::ComputeSpatialGains(listener, voice.world_position);
 
         for (int frame = 0; frame < frame_count; ++frame) {
             if (!voice.loop && voice.tone_samples_remaining == 0) {
@@ -535,7 +563,8 @@ class MiniaudioBackend final : public Backend {
             const float sample = std::sin(voice.tone_phase) * voice.gain;
             const size_t base = static_cast<size_t>(frame * channel_count_);
             for (int channel = 0; channel < channel_count_; ++channel) {
-                output[base + static_cast<size_t>(channel)] += sample;
+                const float channel_gain = detail::ChannelSpatialGain(spatial_gains, channel, channel_count_);
+                output[base + static_cast<size_t>(channel)] += sample * channel_gain;
             }
 
             voice.tone_phase += phase_step;
@@ -549,6 +578,11 @@ class MiniaudioBackend final : public Backend {
         }
 
         return !voice.loop && voice.tone_samples_remaining == 0;
+    }
+
+    ListenerState CurrentListener() const {
+        std::lock_guard<std::mutex> lock(listener_mutex_);
+        return listener_;
     }
 
     std::shared_ptr<const DecodedClip> ResolveClip(std::string_view asset_path) {
@@ -592,6 +626,7 @@ class MiniaudioBackend final : public Backend {
     std::unordered_map<std::string, std::weak_ptr<const DecodedClip>> clip_cache_{};
     std::mutex voices_mutex_{};
     std::mutex cache_mutex_{};
+    mutable std::mutex listener_mutex_{};
     ma_context context_{};
     ma_device device_{};
     float sample_rate_ = static_cast<float>(kDefaultSampleRate);

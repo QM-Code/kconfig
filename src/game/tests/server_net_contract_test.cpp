@@ -266,6 +266,53 @@ bool TestScriptedSourceParsesSpawnAndShot() {
                      "scripted event[3] expected ClientLeave");
 }
 
+bool TestScriptedSourceSortsOutOfOrderAndClampsNegativeTimes() {
+    const auto events = karma::json::Array(
+        {karma::json::Value{{"type", "leave"}, {"atSeconds", 0.030}, {"clientId", 4}},
+         karma::json::Value{{"type", "create_shot"},
+                            {"atSeconds", 0.010},
+                            {"clientId", 4},
+                            {"localShotId", 99},
+                            {"posX", 1.0},
+                            {"posY", 2.0},
+                            {"posZ", 3.0},
+                            {"velX", 4.0},
+                            {"velY", 5.0},
+                            {"velZ", 6.0}},
+         karma::json::Value{{"type", "join"}, {"atSeconds", 0.020}, {"clientId", 4}, {"playerName", "delta"}},
+         karma::json::Value{{"type", "request_spawn"}, {"atSeconds", -5.0}, {"clientId", 4}}});
+
+    if (!InitializeConfigForEvents(events, "ordered-clamped")) {
+        return Fail("failed to initialize config for scripted source ordering test");
+    }
+
+    bz3::server::CLIOptions options{};
+    const auto source = bz3::server::net::CreateServerEventSource(options);
+    if (!source) {
+        return Fail("CreateServerEventSource returned null for ordering scripted source test");
+    }
+
+    auto received = CollectScheduledEvents(*source, 4, std::chrono::milliseconds(500));
+    if (received.size() != 4) {
+        return Fail("ordering scripted source did not emit expected 4 events");
+    }
+
+    return Expect(received[0].type == bz3::server::net::ServerInputEvent::Type::ClientRequestSpawn,
+                  "ordered scripted event[0] expected request_spawn from clamped negative time")
+           && Expect(received[1].type == bz3::server::net::ServerInputEvent::Type::ClientCreateShot,
+                     "ordered scripted event[1] expected create_shot at 0.010s")
+           && Expect(received[2].type == bz3::server::net::ServerInputEvent::Type::ClientJoin,
+                     "ordered scripted event[2] expected join at 0.020s")
+           && Expect(received[3].type == bz3::server::net::ServerInputEvent::Type::ClientLeave,
+                     "ordered scripted event[3] expected leave at 0.030s")
+           && Expect(received[0].request_spawn.client_id == 4,
+                     "ordered scripted request_spawn client_id mismatch")
+           && Expect(received[1].create_shot.client_id == 4, "ordered scripted create_shot client_id mismatch")
+           && Expect(received[2].join.client_id == 4 && received[2].join.player_name == "delta",
+                     "ordered scripted join payload mismatch")
+           && Expect(received[3].leave.client_id == 4, "ordered scripted leave client_id mismatch");
+}
+
 bool TestScriptedSourceSkipsInvalidShotData() {
     const auto events = karma::json::Array(
         {karma::json::Value{{"type", "join"}, {"atSeconds", 0.0}, {"clientId", 9}, {"playerName", "valid"}},
@@ -316,6 +363,9 @@ int main() {
         return 1;
     }
     if (!TestScriptedSourceParsesSpawnAndShot()) {
+        return 1;
+    }
+    if (!TestScriptedSourceSortsOutOfOrderAndClampsNegativeTimes()) {
         return 1;
     }
     if (!TestScriptedSourceSkipsInvalidShotData()) {

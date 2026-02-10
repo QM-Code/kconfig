@@ -35,6 +35,9 @@ struct BodyDesc {
     glm::vec3 angular_velocity{0.0f, 0.0f, 0.0f};
     float mass = 0.0f;
     bool is_static = true;
+    bool gravity_enabled = true;
+    bool rotation_locked = false;
+    bool translation_locked = false;
 };
 
 struct RaycastHit {
@@ -59,6 +62,12 @@ class Backend {
     virtual void destroyBody(BodyId body) = 0;
     virtual bool setBodyTransform(BodyId body, const BodyTransform& transform) = 0;
     virtual bool getBodyTransform(BodyId body, BodyTransform& out_transform) const = 0;
+    // Body flag/constraint contract:
+    // - Gravity enablement currently applies only to dynamic bodies.
+    // - For invalid, unknown, or non-dynamic bodies, calls return false.
+    // - Rotation/translation locks are currently creation-time only via BodyDesc.
+    virtual bool setBodyGravityEnabled(BodyId body, bool enabled) = 0;
+    virtual bool getBodyGravityEnabled(BodyId body, bool& out_enabled) const = 0;
     // Closest-hit ray query contract:
     // - Direction is interpreted as a ray direction (it is normalized internally by current backends).
     // - Returns false when no hit is found or when arguments are invalid (e.g. zero direction or max_distance <= 0).

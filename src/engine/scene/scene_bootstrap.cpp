@@ -83,9 +83,8 @@ bool PopulateStartupWorld(renderer::GraphicsDevice& graphics,
     material_cache.reserve(scene_meshes.size());
     std::unordered_map<uint32_t, renderer::MaterialDesc> material_desc_by_index{};
     material_desc_by_index.reserve(scene_meshes.size());
-    // TODO(bz3-rewrite): MaterialDesc now carries PBR fields (metal/roughness/emissive/alpha),
-    // but runtime shading still uses the legacy albedo+base-color path.
-    // Keep consolidating full descriptors here so future shader upgrades are data-ready.
+    // Consolidate full MaterialDesc payloads so backend material semantics (including
+    // alpha/cull and PBR factors/textures) stay stable for shared material instances.
     for (const auto& entry : scene_meshes) {
         auto [it, inserted] = material_desc_by_index.emplace(entry.material_index, entry.material);
         if (!inserted) {

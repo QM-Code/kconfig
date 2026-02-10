@@ -25,6 +25,8 @@ using VoiceId = uint64_t;
 inline constexpr VoiceId kInvalidVoiceId = 0;
 
 struct ListenerState {
+    // World-space listener transform used for positional attenuation/panning.
+    // Backends sanitize invalid orientation vectors before use.
     glm::vec3 position{0.0f, 0.0f, 0.0f};
     glm::vec3 forward{0.0f, 0.0f, -1.0f};
     glm::vec3 up{0.0f, 1.0f, 0.0f};
@@ -36,6 +38,11 @@ struct PlayRequest {
     float gain = 1.0f;
     float pitch = 1.0f;
     bool loop = false;
+    // Optional world-space emitter position. When unset, the voice is treated
+    // as non-positional (2D). Non-finite values are rejected by backends.
+    // For outputs with >2 channels, positional routing keeps stereo-derived
+    // pan/attenuation and folds extra channels to the stereo average.
+    std::optional<glm::vec3> world_position{};
 };
 
 class Backend {
@@ -59,4 +66,3 @@ std::unique_ptr<Backend> CreateBackend(BackendKind preferred = BackendKind::Auto
                                        BackendKind* out_selected = nullptr);
 
 } // namespace karma::audio_backend
-

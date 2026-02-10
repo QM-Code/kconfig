@@ -30,11 +30,17 @@ class Game final : public karma::app::GameInterface {
     void onShutdown() override;
 
  private:
+    void syncInputMode();
     void onAudioEvent(client::net::AudioEvent event);
     void playOneShotAsset(const char* asset_key, float gain = 1.0f, float pitch = 1.0f);
 
     GameStartupOptions startup_{};
     std::unique_ptr<client::net::ClientConnection> connection_{};
+    bool console_visible_ = false;
+    bool chat_entry_focused_ = false;
+    bool console_toggle_was_down_ = false;
+    bool escape_was_down_ = false;
+    bool chat_was_down_ = false;
     bool spawn_was_down_ = false;
     bool fire_was_down_ = false;
 };

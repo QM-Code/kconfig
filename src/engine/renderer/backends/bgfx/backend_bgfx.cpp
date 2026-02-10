@@ -1,6 +1,7 @@
 #include "karma/renderer/backend.hpp"
 
 #include "../backend_factory_internal.hpp"
+#include "../material_semantics_internal.hpp"
 
 #include "karma/common/logging.hpp"
 #include "karma/common/data_path_resolver.hpp"
@@ -14,6 +15,7 @@
 
 #include <glm/glm.hpp>
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 #include <string>
@@ -69,13 +71,7 @@ struct Mesh {
 };
 
 struct Material {
-    float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-    float emissive[3] = {0.0f, 0.0f, 0.0f};
-    float metallic = 0.0f;
-    float roughness = 1.0f;
-    renderer::MaterialAlphaMode alpha_mode = renderer::MaterialAlphaMode::Opaque;
-    float alpha_cutoff = 0.5f;
-    bool double_sided = false;
+    detail::ResolvedMaterialSemantics semantics{};
     bgfx::TextureHandle tex = BGFX_INVALID_HANDLE;
 };
 
@@ -310,19 +306,13 @@ class BgfxBackend final : public Backend {
         if (!initialized_) {
             return renderer::kInvalidMaterial;
         }
+        const detail::ResolvedMaterialSemantics semantics = detail::ResolveMaterialSemantics(material);
+        if (!detail::ValidateResolvedMaterialSemantics(semantics)) {
+            spdlog::error("Graphics(Bgfx): material semantics validation failed");
+            return renderer::kInvalidMaterial;
+        }
         Material out;
-        out.color[0] = material.base_color.r;
-        out.color[1] = material.base_color.g;
-        out.color[2] = material.base_color.b;
-        out.color[3] = material.base_color.a;
-        out.emissive[0] = material.emissive_color.r;
-        out.emissive[1] = material.emissive_color.g;
-        out.emissive[2] = material.emissive_color.b;
-        out.metallic = material.metallic_factor;
-        out.roughness = material.roughness_factor;
-        out.alpha_mode = material.alpha_mode;
-        out.alpha_cutoff = material.alpha_cutoff;
-        out.double_sided = material.double_sided;
+        out.semantics = semantics;
         if (material.albedo && !material.albedo->pixels.empty()) {
             out.tex = createTextureFromData(*material.albedo);
             KARMA_TRACE("render.bgfx", "createMaterial texture={} {}x{}",
@@ -331,10 +321,13 @@ class BgfxBackend final : public Backend {
                         material.albedo->height);
         }
         KARMA_TRACE("render.bgfx",
-                    "createMaterial pbr metallic={:.3f} roughness={:.3f} emissive=({:.3f},{:.3f},{:.3f}) alphaMode={} cutoff={:.3f} doubleSided={}",
-                    out.metallic, out.roughness,
-                    out.emissive[0], out.emissive[1], out.emissive[2],
-                    static_cast<int>(out.alpha_mode), out.alpha_cutoff, out.double_sided ? 1 : 0);
+                    "createMaterial semantics metallic={:.3f} roughness={:.3f} emissive=({:.3f},{:.3f},{:.3f}) alphaMode={} alpha={} cutoff={:.3f} draw={} blend={} doubleSided={} mrTex={} emissiveTex={}",
+                    out.semantics.metallic, out.semantics.roughness,
+                    out.semantics.emissive.r, out.semantics.emissive.g, out.semantics.emissive.b,
+                    static_cast<int>(out.semantics.alpha_mode), out.semantics.base_color.a, out.semantics.alpha_cutoff,
+                    out.semantics.draw ? 1 : 0, out.semantics.alpha_blend ? 1 : 0, out.semantics.double_sided ? 1 : 0,
+                    out.semantics.used_metallic_roughness_texture ? 1 : 0,
+                    out.semantics.used_emissive_texture ? 1 : 0);
         renderer::MaterialId id = next_material_id_++;
         materials_[id] = out;
         return id;
@@ -385,17 +378,48 @@ class BgfxBackend final : public Backend {
             if (mesh_it == meshes_.end()) continue;
             auto mat_it = materials_.find(item.material);
             if (mat_it == materials_.end()) continue;
+            const auto& semantics = mat_it->second.semantics;
+            if (!semantics.draw) {
+                continue;
+            }
 
             bgfx::setVertexBuffer(0, mesh_it->second.vbh);
             bgfx::setIndexBuffer(mesh_it->second.ibh);
             bgfx::setTransform(&item.transform[0][0]);
-            bgfx::setUniform(u_color_, mat_it->second.color);
+
+            const glm::vec3 shaded_rgb = glm::clamp(
+                glm::vec3(semantics.base_color.r, semantics.base_color.g, semantics.base_color.b) + semantics.emissive,
+                glm::vec3(0.0f),
+                glm::vec3(4.0f));
+            const float material_color[4] = {
+                shaded_rgb.r,
+                shaded_rgb.g,
+                shaded_rgb.b,
+                semantics.base_color.a};
+            bgfx::setUniform(u_color_, material_color);
+
+            const float roughness_light_factor = 1.0f - semantics.roughness;
+            const float direct_scale = std::clamp(
+                (0.25f + (0.75f * roughness_light_factor)) * (1.0f - (0.35f * semantics.metallic)),
+                0.05f,
+                1.5f);
+            const float ambient_scale = std::clamp(
+                1.0f + (0.30f * semantics.metallic) + (0.20f * semantics.roughness),
+                0.5f,
+                2.0f);
+
             const float light_dir[4] = {light_.direction.x, light_.direction.y, light_.direction.z, 0.0f};
-            const float light_color[4] = {light_.color.r, light_.color.g, light_.color.b, light_.color.a};
-            const float ambient_color[4] = {light_.ambient.r, light_.ambient.g, light_.ambient.b, light_.ambient.a};
+            const float light_color[4] = {
+                light_.color.r * direct_scale,
+                light_.color.g * direct_scale,
+                light_.color.b * direct_scale,
+                light_.color.a};
+            const float ambient_color[4] = {
+                light_.ambient.r * ambient_scale,
+                light_.ambient.g * ambient_scale,
+                light_.ambient.b * ambient_scale,
+                light_.ambient.a};
             const float unlit[4] = {light_.unlit, 0.0f, 0.0f, 0.0f};
-            // TODO(bz3-rewrite): Consume MaterialDesc PBR fields in BGFX shaders/uniforms
-            // (metallic/roughness/emissive/alpha mode) instead of only base color + albedo.
             bgfx::setUniform(u_light_dir_, light_dir);
             bgfx::setUniform(u_light_color_, light_color);
             bgfx::setUniform(u_ambient_color_, ambient_color);
@@ -407,10 +431,11 @@ class BgfxBackend final : public Backend {
             } else if (bgfx::isValid(white_tex_)) {
                 bgfx::setTexture(0, s_tex_, white_tex_);
             }
-            // Keep default depth/cull behavior; BGFX_STATE_DEFAULT includes
-            // depth test, depth write, and CW culling.
-            uint64_t state = BGFX_STATE_DEFAULT;
-            if (mat_it->second.alpha_mode == renderer::MaterialAlphaMode::Blend) {
+            uint64_t state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_WRITE_Z | BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_MSAA;
+            if (!semantics.double_sided) {
+                state |= BGFX_STATE_CULL_CW;
+            }
+            if (semantics.alpha_blend) {
                 state |= BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA);
             }
             bgfx::setState(state);

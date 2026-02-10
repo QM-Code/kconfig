@@ -124,6 +124,20 @@ bool PhysicsSystem::getBodyTransform(physics_backend::BodyId body,
     return backend_->getBodyTransform(body, out_transform);
 }
 
+bool PhysicsSystem::setBodyGravityEnabled(physics_backend::BodyId body, bool enabled) {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->setBodyGravityEnabled(body, enabled);
+}
+
+bool PhysicsSystem::getBodyGravityEnabled(physics_backend::BodyId body, bool& out_enabled) const {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->getBodyGravityEnabled(body, out_enabled);
+}
+
 bool PhysicsSystem::raycastClosest(const glm::vec3& origin,
                                    const glm::vec3& direction,
                                    float max_distance,

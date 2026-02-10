@@ -1,6 +1,7 @@
 #include "karma/renderer/backend.hpp"
 
 #include "../backend_factory_internal.hpp"
+#include "../material_semantics_internal.hpp"
 
 #include "karma/common/logging.hpp"
 #include "karma/platform/window.hpp"
@@ -23,6 +24,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
+#include <array>
 #include <unordered_map>
 #include <vector>
 
@@ -42,13 +45,7 @@ struct Mesh {
 };
 
 struct Material {
-    glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
-    glm::vec3 emissive{0.0f, 0.0f, 0.0f};
-    float metallic = 0.0f;
-    float roughness = 1.0f;
-    renderer::MaterialAlphaMode alpha_mode = renderer::MaterialAlphaMode::Opaque;
-    float alpha_cutoff = 0.5f;
-    bool double_sided = false;
+    detail::ResolvedMaterialSemantics semantics{};
     Diligent::RefCntAutoPtr<Diligent::ITextureView> srv;
 };
 
@@ -161,9 +158,9 @@ class DiligentBackend final : public Backend {
             return;
         }
 
-        createPipeline();
+        createPipelineVariants();
         white_srv_ = createWhiteTexture();
-        if (!pso_ || !swapchain_) {
+        if (!hasReadyPipelines() || !swapchain_) {
             return;
         }
         initialized_ = true;
@@ -266,24 +263,26 @@ class DiligentBackend final : public Backend {
         if (!initialized_) {
             return renderer::kInvalidMaterial;
         }
+        const detail::ResolvedMaterialSemantics semantics = detail::ResolveMaterialSemantics(material);
+        if (!detail::ValidateResolvedMaterialSemantics(semantics)) {
+            spdlog::error("Diligent: material semantics validation failed");
+            return renderer::kInvalidMaterial;
+        }
         Material out;
-        out.color = material.base_color;
-        out.emissive = material.emissive_color;
-        out.metallic = material.metallic_factor;
-        out.roughness = material.roughness_factor;
-        out.alpha_mode = material.alpha_mode;
-        out.alpha_cutoff = material.alpha_cutoff;
-        out.double_sided = material.double_sided;
+        out.semantics = semantics;
         if (material.albedo && !material.albedo->pixels.empty()) {
             out.srv = createTextureView(*material.albedo);
             KARMA_TRACE("render.diligent", "createMaterial texture={} {}x{}",
                         out.srv ? 1 : 0, material.albedo->width, material.albedo->height);
         }
         KARMA_TRACE("render.diligent",
-                    "createMaterial pbr metallic={:.3f} roughness={:.3f} emissive=({:.3f},{:.3f},{:.3f}) alphaMode={} cutoff={:.3f} doubleSided={}",
-                    out.metallic, out.roughness,
-                    out.emissive.r, out.emissive.g, out.emissive.b,
-                    static_cast<int>(out.alpha_mode), out.alpha_cutoff, out.double_sided ? 1 : 0);
+                    "createMaterial semantics metallic={:.3f} roughness={:.3f} emissive=({:.3f},{:.3f},{:.3f}) alphaMode={} alpha={} cutoff={:.3f} draw={} blend={} doubleSided={} mrTex={} emissiveTex={}",
+                    out.semantics.metallic, out.semantics.roughness,
+                    out.semantics.emissive.r, out.semantics.emissive.g, out.semantics.emissive.b,
+                    static_cast<int>(out.semantics.alpha_mode), out.semantics.base_color.a, out.semantics.alpha_cutoff,
+                    out.semantics.draw ? 1 : 0, out.semantics.alpha_blend ? 1 : 0, out.semantics.double_sided ? 1 : 0,
+                    out.semantics.used_metallic_roughness_texture ? 1 : 0,
+                    out.semantics.used_emissive_texture ? 1 : 0);
         renderer::MaterialId id = next_material_id_++;
         materials_[id] = out;
         return id;
@@ -305,7 +304,7 @@ class DiligentBackend final : public Backend {
     }
 
     void renderLayer(renderer::LayerId layer) override {
-        if (!initialized_ || !context_ || !swapchain_ || !pso_) {
+        if (!initialized_ || !context_ || !swapchain_ || !hasReadyPipelines()) {
             return;
         }
 
@@ -321,8 +320,6 @@ class DiligentBackend final : public Backend {
             frame_cleared_ = true;
         }
 
-        context_->SetPipelineState(pso_);
-
         for (const auto& item : draw_items_) {
             if (item.layer != layer) {
                 continue;
@@ -335,23 +332,53 @@ class DiligentBackend final : public Backend {
 
             const auto& mesh = mesh_it->second;
             const auto& mat = mat_it->second;
+            const auto& semantics = mat.semantics;
+            if (!semantics.draw) {
+                continue;
+            }
+
+            auto* pipeline = pipelineForMaterial(semantics);
+            if (!pipeline || !pipeline->pso || !pipeline->srb) {
+                continue;
+            }
+            context_->SetPipelineState(pipeline->pso);
 
             float aspect = (height_ > 0) ? float(width_) / float(height_) : 1.0f;
             glm::mat4 view = glm::lookAt(camera_.position, camera_.target, glm::vec3(0.0f, 1.0f, 0.0f));
             glm::mat4 proj = glm::perspective(glm::radians(camera_.fov_y_degrees), aspect, camera_.near_clip, camera_.far_clip);
             Constants constants{};
             constants.u_modelViewProj = proj * view * item.transform;
-            constants.u_color = mat.color;
+
+            const glm::vec3 shaded_rgb = glm::clamp(
+                glm::vec3(semantics.base_color.r, semantics.base_color.g, semantics.base_color.b) + semantics.emissive,
+                glm::vec3(0.0f),
+                glm::vec3(4.0f));
+            constants.u_color = glm::vec4(shaded_rgb, semantics.base_color.a);
             constants.u_lightDir = glm::vec4(light_.direction, 0.0f);
-            constants.u_lightColor = light_.color;
-            constants.u_ambientColor = light_.ambient;
+            const float roughness_light_factor = 1.0f - semantics.roughness;
+            const float direct_scale = std::clamp(
+                (0.25f + (0.75f * roughness_light_factor)) * (1.0f - (0.35f * semantics.metallic)),
+                0.05f,
+                1.5f);
+            const float ambient_scale = std::clamp(
+                1.0f + (0.30f * semantics.metallic) + (0.20f * semantics.roughness),
+                0.5f,
+                2.0f);
+            constants.u_lightColor = glm::vec4(light_.color.r * direct_scale,
+                                               light_.color.g * direct_scale,
+                                               light_.color.b * direct_scale,
+                                               light_.color.a);
+            constants.u_ambientColor = glm::vec4(light_.ambient.r * ambient_scale,
+                                                 light_.ambient.g * ambient_scale,
+                                                 light_.ambient.b * ambient_scale,
+                                                 light_.ambient.a);
             constants.u_unlit = glm::vec4(light_.unlit, 0.0f, 0.0f, 0.0f);
 
             Diligent::MapHelper<Constants> cb_data(context_, constant_buffer_, Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
             *cb_data = constants;
 
-            if (srb_) {
-                if (auto* texVar = srb_->GetVariableByName(Diligent::SHADER_TYPE_PIXEL, "s_tex")) {
+            if (pipeline->srb) {
+                if (auto* texVar = pipeline->srb->GetVariableByName(Diligent::SHADER_TYPE_PIXEL, "s_tex")) {
                     auto texture_view = mat.srv ? mat.srv : mesh.srv;
                     if (!texture_view) {
                         texture_view = white_srv_;
@@ -359,7 +386,7 @@ class DiligentBackend final : public Backend {
                     texVar->Set(texture_view, Diligent::SET_SHADER_RESOURCE_FLAG_ALLOW_OVERWRITE);
                 }
             }
-            context_->CommitShaderResources(srb_, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+            context_->CommitShaderResources(pipeline->srb, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
             const uint64_t offsets[] = {0};
             Diligent::IBuffer* vbs[] = {mesh.vb};
@@ -388,10 +415,33 @@ class DiligentBackend final : public Backend {
     }
 
  private:
-    void createPipeline() {
+    struct PipelineVariant {
+        Diligent::RefCntAutoPtr<Diligent::IPipelineState> pso;
+        Diligent::RefCntAutoPtr<Diligent::IShaderResourceBinding> srb;
+    };
+
+    static constexpr std::size_t kPipelineVariantCount = 4;
+
+    static std::size_t PipelineVariantIndex(bool alpha_blend, bool double_sided) {
+        return (alpha_blend ? 2u : 0u) + (double_sided ? 1u : 0u);
+    }
+
+    PipelineVariant* pipelineForMaterial(const detail::ResolvedMaterialSemantics& semantics) {
+        return &pipeline_variants_[PipelineVariantIndex(semantics.alpha_blend, semantics.double_sided)];
+    }
+
+    bool hasReadyPipelines() const {
+        for (const auto& variant : pipeline_variants_) {
+            if (!variant.pso || !variant.srb) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void createPipelineVariants() {
         Diligent::ShaderCreateInfo shader_ci{};
         shader_ci.SourceLanguage = Diligent::SHADER_SOURCE_LANGUAGE_HLSL;
-        // No combined sampler flag needed for this minimal shader.
 
         const char* vs_source = R"(
 struct VSInput {
@@ -440,8 +490,6 @@ SamplerState s_tex_sampler;
 float4 main(PSInput input) : SV_TARGET {
     float3 n = normalize(input.Nor);
     float4 texColor = s_tex.Sample(s_tex_sampler, input.UV);
-    // TODO(bz3-rewrite): Upgrade this path to full PBR using MaterialDesc fields
-    // (metallic/roughness/emissive/alpha mode) once backend-uniform plumbing is in place.
     float4 baseColor = u_color * texColor;
     if (u_unlit.x > 0.5) {
         return baseColor;
@@ -466,8 +514,40 @@ float4 main(PSInput input) : SV_TARGET {
         shader_ci.Source = ps_source;
         device_->CreateShader(shader_ci, &ps);
 
+        Diligent::BufferDesc cb_desc{};
+        cb_desc.Name = "constants";
+        cb_desc.Size = sizeof(Constants);
+        cb_desc.Usage = Diligent::USAGE_DYNAMIC;
+        cb_desc.BindFlags = Diligent::BIND_UNIFORM_BUFFER;
+        cb_desc.CPUAccessFlags = Diligent::CPU_ACCESS_WRITE;
+        device_->CreateBuffer(cb_desc, nullptr, &constant_buffer_);
+        if (!constant_buffer_ || !vs || !ps) {
+            spdlog::error("Diligent: failed to initialize renderer pipeline prerequisites");
+            return;
+        }
+
+        createPipelineVariant("simple_pso_opaque_cull", vs, ps, false, false,
+                              pipeline_variants_[PipelineVariantIndex(false, false)]);
+        createPipelineVariant("simple_pso_opaque_double_sided", vs, ps, false, true,
+                              pipeline_variants_[PipelineVariantIndex(false, true)]);
+        createPipelineVariant("simple_pso_blend_cull", vs, ps, true, false,
+                              pipeline_variants_[PipelineVariantIndex(true, false)]);
+        createPipelineVariant("simple_pso_blend_double_sided", vs, ps, true, true,
+                              pipeline_variants_[PipelineVariantIndex(true, true)]);
+    }
+
+    void createPipelineVariant(const char* name,
+                               Diligent::IShader* vs,
+                               Diligent::IShader* ps,
+                               bool alpha_blend,
+                               bool double_sided,
+                               PipelineVariant& out_variant) {
+        if (!device_ || !swapchain_ || !vs || !ps || !constant_buffer_) {
+            return;
+        }
+
         Diligent::GraphicsPipelineStateCreateInfo pso_ci{};
-        pso_ci.PSODesc.Name = "simple_pso";
+        pso_ci.PSODesc.Name = name;
         pso_ci.PSODesc.PipelineType = Diligent::PIPELINE_TYPE_GRAPHICS;
         pso_ci.GraphicsPipeline.NumRenderTargets = 1;
         pso_ci.GraphicsPipeline.RTVFormats[0] = swapchain_->GetDesc().ColorBufferFormat;
@@ -475,15 +555,15 @@ float4 main(PSInput input) : SV_TARGET {
         pso_ci.GraphicsPipeline.PrimitiveTopology = Diligent::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         pso_ci.GraphicsPipeline.DepthStencilDesc.DepthEnable = true;
         auto& rt0 = pso_ci.GraphicsPipeline.BlendDesc.RenderTargets[0];
-        rt0.BlendEnable = true;
+        rt0.BlendEnable = alpha_blend;
         rt0.SrcBlend = Diligent::BLEND_FACTOR_SRC_ALPHA;
         rt0.DestBlend = Diligent::BLEND_FACTOR_INV_SRC_ALPHA;
         rt0.BlendOp = Diligent::BLEND_OPERATION_ADD;
         rt0.SrcBlendAlpha = Diligent::BLEND_FACTOR_ONE;
         rt0.DestBlendAlpha = Diligent::BLEND_FACTOR_INV_SRC_ALPHA;
         rt0.BlendOpAlpha = Diligent::BLEND_OPERATION_ADD;
-        pso_ci.GraphicsPipeline.RasterizerDesc.CullMode = Diligent::CULL_MODE_BACK;
-        // Keep front-face consistent with BGFX (CCW).
+        pso_ci.GraphicsPipeline.RasterizerDesc.CullMode =
+            double_sided ? Diligent::CULL_MODE_NONE : Diligent::CULL_MODE_BACK;
         pso_ci.GraphicsPipeline.RasterizerDesc.FrontCounterClockwise = true;
 
         Diligent::LayoutElement layout[] = {
@@ -516,29 +596,26 @@ float4 main(PSInput input) : SV_TARGET {
         pso_ci.PSODesc.ResourceLayout.ImmutableSamplers = samplers;
         pso_ci.PSODesc.ResourceLayout.NumImmutableSamplers = 1;
 
-        device_->CreateGraphicsPipelineState(pso_ci, &pso_);
-
-        Diligent::BufferDesc cb_desc{};
-        cb_desc.Name = "constants";
-        cb_desc.Size = sizeof(Constants);
-        cb_desc.Usage = Diligent::USAGE_DYNAMIC;
-        cb_desc.BindFlags = Diligent::BIND_UNIFORM_BUFFER;
-        cb_desc.CPUAccessFlags = Diligent::CPU_ACCESS_WRITE;
-        device_->CreateBuffer(cb_desc, nullptr, &constant_buffer_);
-        if (pso_ && constant_buffer_) {
-            if (auto* vs_var = pso_->GetStaticVariableByName(Diligent::SHADER_TYPE_VERTEX, "Constants")) {
-                vs_var->Set(constant_buffer_);
-            } else {
-                KARMA_TRACE("render.diligent", "Diligent: missing VS static var 'Constants'");
-            }
-            if (auto* ps_var = pso_->GetStaticVariableByName(Diligent::SHADER_TYPE_PIXEL, "Constants")) {
-                ps_var->Set(constant_buffer_);
-            } else {
-                KARMA_TRACE("render.diligent", "Diligent: missing PS static var 'Constants'");
-            }
+        device_->CreateGraphicsPipelineState(pso_ci, &out_variant.pso);
+        if (!out_variant.pso) {
+            spdlog::error("Diligent: failed to create pipeline '{}'", name ? name : "<unnamed>");
+            return;
         }
-        if (pso_) {
-            pso_->CreateShaderResourceBinding(&srb_, true);
+
+        if (auto* vs_var = out_variant.pso->GetStaticVariableByName(Diligent::SHADER_TYPE_VERTEX, "Constants")) {
+            vs_var->Set(constant_buffer_);
+        } else {
+            KARMA_TRACE("render.diligent", "Diligent: missing VS static var 'Constants' for {}", name ? name : "<unnamed>");
+        }
+        if (auto* ps_var = out_variant.pso->GetStaticVariableByName(Diligent::SHADER_TYPE_PIXEL, "Constants")) {
+            ps_var->Set(constant_buffer_);
+        } else {
+            KARMA_TRACE("render.diligent", "Diligent: missing PS static var 'Constants' for {}", name ? name : "<unnamed>");
+        }
+
+        out_variant.pso->CreateShaderResourceBinding(&out_variant.srb, true);
+        if (!out_variant.srb) {
+            spdlog::error("Diligent: failed to create shader resource binding for '{}'", name ? name : "<unnamed>");
         }
     }
 
@@ -599,8 +676,7 @@ float4 main(PSInput input) : SV_TARGET {
     Diligent::RefCntAutoPtr<Diligent::IRenderDevice> device_;
     Diligent::RefCntAutoPtr<Diligent::IDeviceContext> context_;
     Diligent::RefCntAutoPtr<Diligent::ISwapChain> swapchain_;
-    Diligent::RefCntAutoPtr<Diligent::IPipelineState> pso_;
-    Diligent::RefCntAutoPtr<Diligent::IShaderResourceBinding> srb_;
+    std::array<PipelineVariant, kPipelineVariantCount> pipeline_variants_{};
     Diligent::RefCntAutoPtr<Diligent::IBuffer> constant_buffer_;
 
     std::unordered_map<renderer::MeshId, Mesh> meshes_;

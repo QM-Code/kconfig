@@ -100,6 +100,8 @@ class PhysXBackend final : public Backend {
             }
         }
         bodies_.clear();
+        dynamic_bodies_.clear();
+        gravity_enabled_.clear();
 
         if (default_material_) {
             default_material_->release();
@@ -173,6 +175,26 @@ class PhysXBackend final : public Backend {
                 physx::PxRigidBodyExt::updateMassAndInertia(*dynamic_actor, std::max(desc.mass, 0.001f));
                 dynamic_actor->setLinearVelocity(ToPxVec3(desc.linear_velocity));
                 dynamic_actor->setAngularVelocity(ToPxVec3(desc.angular_velocity));
+                dynamic_actor->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, !desc.gravity_enabled);
+                physx::PxRigidDynamicLockFlags lock_flags{};
+                bool has_lock_flags = false;
+                if (desc.rotation_locked) {
+                    lock_flags |=
+                        physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X
+                        | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Y
+                        | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+                    has_lock_flags = true;
+                }
+                if (desc.translation_locked) {
+                    lock_flags |=
+                        physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_X
+                        | physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Y
+                        | physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Z;
+                    has_lock_flags = true;
+                }
+                if (has_lock_flags) {
+                    dynamic_actor->setRigidDynamicLockFlags(lock_flags);
+                }
                 actor = dynamic_actor;
             }
         }
@@ -186,6 +208,9 @@ class PhysXBackend final : public Backend {
         scene_->addActor(*actor);
         const BodyId id = next_body_id_++;
         bodies_.emplace(id, actor);
+        const bool is_dynamic = actor->is<physx::PxRigidDynamic>() != nullptr;
+        dynamic_bodies_.emplace(id, is_dynamic);
+        gravity_enabled_.emplace(id, is_dynamic ? desc.gravity_enabled : false);
         return id;
     }
 
@@ -202,6 +227,8 @@ class PhysXBackend final : public Backend {
         if (actor) {
             actor->release();
         }
+        dynamic_bodies_.erase(body);
+        gravity_enabled_.erase(body);
         bodies_.erase(it);
     }
 
@@ -227,6 +254,33 @@ class PhysXBackend final : public Backend {
         const physx::PxTransform transform = it->second->getGlobalPose();
         out_transform.position = ToGlmVec3(transform.p);
         out_transform.rotation = ToGlmQuat(transform.q);
+        return true;
+    }
+
+    bool setBodyGravityEnabled(BodyId body, bool enabled) override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        dynamic_actor->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, !enabled);
+        dynamic_actor->wakeUp();
+        gravity_enabled_[body] = enabled;
+        return true;
+    }
+
+    bool getBodyGravityEnabled(BodyId body, bool& out_enabled) const override {
+        const auto it = gravity_enabled_.find(body);
+        if (it == gravity_enabled_.end() || !isDynamicBody(body)) {
+            return false;
+        }
+
+        out_enabled = it->second;
         return true;
     }
 
@@ -276,6 +330,11 @@ class PhysXBackend final : public Backend {
         return kInvalidBodyId;
     }
 
+    bool isDynamicBody(BodyId body) const {
+        const auto it = dynamic_bodies_.find(body);
+        return it != dynamic_bodies_.end() && it->second;
+    }
+
     physx::PxDefaultAllocator allocator_{};
     physx::PxDefaultErrorCallback error_callback_{};
     physx::PxFoundation* foundation_ = nullptr;
@@ -285,6 +344,8 @@ class PhysXBackend final : public Backend {
     physx::PxMaterial* default_material_ = nullptr;
     BodyId next_body_id_ = 1;
     std::unordered_map<BodyId, physx::PxRigidActor*> bodies_{};
+    std::unordered_map<BodyId, bool> dynamic_bodies_{};
+    std::unordered_map<BodyId, bool> gravity_enabled_{};
     float frame_dt_ = 0.0f;
     bool initialized_ = false;
 };
@@ -308,6 +369,8 @@ class PhysXBackendStub final : public Backend {
     void destroyBody(BodyId) override {}
     bool setBodyTransform(BodyId, const BodyTransform&) override { return false; }
     bool getBodyTransform(BodyId, BodyTransform&) const override { return false; }
+    bool setBodyGravityEnabled(BodyId, bool) override { return false; }
+    bool getBodyGravityEnabled(BodyId, bool&) const override { return false; }
     bool raycastClosest(const glm::vec3&, const glm::vec3&, float, RaycastHit&) const override { return false; }
 };
 

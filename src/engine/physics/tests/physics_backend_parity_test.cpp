@@ -397,6 +397,19 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    bool gravity_enabled = false;
+    if (physics.getBodyGravityEnabled(karma::physics_backend::kInvalidBodyId, gravity_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyGravityEnabled unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyGravityEnabled(karma::physics_backend::kInvalidBodyId, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyGravityEnabled unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
     physics.destroyBody(karma::physics_backend::kInvalidBodyId);
 
     BodyDesc desc{};
@@ -424,6 +437,18 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    if (physics.getBodyGravityEnabled(bogus, gravity_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyGravityEnabled unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyGravityEnabled(bogus, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyGravityEnabled unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
     physics.destroyBody(bogus);
 
     physics.destroyBody(body);
@@ -439,7 +464,424 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    if (physics.getBodyGravityEnabled(body, gravity_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyGravityEnabled unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyGravityEnabled(body, false)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyGravityEnabled unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
 
+    physics.shutdown();
+    return true;
+}
+
+bool RunBodyGravityFlagChecks(BackendKind backend) {
+    karma::physics::PhysicsSystem physics;
+    physics.setBackend(backend);
+    physics.init();
+
+    if (!physics.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend) << " failed to initialize (gravity-flag check)\n";
+        return false;
+    }
+
+    BodyDesc static_desc{};
+    static_desc.is_static = true;
+    static_desc.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
+    const BodyId static_body = physics.createBody(static_desc);
+    if (static_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend) << " failed to create static body (gravity-flag check)\n";
+        physics.shutdown();
+        return false;
+    }
+    bool gravity_enabled = false;
+    if (physics.getBodyGravityEnabled(static_body, gravity_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyGravityEnabled unexpectedly succeeded for static body\n";
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyGravityEnabled(static_body, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyGravityEnabled unexpectedly succeeded for static body\n";
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    BodyDesc no_gravity_desc{};
+    no_gravity_desc.is_static = false;
+    no_gravity_desc.mass = 1.0f;
+    no_gravity_desc.gravity_enabled = false;
+    no_gravity_desc.transform.position = glm::vec3(0.0f, 10.0f, 0.0f);
+    const BodyId no_gravity_body = physics.createBody(no_gravity_desc);
+    if (no_gravity_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create no-gravity dynamic body (gravity-flag check)\n";
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    if (!physics.getBodyGravityEnabled(no_gravity_body, gravity_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyGravityEnabled failed for no-gravity dynamic body\n";
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+    if (gravity_enabled) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " gravity flag mismatch for no-gravity dynamic body; expected=false actual=true\n";
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    BodyTransform no_gravity_start{};
+    if (!physics.getBodyTransform(no_gravity_body, no_gravity_start)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read no-gravity body start transform\n";
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.beginFrame(1.0f / 120.0f);
+    for (int i = 0; i < 120; ++i) {
+        physics.simulateFixedStep(1.0f / 120.0f);
+    }
+    physics.endFrame();
+
+    BodyTransform no_gravity_finish{};
+    if (!physics.getBodyTransform(no_gravity_body, no_gravity_finish)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read no-gravity body finish transform\n";
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    const float no_gravity_drop = no_gravity_start.position.y - no_gravity_finish.position.y;
+    if (!std::isfinite(no_gravity_drop) || no_gravity_drop > 0.2f) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " gravity-disabled body dropped unexpectedly: drop=" << no_gravity_drop << "\n";
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    BodyDesc runtime_toggle_desc{};
+    runtime_toggle_desc.is_static = false;
+    runtime_toggle_desc.mass = 1.0f;
+    runtime_toggle_desc.gravity_enabled = false;
+    runtime_toggle_desc.transform.position = glm::vec3(2.0f, 10.0f, 0.0f);
+    const BodyId runtime_toggle_body = physics.createBody(runtime_toggle_desc);
+    if (runtime_toggle_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create runtime-toggle body (gravity-flag check)\n";
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    if (!physics.setBodyGravityEnabled(runtime_toggle_body, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyGravityEnabled failed for runtime-toggle body\n";
+        physics.destroyBody(runtime_toggle_body);
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyGravityEnabled(runtime_toggle_body, gravity_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyGravityEnabled failed after runtime toggle\n";
+        physics.destroyBody(runtime_toggle_body);
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!gravity_enabled) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " gravity flag did not update after runtime toggle\n";
+        physics.destroyBody(runtime_toggle_body);
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    BodyTransform runtime_toggle_start{};
+    if (!physics.getBodyTransform(runtime_toggle_body, runtime_toggle_start)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read runtime-toggle body start transform\n";
+        physics.destroyBody(runtime_toggle_body);
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.beginFrame(1.0f / 120.0f);
+    for (int i = 0; i < 120; ++i) {
+        physics.simulateFixedStep(1.0f / 120.0f);
+    }
+    physics.endFrame();
+
+    BodyTransform runtime_toggle_finish{};
+    if (!physics.getBodyTransform(runtime_toggle_body, runtime_toggle_finish)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read runtime-toggle body finish transform\n";
+        physics.destroyBody(runtime_toggle_body);
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    const float runtime_toggle_drop = runtime_toggle_start.position.y - runtime_toggle_finish.position.y;
+    if (!(runtime_toggle_drop > 0.5f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " gravity-enabled runtime-toggle body did not fall enough: drop=" << runtime_toggle_drop << "\n";
+        physics.destroyBody(runtime_toggle_body);
+        physics.destroyBody(no_gravity_body);
+        physics.destroyBody(static_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.destroyBody(runtime_toggle_body);
+    physics.destroyBody(no_gravity_body);
+    physics.destroyBody(static_body);
+    physics.shutdown();
+    return true;
+}
+
+bool RunBodyRotationLockChecks(BackendKind backend) {
+    karma::physics::PhysicsSystem physics;
+    physics.setBackend(backend);
+    physics.init();
+
+    if (!physics.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend) << " failed to initialize (rotation-lock check)\n";
+        return false;
+    }
+
+    BodyDesc unlocked_desc{};
+    unlocked_desc.is_static = false;
+    unlocked_desc.mass = 1.0f;
+    unlocked_desc.gravity_enabled = false;
+    unlocked_desc.transform.position = glm::vec3(0.0f, 5.0f, 0.0f);
+    unlocked_desc.angular_velocity = glm::vec3(0.0f, 8.0f, 0.0f);
+    const BodyId unlocked_body = physics.createBody(unlocked_desc);
+    if (unlocked_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create unlocked body (rotation-lock check)\n";
+        physics.shutdown();
+        return false;
+    }
+
+    BodyDesc locked_desc = unlocked_desc;
+    locked_desc.rotation_locked = true;
+    locked_desc.transform.position = glm::vec3(2.0f, 5.0f, 0.0f);
+    const BodyId locked_body = physics.createBody(locked_desc);
+    if (locked_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create locked body (rotation-lock check)\n";
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+
+    BodyTransform unlocked_start{};
+    BodyTransform locked_start{};
+    if (!physics.getBodyTransform(unlocked_body, unlocked_start)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read unlocked start transform (rotation-lock check)\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyTransform(locked_body, locked_start)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read locked start transform (rotation-lock check)\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.beginFrame(1.0f / 120.0f);
+    for (int i = 0; i < 240; ++i) {
+        physics.simulateFixedStep(1.0f / 120.0f);
+    }
+    physics.endFrame();
+
+    BodyTransform unlocked_finish{};
+    BodyTransform locked_finish{};
+    if (!physics.getBodyTransform(unlocked_body, unlocked_finish)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read unlocked finish transform (rotation-lock check)\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyTransform(locked_body, locked_finish)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read locked finish transform (rotation-lock check)\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+
+    const float unlocked_dot = std::fabs(glm::dot(glm::normalize(unlocked_start.rotation),
+                                                   glm::normalize(unlocked_finish.rotation)));
+    if (!(unlocked_dot < 0.95f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " unlocked body did not rotate enough in rotation-lock check: dot=" << unlocked_dot << "\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+
+    const float locked_dot = std::fabs(glm::dot(glm::normalize(locked_start.rotation),
+                                                 glm::normalize(locked_finish.rotation)));
+    if (!(locked_dot > 0.999f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " rotation-locked body rotated unexpectedly: dot=" << locked_dot << "\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.destroyBody(locked_body);
+    physics.destroyBody(unlocked_body);
+    physics.shutdown();
+    return true;
+}
+
+bool RunBodyTranslationLockChecks(BackendKind backend) {
+    karma::physics::PhysicsSystem physics;
+    physics.setBackend(backend);
+    physics.init();
+
+    if (!physics.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend) << " failed to initialize (translation-lock check)\n";
+        return false;
+    }
+
+    BodyDesc unlocked_desc{};
+    unlocked_desc.is_static = false;
+    unlocked_desc.mass = 1.0f;
+    unlocked_desc.gravity_enabled = false;
+    unlocked_desc.transform.position = glm::vec3(-4.0f, 5.0f, 0.0f);
+    unlocked_desc.linear_velocity = glm::vec3(3.0f, 0.0f, 0.0f);
+    const BodyId unlocked_body = physics.createBody(unlocked_desc);
+    if (unlocked_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create unlocked body (translation-lock check)\n";
+        physics.shutdown();
+        return false;
+    }
+
+    BodyDesc locked_desc = unlocked_desc;
+    locked_desc.translation_locked = true;
+    locked_desc.transform.position = glm::vec3(8.0f, 5.0f, 0.0f);
+    const BodyId locked_body = physics.createBody(locked_desc);
+    if (locked_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create translation-locked body (translation-lock check)\n";
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+
+    BodyTransform unlocked_start{};
+    BodyTransform locked_start{};
+    if (!physics.getBodyTransform(unlocked_body, unlocked_start)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read unlocked start transform (translation-lock check)\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyTransform(locked_body, locked_start)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read locked start transform (translation-lock check)\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.beginFrame(1.0f / 120.0f);
+    for (int i = 0; i < 240; ++i) {
+        physics.simulateFixedStep(1.0f / 120.0f);
+    }
+    physics.endFrame();
+
+    BodyTransform unlocked_finish{};
+    BodyTransform locked_finish{};
+    if (!physics.getBodyTransform(unlocked_body, unlocked_finish)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read unlocked finish transform (translation-lock check)\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyTransform(locked_body, locked_finish)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to read locked finish transform (translation-lock check)\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+
+    const float unlocked_dx = unlocked_finish.position.x - unlocked_start.position.x;
+    if (!(unlocked_dx > 1.5f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " unlocked body did not translate enough in translation-lock check: dx=" << unlocked_dx << "\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+
+    const float locked_translation = glm::length(locked_finish.position - locked_start.position);
+    if (!(locked_translation < 0.15f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " translation-locked body translated unexpectedly: delta=" << locked_translation << "\n";
+        physics.destroyBody(locked_body);
+        physics.destroyBody(unlocked_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.destroyBody(locked_body);
+    physics.destroyBody(unlocked_body);
     physics.shutdown();
     return true;
 }
@@ -768,6 +1210,7 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     BodyTransform out{};
     RaycastHit hit{};
+    bool gravity_enabled = false;
 
     const BodyId before_init = physics.createBody(desc);
     if (before_init != karma::physics_backend::kInvalidBodyId) {
@@ -783,6 +1226,16 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     if (physics.setBodyTransform(1, transform)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTransform succeeded before init\n";
+        return false;
+    }
+    if (physics.getBodyGravityEnabled(1, gravity_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyGravityEnabled succeeded before init\n";
+        return false;
+    }
+    if (physics.setBodyGravityEnabled(1, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyGravityEnabled succeeded before init\n";
         return false;
     }
     if (physics.raycastClosest(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), 5.0f, hit)) {
@@ -822,6 +1275,16 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     if (physics.setBodyTransform(body, transform)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTransform succeeded after shutdown\n";
+        return false;
+    }
+    if (physics.getBodyGravityEnabled(body, gravity_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyGravityEnabled succeeded after shutdown\n";
+        return false;
+    }
+    if (physics.setBodyGravityEnabled(body, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyGravityEnabled succeeded after shutdown\n";
         return false;
     }
     if (physics.raycastClosest(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), 5.0f, hit)) {
@@ -1066,6 +1529,15 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
         if (!RunInvalidBodyApiChecks(backend)) {
+            return EXIT_FAILURE;
+        }
+        if (!RunBodyGravityFlagChecks(backend)) {
+            return EXIT_FAILURE;
+        }
+        if (!RunBodyRotationLockChecks(backend)) {
+            return EXIT_FAILURE;
+        }
+        if (!RunBodyTranslationLockChecks(backend)) {
             return EXIT_FAILURE;
         }
         if (!RunReinitCycleChecks(backend)) {

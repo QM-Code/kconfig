@@ -222,6 +222,8 @@ class JoltBackend final : public Backend {
                 body_interface.DestroyBody(body_id);
             }
             bodies_.clear();
+            dynamic_bodies_.clear();
+            gravity_enabled_.clear();
         }
 
         physics_system_.reset();
@@ -276,8 +278,22 @@ class JoltBackend final : public Backend {
             ToJoltQuat(desc.transform.rotation),
             is_dynamic ? JPH::EMotionType::Dynamic : JPH::EMotionType::Static,
             is_dynamic ? kObjectLayerMoving : kObjectLayerNonMoving);
+        if (is_dynamic) {
+            if (desc.rotation_locked && desc.translation_locked) {
+                settings.mAllowedDOFs = JPH::EAllowedDOFs::None;
+            } else if (desc.rotation_locked) {
+                settings.mAllowedDOFs = JPH::EAllowedDOFs::TranslationX
+                                        | JPH::EAllowedDOFs::TranslationY
+                                        | JPH::EAllowedDOFs::TranslationZ;
+            } else if (desc.translation_locked) {
+                settings.mAllowedDOFs = JPH::EAllowedDOFs::RotationX
+                                        | JPH::EAllowedDOFs::RotationY
+                                        | JPH::EAllowedDOFs::RotationZ;
+            }
+        }
         settings.mLinearVelocity = ToJoltVec3(desc.linear_velocity);
         settings.mAngularVelocity = ToJoltVec3(desc.angular_velocity);
+        settings.mGravityFactor = (is_dynamic && desc.gravity_enabled) ? 1.0f : 0.0f;
         if (is_dynamic && desc.mass > 0.0f) {
             settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
             settings.mMassPropertiesOverride.mMass = desc.mass;
@@ -296,6 +312,8 @@ class JoltBackend final : public Backend {
 
         const BodyId id = next_body_id_++;
         bodies_.emplace(id, body->GetID());
+        dynamic_bodies_.emplace(id, is_dynamic);
+        gravity_enabled_.emplace(id, is_dynamic && desc.gravity_enabled);
         return id;
     }
 
@@ -314,6 +332,8 @@ class JoltBackend final : public Backend {
             body_interface.RemoveBody(it->second);
         }
         body_interface.DestroyBody(it->second);
+        dynamic_bodies_.erase(body);
+        gravity_enabled_.erase(body);
         bodies_.erase(it);
     }
 
@@ -354,6 +374,36 @@ class JoltBackend final : public Backend {
         const JPH::Body& physics_body = lock.GetBody();
         out_transform.position = ToGlmVec3(physics_body.GetPosition());
         out_transform.rotation = ToGlmQuat(physics_body.GetRotation());
+        return true;
+    }
+
+    bool setBodyGravityEnabled(BodyId body, bool enabled) override {
+        if (!physics_system_) {
+            return false;
+        }
+
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !isDynamicBody(body)) {
+            return false;
+        }
+
+        JPH::BodyInterface& body_interface = physics_system_->GetBodyInterface();
+        body_interface.SetGravityFactor(it->second, enabled ? 1.0f : 0.0f);
+        gravity_enabled_[body] = enabled;
+        return true;
+    }
+
+    bool getBodyGravityEnabled(BodyId body, bool& out_enabled) const override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto it = gravity_enabled_.find(body);
+        if (it == gravity_enabled_.end()) {
+            return false;
+        }
+
+        out_enabled = it->second;
         return true;
     }
 
@@ -399,10 +449,17 @@ class JoltBackend final : public Backend {
         return kInvalidBodyId;
     }
 
+    bool isDynamicBody(BodyId body) const {
+        const auto it = dynamic_bodies_.find(body);
+        return it != dynamic_bodies_.end() && it->second;
+    }
+
     std::unique_ptr<JPH::TempAllocatorImpl> temp_allocator_{};
     std::unique_ptr<JPH::JobSystemThreadPool> job_system_{};
     std::unique_ptr<JPH::PhysicsSystem> physics_system_{};
     std::unordered_map<BodyId, JPH::BodyID> bodies_{};
+    std::unordered_map<BodyId, bool> dynamic_bodies_{};
+    std::unordered_map<BodyId, bool> gravity_enabled_{};
     BodyId next_body_id_ = 1;
     float frame_dt_ = 0.0f;
     bool initialized_ = false;
@@ -426,6 +483,8 @@ class JoltBackendStub final : public Backend {
     void destroyBody(BodyId) override {}
     bool setBodyTransform(BodyId, const BodyTransform&) override { return false; }
     bool getBodyTransform(BodyId, BodyTransform&) const override { return false; }
+    bool setBodyGravityEnabled(BodyId, bool) override { return false; }
+    bool getBodyGravityEnabled(BodyId, bool&) const override { return false; }
     bool raycastClosest(const glm::vec3&, const glm::vec3&, float, RaycastHit&) const override { return false; }
 };
 

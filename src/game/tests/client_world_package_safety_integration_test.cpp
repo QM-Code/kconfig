@@ -1,9 +1,13 @@
 #include "client/net/client_connection.hpp"
+#include "net/protocol_codec.hpp"
+#include "net/protocol.hpp"
 #include "server/net/enet_event_source.hpp"
 
 #include "karma/common/config_store.hpp"
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/world_archive.hpp"
+
+#include <enet.h>
 
 #include <algorithm>
 #include <array>
@@ -36,6 +40,61 @@ constexpr int kSkipReturnCode = 77;
 struct ServerFixture {
     uint16_t port = 0;
     std::unique_ptr<bz3::server::net::ServerEventSource> source{};
+};
+
+class ScopedRawEnet {
+ public:
+    ScopedRawEnet() {
+        initialized_ = (enet_initialize() == 0);
+    }
+
+    ~ScopedRawEnet() {
+        if (initialized_) {
+            enet_deinitialize();
+        }
+    }
+
+    bool initialized() const { return initialized_; }
+
+ private:
+    bool initialized_ = false;
+};
+
+struct RawServerFixture {
+    uint16_t port = 0;
+    ENetHost* host = nullptr;
+    ENetPeer* peer = nullptr;
+
+    RawServerFixture() = default;
+    RawServerFixture(uint16_t in_port, ENetHost* in_host) : port(in_port), host(in_host) {}
+    ~RawServerFixture() {
+        if (host) {
+            enet_host_destroy(host);
+            host = nullptr;
+        }
+        peer = nullptr;
+    }
+
+    RawServerFixture(const RawServerFixture&) = delete;
+    RawServerFixture& operator=(const RawServerFixture&) = delete;
+
+    RawServerFixture(RawServerFixture&& other) noexcept
+        : port(other.port),
+          host(std::exchange(other.host, nullptr)),
+          peer(std::exchange(other.peer, nullptr)) {}
+
+    RawServerFixture& operator=(RawServerFixture&& other) noexcept {
+        if (this == &other) {
+            return *this;
+        }
+        if (host) {
+            enet_host_destroy(host);
+        }
+        port = other.port;
+        host = std::exchange(other.host, nullptr);
+        peer = std::exchange(other.peer, nullptr);
+        return *this;
+    }
 };
 
 struct WorldFixture {
@@ -89,6 +148,78 @@ std::optional<ServerFixture> CreateServerFixture() {
         }
     }
     return std::nullopt;
+}
+
+std::optional<RawServerFixture> CreateRawServerFixture() {
+    constexpr uint16_t kFirstPort = 32300;
+    constexpr uint16_t kLastPort = 32348;
+    for (uint16_t port = kFirstPort; port < kLastPort; ++port) {
+        ENetAddress address{};
+        address.host = ENET_HOST_ANY;
+        address.port = port;
+        ENetHost* host = enet_host_create(&address, 1, 2, 0, 0);
+        if (host) {
+            return RawServerFixture{port, host};
+        }
+    }
+    return std::nullopt;
+}
+
+bool SendRawServerPayload(ENetHost* host, ENetPeer* peer, const std::vector<std::byte>& payload) {
+    if (!host || !peer || payload.empty()) {
+        return false;
+    }
+
+    ENetPacket* packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
+    if (!packet) {
+        return false;
+    }
+    if (enet_peer_send(peer, 0, packet) != 0) {
+        enet_packet_destroy(packet);
+        return false;
+    }
+    enet_host_flush(host);
+    return true;
+}
+
+void PumpRawServerEvents(RawServerFixture* server,
+                         std::optional<bz3::net::ClientMessage>* join_request,
+                         bool* disconnected) {
+    if (!server || !server->host) {
+        return;
+    }
+
+    ENetEvent event{};
+    while (enet_host_service(server->host, &event, 0) > 0) {
+        switch (event.type) {
+            case ENET_EVENT_TYPE_CONNECT:
+                server->peer = event.peer;
+                break;
+            case ENET_EVENT_TYPE_RECEIVE:
+                if (event.packet && event.packet->data && event.packet->dataLength > 0) {
+                    const auto decoded =
+                        bz3::net::DecodeClientMessage(event.packet->data, event.packet->dataLength);
+                    if (decoded.has_value() &&
+                        decoded->type == bz3::net::ClientMessageType::JoinRequest &&
+                        join_request) {
+                        *join_request = std::move(*decoded);
+                    }
+                }
+                if (event.packet) {
+                    enet_packet_destroy(event.packet);
+                }
+                break;
+            case ENET_EVENT_TYPE_DISCONNECT:
+            case ENET_EVENT_TYPE_DISCONNECT_TIMEOUT:
+                server->peer = nullptr;
+                if (disconnected) {
+                    *disconnected = true;
+                }
+                break;
+            default:
+                break;
+        }
+    }
 }
 
 template <typename StepFn, typename DoneFn>
@@ -327,6 +458,22 @@ std::filesystem::path PackageRootForIdentity(const std::filesystem::path& server
            std::string(world_revision) / std::string(package_key);
 }
 
+std::vector<std::byte> BuildChunk(const std::vector<std::byte>& world_package,
+                                  uint32_t chunk_index,
+                                  uint32_t chunk_size) {
+    const size_t offset = static_cast<size_t>(chunk_index) * static_cast<size_t>(chunk_size);
+    if (offset >= world_package.size()) {
+        return {};
+    }
+    const size_t remaining = world_package.size() - offset;
+    const size_t this_chunk_size = std::min<size_t>(remaining, chunk_size);
+    std::vector<std::byte> chunk{};
+    chunk.insert(chunk.end(),
+                 world_package.begin() + static_cast<std::ptrdiff_t>(offset),
+                 world_package.begin() + static_cast<std::ptrdiff_t>(offset + this_chunk_size));
+    return chunk;
+}
+
 class ScopedEnvVar {
  public:
     ScopedEnvVar(std::string key, std::string value) : key_(std::move(key)) {
@@ -363,6 +510,227 @@ class ScopedEnvVar {
     bool had_previous_ = false;
     std::string previous_{};
 };
+
+TestResult TestInterruptedChunkTransferResumeRecovery() {
+    const std::filesystem::path temp_root = MakeTempPath("resume-root");
+    const std::filesystem::path xdg_root = temp_root / "xdg";
+    const std::filesystem::path world_dir = temp_root / "world";
+    const std::filesystem::path config_path = MakeConfigPath("resume-config");
+
+    std::error_code ec;
+    std::filesystem::remove_all(temp_root, ec);
+    ec.clear();
+    std::filesystem::create_directories(xdg_root, ec);
+    std::filesystem::create_directories(world_dir, ec);
+    if (ec) {
+        return FailTest("failed to create temp directories for interrupted-transfer test");
+    }
+
+    if (!WriteTextFile(world_dir / "config.json",
+                       "{\n  \"worldName\": \"resume-world\",\n  \"resumeVersion\": 1\n}\n")) {
+        return FailTest("failed to write interrupted-transfer world config.json");
+    }
+    if (!WriteDeterministicBinaryFile(world_dir / "world.glb", 192 * 1024, 0xabcddcbaU)) {
+        return FailTest("failed to write interrupted-transfer world.glb");
+    }
+
+    const auto world_opt = BuildWorldFixture(world_dir, "resume-world", "resume-world");
+    if (!world_opt.has_value()) {
+        return FailTest("failed to build interrupted-transfer world fixture");
+    }
+    const WorldFixture world = *world_opt;
+
+    ScopedEnvVar scoped_xdg("XDG_CONFIG_HOME", xdg_root.string());
+    karma::data::SetDataPathSpec(karma::data::DataPathSpec{
+        .appName = "bz3",
+        .dataDirEnvVar = "BZ3_DATA_DIR",
+        .requiredDataMarker = {},
+        .fallbackAssetLayers = {}});
+    karma::config::ConfigStore::Initialize({}, config_path);
+    (void)karma::config::ConfigStore::Set("config.SaveIntervalSeconds", 5.0);
+    (void)karma::config::ConfigStore::Set("config.MergeIntervalSeconds", 5.0);
+
+    ScopedRawEnet raw_enet{};
+    if (!raw_enet.initialized()) {
+        PrintSkip("ENet init failed for interrupted-transfer test");
+        return TestResult::Skip;
+    }
+
+    auto raw_server_opt = CreateRawServerFixture();
+    if (!raw_server_opt.has_value()) {
+        PrintSkip("unable to create raw ENet server fixture");
+        return TestResult::Skip;
+    }
+    RawServerFixture raw_server = std::move(*raw_server_opt);
+
+    bz3::client::net::ClientConnection client("127.0.0.1", raw_server.port, "resume-client");
+
+    std::optional<bool> started{};
+    std::optional<bz3::net::ClientMessage> join_request{};
+    bool disconnected = false;
+    std::thread starter([&]() { started = client.start(); });
+    const bool start_done = WaitUntil(std::chrono::milliseconds(2500), [&]() {
+        PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+    }, [&]() { return started.has_value(); });
+    starter.join();
+    if (!start_done || !started.value_or(false)) {
+        return FailTest("client failed to start against raw ENet server");
+    }
+    if (!raw_server.peer || disconnected) {
+        client.shutdown();
+        return FailTest("raw ENet server did not observe connected peer");
+    }
+    if (!WaitUntil(std::chrono::milliseconds(2500), [&]() {
+            PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+            client.poll();
+        }, [&]() { return join_request.has_value(); })) {
+        client.shutdown();
+        return FailTest("raw ENet server did not receive join request");
+    }
+    if (disconnected || !raw_server.peer) {
+        client.shutdown();
+        return FailTest("client disconnected before transfer test could begin");
+    }
+
+    std::vector<bz3::net::WorldManifestEntry> wire_manifest{};
+    wire_manifest.reserve(world.world_manifest.size());
+    for (const auto& entry : world.world_manifest) {
+        wire_manifest.push_back(bz3::net::WorldManifestEntry{
+            .path = entry.path,
+            .size = entry.size,
+            .hash = entry.hash});
+    }
+
+    if (!SendRawServerPayload(raw_server.host,
+                              raw_server.peer,
+                              bz3::net::EncodeServerJoinResponse(true, ""))) {
+        client.shutdown();
+        return FailTest("failed to send raw join response");
+    }
+    if (!SendRawServerPayload(raw_server.host,
+                              raw_server.peer,
+                              bz3::net::EncodeServerInit(2,
+                                                         "raw-server",
+                                                         world.world_name,
+                                                         bz3::net::kProtocolVersion,
+                                                         world.world_package_hash,
+                                                         world.world_package_size,
+                                                         world.world_id,
+                                                         world.world_revision,
+                                                         world.world_content_hash,
+                                                         world.world_manifest_hash,
+                                                         world.world_manifest_file_count,
+                                                         wire_manifest,
+                                                         {}))) {
+        client.shutdown();
+        return FailTest("failed to send raw init payload");
+    }
+
+    constexpr uint32_t kChunkSize = 16 * 1024;
+    const uint32_t total_chunk_count =
+        static_cast<uint32_t>((world.world_package.size() + kChunkSize - 1) / kChunkSize);
+    if (total_chunk_count < 2) {
+        client.shutdown();
+        return FailTest("world package too small for interrupted-transfer test");
+    }
+    const std::string transfer_id = "resume-transfer-1";
+    if (!SendRawServerPayload(raw_server.host,
+                              raw_server.peer,
+                              bz3::net::EncodeServerWorldTransferBegin(transfer_id,
+                                                                       world.world_id,
+                                                                       world.world_revision,
+                                                                       world.world_package.size(),
+                                                                       kChunkSize,
+                                                                       world.world_package_hash,
+                                                                       world.world_content_hash))) {
+        client.shutdown();
+        return FailTest("failed to send raw transfer begin");
+    }
+    if (!SendRawServerPayload(raw_server.host,
+                              raw_server.peer,
+                              bz3::net::EncodeServerWorldTransferChunk(
+                                  transfer_id,
+                                  0,
+                                  BuildChunk(world.world_package, 0, kChunkSize)))) {
+        client.shutdown();
+        return FailTest("failed to send raw transfer chunk 0");
+    }
+
+    // Simulate interrupted transfer recovery by restarting begin and resuming at chunk 1.
+    if (!SendRawServerPayload(raw_server.host,
+                              raw_server.peer,
+                              bz3::net::EncodeServerWorldTransferBegin(transfer_id,
+                                                                       world.world_id,
+                                                                       world.world_revision,
+                                                                       world.world_package.size(),
+                                                                       kChunkSize,
+                                                                       world.world_package_hash,
+                                                                       world.world_content_hash))) {
+        client.shutdown();
+        return FailTest("failed to send raw retry begin");
+    }
+    for (uint32_t chunk_index = 1; chunk_index < total_chunk_count; ++chunk_index) {
+        if (!SendRawServerPayload(raw_server.host,
+                                  raw_server.peer,
+                                  bz3::net::EncodeServerWorldTransferChunk(
+                                      transfer_id,
+                                      chunk_index,
+                                      BuildChunk(world.world_package, chunk_index, kChunkSize)))) {
+            client.shutdown();
+            return FailTest("failed to send resumed transfer chunk");
+        }
+    }
+    if (!SendRawServerPayload(raw_server.host,
+                              raw_server.peer,
+                              bz3::net::EncodeServerWorldTransferEnd(transfer_id,
+                                                                     total_chunk_count,
+                                                                     world.world_package.size(),
+                                                                     world.world_package_hash,
+                                                                     world.world_content_hash))) {
+        client.shutdown();
+        return FailTest("failed to send raw transfer end");
+    }
+    if (!SendRawServerPayload(
+            raw_server.host,
+            raw_server.peer,
+            bz3::net::EncodeServerSessionSnapshot(
+                std::vector<bz3::net::SessionSnapshotEntry>{{2, "resume-client"}}))) {
+        client.shutdown();
+        return FailTest("failed to send raw session snapshot");
+    }
+
+    const std::filesystem::path server_cache_dir =
+        karma::data::EnsureUserWorldDirectoryForServer("127.0.0.1", raw_server.port);
+    const std::filesystem::path identity_path = server_cache_dir / "active_world_identity.txt";
+    const bool applied = WaitUntil(std::chrono::milliseconds(3000), [&]() {
+        PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+        client.poll();
+    }, [&]() {
+        const auto identity = ReadCachedIdentity(identity_path);
+        return identity.has_value() &&
+               identity->world_id == world.world_id &&
+               identity->world_revision == world.world_revision &&
+               identity->world_content_hash == world.world_content_hash;
+    });
+
+    if (!applied || disconnected || client.shouldExit()) {
+        client.shutdown();
+        return FailTest("client failed to recover interrupted transfer and apply world package");
+    }
+
+    const std::filesystem::path package_root =
+        PackageRootForIdentity(server_cache_dir,
+                               world.world_id,
+                               world.world_revision,
+                               world.world_content_hash);
+    if (!std::filesystem::exists(package_root) || !std::filesystem::is_directory(package_root)) {
+        client.shutdown();
+        return FailTest("interrupted-transfer package root missing after recovery");
+    }
+
+    client.shutdown();
+    return TestResult::Pass;
+}
 
 TestResult TestFailedWorldUpdatePreservesPreviousCache() {
     const std::filesystem::path temp_root = MakeTempPath("root");
@@ -582,12 +950,27 @@ TestResult TestFailedWorldUpdatePreservesPreviousCache() {
 } // namespace
 
 int main() {
-    const TestResult result = TestFailedWorldUpdatePreservesPreviousCache();
-    if (result == TestResult::Pass) {
-        return 0;
+    const std::array tests{
+        &TestInterruptedChunkTransferResumeRecovery,
+        &TestFailedWorldUpdatePreservesPreviousCache,
+    };
+
+    int pass_count = 0;
+    int skip_count = 0;
+    for (auto test_fn : tests) {
+        const TestResult result = test_fn();
+        if (result == TestResult::Fail) {
+            return 1;
+        }
+        if (result == TestResult::Skip) {
+            ++skip_count;
+            continue;
+        }
+        ++pass_count;
     }
-    if (result == TestResult::Skip) {
+
+    if (pass_count == 0 && skip_count > 0) {
         return kSkipReturnCode;
     }
-    return 1;
+    return 0;
 }

@@ -181,6 +181,29 @@ TestResult TestAcceptedJoinAndGameplayEvents() {
         return FailTest("accepted-test: timed out waiting for ENET_EVENT_TYPE_CONNECT");
     }
 
+    if (!SendPayload(client_host, peer, bz3::net::EncodeClientRequestPlayerSpawn(9999))
+        || !SendPayload(client_host,
+                        peer,
+                        bz3::net::EncodeClientCreateShot(9999,
+                                                         88,
+                                                         bz3::net::Vec3{1.0f, 2.0f, 3.0f},
+                                                         bz3::net::Vec3{4.0f, 5.0f, 6.0f}))
+        || !SendPayload(client_host, peer, bz3::net::EncodeClientLeave(9999))) {
+        enet_host_destroy(client_host);
+        return FailTest("accepted-test: failed to send one or more pre-join payloads");
+    }
+
+    for (int i = 0; i < 120; ++i) {
+        step();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    if (!Expect(server_events.empty(),
+                "accepted-test: pre-join spawn/shot/leave should not emit server-side events")) {
+        enet_host_destroy(client_host);
+        return TestResult::Fail;
+    }
+    server_events.clear();
+
     const auto join_payload = bz3::net::EncodeClientJoinRequest(
         "loopback-player",
         bz3::net::kProtocolVersion,
@@ -269,7 +292,7 @@ TestResult TestAcceptedJoinAndGameplayEvents() {
     }
 
     server_events.clear();
-    const auto spawn_payload = bz3::net::EncodeClientRequestPlayerSpawn(joined_client_id);
+    const auto spawn_payload = bz3::net::EncodeClientRequestPlayerSpawn(joined_client_id + 1);
     if (!SendPayload(client_host, peer, spawn_payload)) {
         enet_host_destroy(client_host);
         return FailTest("accepted-test: failed to send request_spawn payload");
@@ -277,9 +300,10 @@ TestResult TestAcceptedJoinAndGameplayEvents() {
     if (!WaitUntil(std::chrono::milliseconds(1000), step, [&]() {
             return std::any_of(server_events.begin(),
                                server_events.end(),
-                               [](const bz3::server::net::ServerInputEvent& event) {
+                               [joined_client_id](const bz3::server::net::ServerInputEvent& event) {
                                    return event.type ==
-                                          bz3::server::net::ServerInputEvent::Type::ClientRequestSpawn;
+                                              bz3::server::net::ServerInputEvent::Type::ClientRequestSpawn
+                                          && event.request_spawn.client_id == joined_client_id;
                                });
         })) {
         enet_host_destroy(client_host);
@@ -287,7 +311,7 @@ TestResult TestAcceptedJoinAndGameplayEvents() {
     }
 
     server_events.clear();
-    const auto shot_payload = bz3::net::EncodeClientCreateShot(joined_client_id,
+    const auto shot_payload = bz3::net::EncodeClientCreateShot(joined_client_id + 1,
                                                                77,
                                                                bz3::net::Vec3{1.0f, 2.0f, 3.0f},
                                                                bz3::net::Vec3{4.0f, 5.0f, 6.0f});

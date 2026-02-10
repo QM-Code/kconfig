@@ -233,6 +233,60 @@ bool TestShotRulesAndIdMonotonicity() {
            && Expect(next_global_shot_id == 102, "next_global_shot_id should advance only for applied shot events");
 }
 
+bool TestPostLeaveSpawnAndShotIgnored() {
+    Recorder recorder{};
+    recorder.connected_clients.insert(21);
+    auto handlers = BuildHandlers(&recorder);
+    uint32_t next_global_shot_id = 55;
+
+    const auto leave_result = bz3::server::ApplyRuntimeEventRules(
+        MakeLeave(21),
+        handlers,
+        &next_global_shot_id);
+    const auto spawn_after_leave = bz3::server::ApplyRuntimeEventRules(
+        MakeSpawn(21),
+        handlers,
+        &next_global_shot_id);
+    const auto shot_after_leave = bz3::server::ApplyRuntimeEventRules(
+        MakeShot(21, 99, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f),
+        handlers,
+        &next_global_shot_id);
+
+    return Expect(leave_result == bz3::server::RuntimeEventRuleResult::Applied,
+                  "known leave should apply before post-leave checks")
+           && Expect(spawn_after_leave == bz3::server::RuntimeEventRuleResult::IgnoredUnknownClient,
+                     "spawn after leave should be ignored as unknown client")
+           && Expect(shot_after_leave == bz3::server::RuntimeEventRuleResult::IgnoredUnknownClient,
+                     "create_shot after leave should be ignored as unknown client")
+           && Expect(recorder.leave_calls == 1, "leave callback should be called exactly once")
+           && Expect(recorder.death_events.size() == 1 && recorder.death_events[0] == 21,
+                     "known leave should emit exactly one death event")
+           && Expect(recorder.spawn_events.empty(), "spawn callback should not run after leave")
+           && Expect(recorder.shot_events.empty(), "create_shot callback should not run after leave")
+           && Expect(next_global_shot_id == 55, "ignored post-leave shot should not advance global shot id");
+}
+
+bool TestUnsupportedRuntimeEventType() {
+    Recorder recorder{};
+    auto handlers = BuildHandlers(&recorder);
+    uint32_t next_global_shot_id = 7;
+
+    bz3::server::net::ServerInputEvent event{};
+    event.type = bz3::server::net::ServerInputEvent::Type::ClientJoin;
+    event.join.client_id = 1;
+    event.join.player_name = "ignored";
+
+    const auto result = bz3::server::ApplyRuntimeEventRules(event, handlers, &next_global_shot_id);
+
+    return Expect(result == bz3::server::RuntimeEventRuleResult::UnsupportedEvent,
+                  "client join should be unsupported by runtime event rules")
+           && Expect(recorder.leave_calls == 0, "unsupported event should not invoke leave callback")
+           && Expect(recorder.death_events.empty(), "unsupported event should not emit death events")
+           && Expect(recorder.spawn_events.empty(), "unsupported event should not emit spawn events")
+           && Expect(recorder.shot_events.empty(), "unsupported event should not emit shot events")
+           && Expect(next_global_shot_id == 7, "unsupported event should not mutate shot id");
+}
+
 bool TestInvalidHandlers() {
     bz3::server::RuntimeEventRuleHandlers handlers{};
     uint32_t next_global_shot_id = 1;
@@ -275,6 +329,12 @@ int main() {
         return 1;
     }
     if (!TestShotRulesAndIdMonotonicity()) {
+        return 1;
+    }
+    if (!TestPostLeaveSpawnAndShotIgnored()) {
+        return 1;
+    }
+    if (!TestUnsupportedRuntimeEventType()) {
         return 1;
     }
     if (!TestInvalidHandlers()) {
