@@ -1,7 +1,7 @@
 #include "net/protocol.hpp"
 #include "net/protocol_codec.hpp"
 #include "server/cli_options.hpp"
-#include "server/net/enet_event_source.hpp"
+#include "server/net/transport_event_source.hpp"
 #include "server/net/event_source.hpp"
 
 #include "karma/network/server_transport.hpp"
@@ -421,17 +421,17 @@ bool TestServerTransportBackendBuiltinsAutoAndEnet() {
     if (!InitializeConfigForServerTransportBackend("auto", "backend-builtin-auto")) {
         return Fail("failed to initialize config for builtin auto backend test");
     }
-    auto auto_source = bz3::server::net::CreateEnetServerEventSource(0);
+    auto auto_source = bz3::server::net::CreateServerTransportEventSource(0);
     if (!auto_source) {
-        return Fail("CreateEnetServerEventSource returned null for backend=auto");
+        return Fail("CreateServerTransportEventSource returned null for backend=auto");
     }
 
     if (!InitializeConfigForServerTransportBackend("enet", "backend-builtin-enet")) {
         return Fail("failed to initialize config for builtin enet backend test");
     }
-    auto enet_source = bz3::server::net::CreateEnetServerEventSource(0);
+    auto enet_source = bz3::server::net::CreateServerTransportEventSource(0);
     if (!enet_source) {
-        return Fail("CreateEnetServerEventSource returned null for backend=enet");
+        return Fail("CreateServerTransportEventSource returned null for backend=enet");
     }
 
     return Expect(captures.size() == 2, "builtin backend test expected two factory captures") &&
@@ -470,9 +470,9 @@ bool TestServerTransportBackendCustomIdPassThrough() {
         return Fail("failed to initialize config for custom backend pass-through test");
     }
 
-    auto source = bz3::server::net::CreateEnetServerEventSource(0);
+    auto source = bz3::server::net::CreateServerTransportEventSource(0);
     if (!source) {
-        return Fail("CreateEnetServerEventSource returned null for custom backend");
+        return Fail("CreateServerTransportEventSource returned null for custom backend");
     }
 
     return Expect(captures.size() == 1, "custom backend test expected one factory capture") &&
@@ -488,8 +488,8 @@ bool TestServerTransportBackendUnregisteredFailsCreation() {
         return Fail("failed to initialize config for unregistered backend test");
     }
 
-    auto source = bz3::server::net::CreateEnetServerEventSource(0);
-    return Expect(!source, "unregistered backend should fail CreateEnetServerEventSource");
+    auto source = bz3::server::net::CreateServerTransportEventSource(0);
+    return Expect(!source, "unregistered backend should fail CreateServerTransportEventSource");
 }
 
 } // namespace

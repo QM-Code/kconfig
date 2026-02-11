@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `specialist-renderer-parity`
-- Status: `priority/in progress (R1-R25 accepted; VQ1-VQ4 queued)`
-- Immediate next task: execute merged VQ1 diagnostics baseline (deterministic shadow-visibility + distance-texture-quality repro/acceptance criteria) without starting VQ2-VQ4.
+- Status: `priority/in progress (R1-R25 accepted; VQ1 accepted; VQ2-VQ4 queued)`
+- Immediate next task: execute VQ2 texture minification quality slice against VQ1 baseline thresholds (keep VQ3/VQ4 untouched until VQ2 closeout).
 - Validation gate: both assigned renderer build dirs via `./bzbuild.py` plus both client runs listed in this file; run docs lint whenever this project doc or assignment board is updated.
 
 ## Mission
@@ -80,6 +80,7 @@ timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render dil
 
 ## Current Status
 - `2026-02-11`: merged former `renderer-visual-quality.md` into this project as VQ1-VQ4 follow-up slices so renderer execution remains under one track/owner.
+- `2026-02-11`: VQ1 diagnostics baseline accepted as shared unblocker for measurable renderer quality outcomes (deterministic repro recipe + explicit VQ2/VQ3 thresholds) while preserving backend-parity boundaries.
 - Cross-backend startup/rendering path is working.
 - R1 is implemented: both BGFX and Diligent now consume shared material semantics for metallic/roughness/emissive/alpha/double-sided fields plus metallic-roughness and emissive texture influence when present.
 - R2 is now landed: engine-owned `DirectionalLightData::shadow` contract fields are consumed by both BGFX and Diligent through one shared bounded shadow-map build/sample path (`directional_shadow_internal.hpp`) with deterministic per-draw light attenuation.
@@ -113,6 +114,72 @@ timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render dil
 - Focused assertion-backed verification now also covers R5 texture-path + material-lighting semantics, R6 normal/occlusion bounded semantics, R7 high-frequency stability + clamp-policy assertions, R8 normal/detail policy + occlusion edge-case assertions, R9 occlusion-edge integration + normal/detail response behavior, R10 lifecycle ingestion bounds/parity behavior, R11 shader-path lifecycle-consumption parity behavior, R12 multi-sampler shader-input contract/fallback equivalence behavior, R13 direct-path runtime parity preservation behavior, R14 guardrail-preserved fallback behavior, R15 readiness-recovery preservation behavior, R16 direct-path observability contracts (Diligent readiness + direct-vs-fallback invariant assertions), R17 BGFX readiness/invariant parity assertions, R18 BGFX source-present/source-absent readiness-reason policy assertions, R19 source-absent deployed-binary integrity pass/fail + readiness-reason propagation assertions, R20 versioned source-absent integrity-manifest parse/version/algorithm reason propagation assertions, R21 duplicate/unknown/invalid-manifest-shape reason propagation assertions, R22 canonicalization line-ending/whitespace boundary reason propagation assertions, R23 signed-envelope parse/deferred-verification reason propagation assertions, R24 signed-envelope verification mode/trust-root/trust-chain/signature-material/signature-verification reason propagation assertions, and R25 signed-envelope canonical verification-input boundary reason propagation assertions (`...verification_inputs_invalid`) through the same shared observability helpers in `src/engine/renderer/tests/directional_shadow_contract_test.cpp`.
 - Shared material-semantics validation remains in place; R1 semantics behavior is preserved while R2 applies only directional direct-light attenuation.
 - Explicitly deferred after R3: full cubemap/image-backed environment lifecycle and shader sampling parity (current R3 is one bounded procedural/environment-parameter slice).
+
+## VQ1 Deterministic Diagnostics Baseline (Accepted 2026-02-11)
+Strategic alignment:
+- Track: shared unblocker.
+- Purpose: convert accepted renderer parity capability into measurable runtime quality outcomes for VQ2 (texture minification quality) and VQ3 (visible directional shadows), without changing runtime behavior in this slice.
+
+Baseline scene/camera/runtime settings:
+- Scene/content source: `data/client/config.json` -> `assets.models.world = models/world.glb`.
+- Camera start pose: `data/client/config.json` -> `roamingMode.camera.roaming.StartPosition = [0.5, 13, 25]`, `StartTarget = [0.472, 12.652, 24.061]`.
+- Runtime mode: roaming scene startup, `imgui` UI backend, backend-specific renderer override (`bgfx` or `diligent`).
+- Config isolation: use a temporary user config file so local user overrides do not affect diagnostics.
+
+Deterministic repro recipe (copy/paste runnable):
+```bash
+cd /home/karmak/dev/bz3-rewrite/m-rewrite
+cat > /tmp/bz3-vq1-user-config.json <<'JSON'
+{
+  "DataDir": "/home/karmak/dev/bz3-rewrite/m-rewrite/data"
+}
+JSON
+
+# BGFX baseline capture window (20s)
+timeout 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 \
+  --backend-render bgfx \
+  --backend-ui imgui \
+  --strict-config=true \
+  --config /tmp/bz3-vq1-user-config.json \
+  -v -t engine.app,render.mesh,render.bgfx
+
+# Diligent baseline capture window (20s)
+timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 \
+  --backend-render diligent \
+  --backend-ui imgui \
+  --strict-config=true \
+  --config /tmp/bz3-vq1-user-config.json \
+  -v -t engine.app,render.mesh,render.diligent
+```
+
+Deterministic camera path for scoring:
+1. `Phase A (t=0s-8s)`: no input (hold start pose).
+2. `Phase B (t=8s-14s)`: hold `W` continuously.
+3. `Phase C (t=14s-20s)`: release all movement input (stabilize).
+
+VQ1 scoring rubric (used by VQ2/VQ3 acceptance):
+- Distant texture aliasing/grain score (`TA`):
+  - `0` = none, `1` = minor, `2` = obvious, `3` = severe.
+  - Sample checkpoints: `t=6s` (Phase A) and `t=12s` (Phase B), center-to-upper-ground far-field region.
+- Shadow caster/receiver visibility score (`SV`):
+  - `0` = no obvious shadow pair, `1` = faint/ambiguous, `2` = clear caster->receiver shadow, `3` = clear + stable.
+  - Sample checkpoints: `t=6s` (Phase A) and `t=16s` (Phase C), obvious terrain/object receiver region in front-half of view.
+
+Explicit future pass/fail thresholds:
+- VQ2 pass criteria (must satisfy on both backends):
+  - `TA <= 1` at both checkpoints.
+  - backend parity guardrail: `|TA_bgfx - TA_diligent| <= 1` per checkpoint.
+  - fail if either backend records `TA >= 2` at any checkpoint.
+- VQ3 pass criteria (must satisfy on both backends):
+  - `SV >= 2` at both checkpoints.
+  - no full dropout (`SV = 0`) at either checkpoint.
+  - backend parity guardrail: `|SV_bgfx - SV_diligent| <= 1` per checkpoint.
+
+VQ1 slice acceptance criteria:
+- Repro recipe is fully runnable with explicit commands, config isolation, and timing phases.
+- Scoring rubric is explicit and shared across BGFX + Diligent.
+- VQ2 and VQ3 pass/fail thresholds are documented and bounded.
+- No runtime behavior change is introduced in this VQ1 slice.
 
 ## Capability Gap Checklist (2026-02-10 Baseline)
 | Capability | KARMA-REPO Reference | `m-rewrite` Current State | Gap |
@@ -150,7 +217,7 @@ timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render dil
 22. R23 BGFX source-absent integrity signed-envelope/trust-chain planning hardening slice: codify contract guardrails and deterministic disable-reason propagation for optional signed-envelope metadata (without enabling cryptographic verification yet), while preserving accepted R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11/R12/R13/R14/R15/R16/R17/R18/R19/R20/R21/R22 behavior. `Accepted 2026-02-11`
 23. R24 BGFX source-absent integrity verification-enablement slice: add signed-envelope verification plumbing and trust-root policy checks for source-absent readiness, with deterministic disable reasons preserved when verification prerequisites are unavailable, while preserving accepted R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11/R12/R13/R14/R15/R16/R17/R18/R19/R20/R21/R22/R23 behavior. `Accepted 2026-02-11`
 24. R25 BGFX source-absent integrity signature-model hardening slice: codify canonical asymmetric-signature verification contract inputs/validation boundaries for signed-envelope metadata (without introducing external trust-store rotation tooling yet), preserving deterministic disable reasons and accepted R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11/R12/R13/R14/R15/R16/R17/R18/R19/R20/R21/R22/R23/R24 behavior. `Accepted 2026-02-11` (canonical verification-input boundary checks + deterministic `...verification_inputs_invalid` propagation).
-25. VQ1 visual-quality diagnostics baseline slice: capture deterministic repro settings and concrete acceptance thresholds for distant texture aliasing/grain and obvious shadow caster/receiver visibility in roaming scenes. `Queued 2026-02-11`
+25. VQ1 visual-quality diagnostics baseline slice: capture deterministic repro settings and concrete acceptance thresholds for distant texture aliasing/grain and obvious shadow caster/receiver visibility in roaming scenes. `Accepted 2026-02-11` (deterministic repro recipe + phased camera-path scoring rubric + explicit VQ2/VQ3 thresholds).
 26. VQ2 texture minification quality slice: add mip-chain generation/upload plus trilinear/anisotropic sampler policy across BGFX + Diligent material texture paths (including fallback/composite paths) with parity guardrails. `Queued 2026-02-11`
 27. VQ3 visible directional shadowing slice: evolve bounded directional shadow path toward backend-parity projected shadow-map pass with per-pixel depth sampling (bias + bounded PCF), preserving deterministic fallback policy and contract boundaries. `Queued 2026-02-11`
 28. VQ4 visual regression guardrail slice: add deterministic visual-quality assertions/metrics and align wrapper/testing docs with new renderer quality expectations. `Queued 2026-02-11`
@@ -277,7 +344,7 @@ Handoff must include:
 - [x] R23 BGFX source-absent integrity signed-envelope/trust-chain planning hardening slice accepted for BGFX+Diligent.
 - [x] R24 BGFX source-absent integrity verification-enablement slice accepted for BGFX+Diligent.
 - [x] R25 BGFX source-absent integrity signature-model hardening slice completed and accepted.
-- [ ] VQ1 diagnostics baseline completed with deterministic repro settings + acceptance thresholds.
+- [x] VQ1 diagnostics baseline completed with deterministic repro settings + acceptance thresholds.
 - [ ] VQ2 texture minification quality improvements completed with BGFX/Diligent parity.
 - [ ] VQ3 visible directional shadowing improvements completed with BGFX/Diligent parity.
 - [ ] VQ4 deterministic visual regression guardrails + wrapper/docs updates completed.

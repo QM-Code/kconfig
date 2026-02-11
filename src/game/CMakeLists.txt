@@ -29,7 +29,7 @@ add_executable(bz3-server
     ${PROJECT_SOURCE_DIR}/src/game/server/domain/session_system.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/domain/world_session.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/main.cpp
-    ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
+    ${PROJECT_SOURCE_DIR}/src/game/server/net/transport_event_source.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/net/event_source.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/runtime.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/runtime_event_rules.cpp
@@ -85,7 +85,7 @@ if(BUILD_TESTING)
         ${PROJECT_SOURCE_DIR}/src/game/tests/server_net_contract_test.cpp
         ${PROJECT_SOURCE_DIR}/src/game/net/protocol_codec.cpp
         ${PROJECT_SOURCE_DIR}/src/game/server/net/event_source.cpp
-        ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/net/transport_event_source.cpp
     )
     target_include_directories(server_net_contract_test PRIVATE
         ${PROJECT_SOURCE_DIR}/include
@@ -117,7 +117,7 @@ if(BUILD_TESTING)
     add_executable(enet_loopback_integration_test
         ${PROJECT_SOURCE_DIR}/src/game/tests/enet_loopback_integration_test.cpp
         ${PROJECT_SOURCE_DIR}/src/game/net/protocol_codec.cpp
-        ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/net/transport_event_source.cpp
     )
     target_include_directories(enet_loopback_integration_test PRIVATE
         ${PROJECT_SOURCE_DIR}/include
@@ -141,7 +141,7 @@ if(BUILD_TESTING)
     add_executable(enet_multiclient_loopback_test
         ${PROJECT_SOURCE_DIR}/src/game/tests/enet_multiclient_loopback_test.cpp
         ${PROJECT_SOURCE_DIR}/src/game/net/protocol_codec.cpp
-        ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/net/transport_event_source.cpp
     )
     target_include_directories(enet_multiclient_loopback_test PRIVATE
         ${PROJECT_SOURCE_DIR}/include
@@ -165,7 +165,7 @@ if(BUILD_TESTING)
     add_executable(enet_disconnect_lifecycle_integration_test
         ${PROJECT_SOURCE_DIR}/src/game/tests/enet_disconnect_lifecycle_integration_test.cpp
         ${PROJECT_SOURCE_DIR}/src/game/net/protocol_codec.cpp
-        ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/net/transport_event_source.cpp
     )
     target_include_directories(enet_disconnect_lifecycle_integration_test PRIVATE
         ${PROJECT_SOURCE_DIR}/include
@@ -190,7 +190,7 @@ if(BUILD_TESTING)
         ${PROJECT_SOURCE_DIR}/src/game/tests/client_world_package_safety_integration_test.cpp
         ${PROJECT_SOURCE_DIR}/src/game/client/net/client_connection.cpp
         ${PROJECT_SOURCE_DIR}/src/game/net/protocol_codec.cpp
-        ${PROJECT_SOURCE_DIR}/src/game/server/net/enet_event_source.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/server/net/transport_event_source.cpp
     )
     target_include_directories(client_world_package_safety_integration_test PRIVATE
         ${PROJECT_SOURCE_DIR}/include

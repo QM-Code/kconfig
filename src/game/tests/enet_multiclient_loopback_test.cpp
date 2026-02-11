@@ -1,6 +1,6 @@
 #include "net/protocol.hpp"
 #include "net/protocol_codec.hpp"
-#include "server/net/enet_event_source.hpp"
+#include "server/net/transport_event_source.hpp"
 
 #include "karma/common/config_store.hpp"
 
@@ -81,7 +81,7 @@ std::optional<ServerFixture> CreateServerFixture() {
     constexpr uint16_t kFirstPort = 32100;
     constexpr uint16_t kLastPort = 32148;
     for (uint16_t port = kFirstPort; port < kLastPort; ++port) {
-        auto source = bz3::server::net::CreateEnetServerEventSource(port);
+        auto source = bz3::server::net::CreateServerTransportEventSource(port);
         if (source) {
             return ServerFixture{port, std::move(source)};
         }

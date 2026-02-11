@@ -7,6 +7,6 @@
 
 namespace bz3::server::net {
 
-std::unique_ptr<ServerEventSource> CreateEnetServerEventSource(uint16_t port);
+std::unique_ptr<ServerEventSource> CreateServerTransportEventSource(uint16_t port);
 
 } // namespace bz3::server::net

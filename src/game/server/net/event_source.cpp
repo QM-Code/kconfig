@@ -1,5 +1,5 @@
 #include "server/net/event_source.hpp"
-#include "server/net/enet_event_source.hpp"
+#include "server/net/transport_event_source.hpp"
 
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
@@ -247,20 +247,20 @@ std::unique_ptr<ServerEventSource> CreateServerEventSource(const CLIOptions& opt
     const uint16_t listen_port = options.host_port_explicit
         ? options.host_port
         : karma::config::ReadUInt16Config({"network.ServerPort"}, static_cast<uint16_t>(11899));
-    if (auto enet_source = CreateEnetServerEventSource(listen_port)) {
+    if (auto transport_source = CreateServerTransportEventSource(listen_port)) {
         KARMA_TRACE("engine.server",
-                    "bz3-server: using ENet event source on port {}",
+                    "bz3-server: using transport event source on port {}",
                     listen_port);
-        return enet_source;
+        return transport_source;
     }
 
     if (options.host_port_explicit) {
         KARMA_TRACE("engine.server",
-                    "bz3-server: ENet event source unavailable (port {}); using null event source",
+                    "bz3-server: transport event source unavailable (port {}); using null event source",
                     options.host_port);
     } else {
         KARMA_TRACE("engine.server",
-                    "bz3-server: ENet event source unavailable; using null event source");
+                    "bz3-server: transport event source unavailable; using null event source");
     }
     return std::make_unique<NullServerEventSource>();
 }

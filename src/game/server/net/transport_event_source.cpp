@@ -1,4 +1,4 @@
-#include "server/net/enet_event_source.hpp"
+#include "server/net/transport_event_source.hpp"
 
 #include "karma/network/server_transport.hpp"
 #include "karma/common/world_archive.hpp"
@@ -285,9 +285,9 @@ std::optional<std::vector<std::byte>> BuildWorldDeltaArchive(
     }
 }
 
-class EnetServerEventSource final : public ServerEventSource {
+class TransportServerEventSource final : public ServerEventSource {
  public:
-    explicit EnetServerEventSource(uint16_t port) : port_(port) {
+    explicit TransportServerEventSource(uint16_t port) : port_(port) {
         karma::network::ServerTransportConfig transport_config{};
         transport_config.listen_port = port_;
         transport_config.max_clients = kMaxClients;
@@ -325,7 +325,7 @@ class EnetServerEventSource final : public ServerEventSource {
                     kNumChannels);
     }
 
-    ~EnetServerEventSource() override = default;
+    ~TransportServerEventSource() override = default;
 
     bool initialized() const { return initialized_; }
 
@@ -348,12 +348,12 @@ class EnetServerEventSource final : public ServerEventSource {
                     state.client_id = client_id;
                     client_by_peer_[transport_event.peer] = std::move(state);
                     KARMA_TRACE("engine.server",
-                                "ServerEventSource: ENet connect client_id={} ip={} port={} (awaiting join packet)",
+                                "ServerEventSource: transport connect client_id={} ip={} port={} (awaiting join packet)",
                                 client_id,
                                 transport_event.peer_ip,
                                 transport_event.peer_port);
                     KARMA_TRACE("net.server",
-                                "ENet connect client_id={} ip={} port={}",
+                                "transport connect client_id={} ip={} port={}",
                                 client_id,
                                 transport_event.peer_ip,
                                 transport_event.peer_port);
@@ -367,13 +367,13 @@ class EnetServerEventSource final : public ServerEventSource {
                     const ClientConnectionState state = it->second;
                     client_by_peer_.erase(it);
                     KARMA_TRACE("engine.server",
-                                "ServerEventSource: ENet disconnect client_id={} ip={} port={} joined={}",
+                                "ServerEventSource: transport disconnect client_id={} ip={} port={} joined={}",
                                 state.client_id,
                                 state.peer_ip,
                                 state.peer_port,
                                 state.joined ? 1 : 0);
                     KARMA_TRACE("net.server",
-                                "ENet disconnect client_id={} ip={} port={} joined={}",
+                                "transport disconnect client_id={} ip={} port={} joined={}",
                                 state.client_id,
                                 state.peer_ip,
                                 state.peer_port,
@@ -687,7 +687,7 @@ class EnetServerEventSource final : public ServerEventSource {
         const auto peer_it = client_by_peer_.find(event.peer);
         if (peer_it == client_by_peer_.end()) {
             KARMA_TRACE("engine.server",
-                        "ServerEventSource: ENet receive from unknown peer ip={} port={} bytes={}",
+                        "ServerEventSource: transport receive from unknown peer ip={} port={} bytes={}",
                         event.peer_ip,
                         event.peer_port,
                         event.payload.size());
@@ -704,7 +704,7 @@ class EnetServerEventSource final : public ServerEventSource {
 
         if (event.payload.empty()) {
             KARMA_TRACE("engine.server",
-                        "ServerEventSource: ENet receive empty payload client_id={}",
+                        "ServerEventSource: transport receive empty payload client_id={}",
                         state.client_id);
             return;
         }
@@ -712,7 +712,7 @@ class EnetServerEventSource final : public ServerEventSource {
         const auto decoded = bz3::net::DecodeClientMessage(event.payload.data(), event.payload.size());
         if (!decoded.has_value()) {
             KARMA_TRACE("engine.server",
-                        "ServerEventSource: ENet receive invalid protobuf client_id={} bytes={}",
+                        "ServerEventSource: transport receive invalid protobuf client_id={} bytes={}",
                         state.client_id,
                         event.payload.size());
             return;
@@ -754,7 +754,7 @@ class EnetServerEventSource final : public ServerEventSource {
                     static_cast<void>(
                         sendJoinResponse(state.peer, false, "Protocol version mismatch."));
                     KARMA_TRACE("engine.server",
-                                "ServerEventSource: ENet join rejected client_id={} name='{}' protocol={} expected={}",
+                                "ServerEventSource: transport join rejected client_id={} name='{}' protocol={} expected={}",
                                 state.client_id,
                                 player_name,
                                 protocol_version,
@@ -764,7 +764,7 @@ class EnetServerEventSource final : public ServerEventSource {
                 }
                 if (state.joined) {
                     KARMA_TRACE("engine.server",
-                                "ServerEventSource: ENet duplicate join client_id={} name='{}' ignored",
+                                "ServerEventSource: transport duplicate join client_id={} name='{}' ignored",
                                 state.client_id,
                                 player_name);
                     return;
@@ -774,7 +774,7 @@ class EnetServerEventSource final : public ServerEventSource {
                 state.player_name = player_name;
                 emitJoinEvent(state.client_id, state.player_name, out);
                 KARMA_TRACE("engine.server",
-                            "ServerEventSource: ENet join client_id={} name='{}' protocol={} ip={} port={}",
+                            "ServerEventSource: transport join client_id={} name='{}' protocol={} ip={} port={}",
                             state.client_id,
                             state.player_name,
                             protocol_version,
@@ -785,7 +785,7 @@ class EnetServerEventSource final : public ServerEventSource {
             case bz3::net::ClientMessageType::PlayerLeave: {
                 if (!state.joined) {
                     KARMA_TRACE("engine.server",
-                                "ServerEventSource: ENet leave before join client_id={} ignored",
+                                "ServerEventSource: transport leave before join client_id={} ignored",
                                 state.client_id);
                     return;
                 }
@@ -793,7 +793,7 @@ class EnetServerEventSource final : public ServerEventSource {
                 state.joined = false;
                 emitLeaveEvent(state.client_id, out);
                 KARMA_TRACE("engine.server",
-                            "ServerEventSource: ENet leave client_id={} name='{}' ip={} port={}",
+                            "ServerEventSource: transport leave client_id={} name='{}' ip={} port={}",
                             state.client_id,
                             state.player_name,
                             state.peer_ip,
@@ -803,14 +803,14 @@ class EnetServerEventSource final : public ServerEventSource {
             case bz3::net::ClientMessageType::RequestPlayerSpawn: {
                 if (!state.joined) {
                     KARMA_TRACE("engine.server",
-                                "ServerEventSource: ENet request_spawn before join client_id={} ignored",
+                                "ServerEventSource: transport request_spawn before join client_id={} ignored",
                                 state.client_id);
                     return;
                 }
 
                 emitRequestSpawnEvent(state.client_id, out);
                 KARMA_TRACE("engine.server",
-                            "ServerEventSource: ENet request_spawn client_id={} name='{}' ip={} port={}",
+                            "ServerEventSource: transport request_spawn client_id={} name='{}' ip={} port={}",
                             state.client_id,
                             state.player_name,
                             state.peer_ip,
@@ -820,7 +820,7 @@ class EnetServerEventSource final : public ServerEventSource {
             case bz3::net::ClientMessageType::CreateShot: {
                 if (!state.joined) {
                     KARMA_TRACE("engine.server",
-                                "ServerEventSource: ENet create_shot before join client_id={} ignored",
+                                "ServerEventSource: transport create_shot before join client_id={} ignored",
                                 state.client_id);
                     return;
                 }
@@ -835,7 +835,7 @@ class EnetServerEventSource final : public ServerEventSource {
                                     decoded->shot_velocity.z,
                                     out);
                 KARMA_TRACE("engine.server",
-                            "ServerEventSource: ENet create_shot client_id={} local_shot_id={} ip={} port={}",
+                            "ServerEventSource: transport create_shot client_id={} local_shot_id={} ip={} port={}",
                             state.client_id,
                             decoded->local_shot_id,
                             state.peer_ip,
@@ -844,7 +844,7 @@ class EnetServerEventSource final : public ServerEventSource {
             }
             default:
                 KARMA_TRACE("engine.server",
-                            "ServerEventSource: ENet payload ignored client_id={} bytes={}",
+                            "ServerEventSource: transport payload ignored client_id={} bytes={}",
                             state.client_id,
                             event.payload.size());
                 return;
@@ -1176,12 +1176,12 @@ class EnetServerEventSource final : public ServerEventSource {
 
 } // namespace
 
-std::unique_ptr<ServerEventSource> CreateEnetServerEventSource(uint16_t port) {
-    auto enet = std::make_unique<EnetServerEventSource>(port);
-    if (!enet->initialized()) {
+std::unique_ptr<ServerEventSource> CreateServerTransportEventSource(uint16_t port) {
+    auto transport_source = std::make_unique<TransportServerEventSource>(port);
+    if (!transport_source->initialized()) {
         return nullptr;
     }
-    return enet;
+    return transport_source;
 }
 
 } // namespace bz3::server::net

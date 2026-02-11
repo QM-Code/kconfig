@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `specialist-network-backend-encapsulation`
-- Status: `in progress (P1 medium-high; Slice 1 docs+inventory complete on 2026-02-11; Slice 2 queued)`
-- Immediate next task: execute Slice 2 (runtime boundary migration) to remove game-side `CreateEnetServerEventSource`/`enet_event_source.*` references behind backend-neutral contracts.
+- Status: `in progress (P1 medium-high; Slice 1 + Slice 2 complete on 2026-02-11; Slice 3 queued)`
+- Immediate next task: execute Slice 3 (game test fixture migration) to remove raw ENet C API usage from game tests by moving fixture mechanics into engine-owned test support contracts.
 - Strategic alignment: `shared unblocker` for `m-dev` parity + `KARMA-capability-ready` architecture by advancing engine-owned networking defaults and removing backend leakage from game paths without changing gameplay/protocol semantics.
 - Validation gate: docs-only slices run `./docs/scripts/lint-project-docs.sh`; code-touching slices must pass `./bzbuild.py -c` plus `./scripts/test-server-net.sh <build-dir>` in both assigned engine-network-foundation build dirs.
 
@@ -63,6 +63,18 @@ Runtime transport ownership has mostly moved into engine contracts; this track f
     - `rg -n "<enet/enet.h>|#include <enet|include \"enet" src/game`
     - `rg -n "\benet\b|ENet|ENET_" src/game`
 - Inventory summary: `9` files with direct ENet references and `272` matching hits (including symbol names, string literals, CMake target/link wiring, and raw ENet C API usage).
+
+## Slice 2 Results (Runtime Boundary Migration, 2026-02-11)
+- Scope executed: runtime boundary naming/contracts only for game-facing event source entrypoints (no protocol schema/codec changes, no gameplay behavior changes).
+- Completed contract migration:
+  - renamed game runtime event-source files:
+    - `src/game/server/net/enet_event_source.hpp` -> `src/game/server/net/transport_event_source.hpp`
+    - `src/game/server/net/enet_event_source.cpp` -> `src/game/server/net/transport_event_source.cpp`
+  - renamed game-facing factory contract:
+    - `CreateEnetServerEventSource(uint16_t)` -> `CreateServerTransportEventSource(uint16_t)`
+  - updated call-sites/includes and game CMake compile references to consume backend-neutral names.
+  - neutralized runtime event-source creation traces in `src/game/server/net/event_source.cpp` (`ENet event source` -> `transport event source`).
+- Acceptance gate result: both required `bzbuild.py -c` builds and both required `test-server-net.sh <build-dir>` wrappers passed.
 
 ### ENet Inventory Map
 | Path | Symbol/Use | Classification | Planned Destination/Action |
@@ -134,7 +146,7 @@ From `m-rewrite/`:
      - `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio`
      - `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio`
      - docs updates in this file + `docs/projects/ASSIGNMENTS.md`.
-   - Status: `Queued (ready)`.
+   - Status: `Completed (2026-02-11)`.
 3. Slice 3 (game test fixture migration):
    - eliminate raw ENet C API usage from game tests (`src/game/tests/enet_*`, raw fixture paths in `client_world_package_safety_integration_test.cpp`),
    - move backend fixture mechanics into engine-owned test support (`src/engine/network/tests/*`) and keep game tests protocol/gameplay assertion focused.
@@ -162,6 +174,7 @@ From `m-rewrite/`:
 ## Current Status
 - `2026-02-11`: Project created at medium-high priority to finish ENet encapsulation and remove backend leakage from game-side code/tests/build wiring.
 - `2026-02-11`: Slice 1 (docs+inventory) completed; direct ENet references under `src/game/*` fully mapped/classified (`remove`/`migrate`/`retain-with-rationale`) and follow-on gated slice plan defined.
+- `2026-02-11`: Slice 2 (runtime boundary migration) completed; game-facing ENet-specific event-source files/factory were migrated to backend-neutral `transport_event_source.*` and `CreateServerTransportEventSource` contracts while preserving runtime behavior.
 - `2026-02-11`: Strategic track alignment confirmed: this project is a shared unblocker for `m-dev` parity and KARMA-capability-ready architecture by tightening engine-owned networking defaults without protocol/gameplay changes.
 
 ## Open Questions
