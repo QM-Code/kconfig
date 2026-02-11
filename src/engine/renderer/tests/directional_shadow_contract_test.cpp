@@ -1342,6 +1342,34 @@ bool RunDirectSamplerObservabilityContractChecks() {
         return false;
     }
 
+    const auto bgfx_source_absent_integrity_signed_envelope_verification_inputs_invalid =
+        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+                true,   // manifest_exists
+                true,   // manifest_parse_ready
+                "ok",
+                true,   // manifest_version_supported
+                true,   // manifest_algorithm_supported
+                true,   // manifest_hash_present
+                true,   // binary_hash_available
+                true,   // hash_matches_manifest
+                true,   // signed_envelope_declared
+                true,   // signed_envelope_verification_available
+                true,   // signed_envelope_mode_supported
+                true,   // signed_envelope_trust_root_available
+                true,   // signed_envelope_trust_chain_valid
+                true,   // signed_envelope_signature_material_valid
+                true,   // signed_envelope_signature_verified
+                true,   // signed_envelope_verification_inputs_checked
+                false,  // signed_envelope_verification_inputs_valid
+            });
+    if (bgfx_source_absent_integrity_signed_envelope_verification_inputs_invalid.ready ||
+        bgfx_source_absent_integrity_signed_envelope_verification_inputs_invalid.reason !=
+            "source_missing_and_integrity_signed_envelope_verification_inputs_invalid") {
+        std::cerr << "expected BGFX source-absent integrity policy to disable on invalid signed-envelope verification inputs\n";
+        return false;
+    }
+
     const auto bgfx_source_absent_integrity_signed_envelope_signature_verification_failed =
         karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
             karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
@@ -1536,6 +1564,24 @@ bool RunDirectSamplerObservabilityContractChecks() {
         bgfx_source_absent_alignment_signed_envelope_signature_material_invalid.reason !=
             "source_missing_and_integrity_signed_envelope_signature_material_invalid") {
         std::cerr << "expected BGFX source-absent alignment policy to propagate invalid signature-material reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_alignment_signed_envelope_verification_inputs_invalid =
+        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+                false,  // source_exists
+                false,  // source_declares_direct_contract
+                true,   // binary_exists
+                true,   // binary_non_empty
+                false,  // binary_up_to_date
+                bgfx_source_absent_integrity_signed_envelope_verification_inputs_invalid.ready,
+                bgfx_source_absent_integrity_signed_envelope_verification_inputs_invalid.reason,
+            });
+    if (bgfx_source_absent_alignment_signed_envelope_verification_inputs_invalid.ready ||
+        bgfx_source_absent_alignment_signed_envelope_verification_inputs_invalid.reason !=
+            "source_missing_and_integrity_signed_envelope_verification_inputs_invalid") {
+        std::cerr << "expected BGFX source-absent alignment policy to propagate signed-envelope verification-inputs reason\n";
         return false;
     }
 
@@ -1790,6 +1836,17 @@ bool RunDirectSamplerObservabilityContractChecks() {
         bgfx_source_absent_signed_envelope_signature_material_invalid_contract.reason !=
             "source_missing_and_integrity_signed_envelope_signature_material_invalid") {
         std::cerr << "expected BGFX direct sampler readiness to propagate signed-envelope signature-material mismatch reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_signed_envelope_verification_inputs_invalid_contract =
+        EvaluateBgfxDirectSamplerContract(
+            true,   // uniform_contract_ready
+            bgfx_source_absent_alignment_signed_envelope_verification_inputs_invalid);
+    if (bgfx_source_absent_signed_envelope_verification_inputs_invalid_contract.ready_for_direct_path ||
+        bgfx_source_absent_signed_envelope_verification_inputs_invalid_contract.reason !=
+            "source_missing_and_integrity_signed_envelope_verification_inputs_invalid") {
+        std::cerr << "expected BGFX direct sampler readiness to propagate signed-envelope verification-inputs reason\n";
         return false;
     }
 

@@ -62,6 +62,8 @@ struct BgfxSourceAbsentIntegrityInput {
     bool signed_envelope_trust_chain_valid = false;
     bool signed_envelope_signature_material_valid = false;
     bool signed_envelope_signature_verified = false;
+    bool signed_envelope_verification_inputs_checked = false;
+    bool signed_envelope_verification_inputs_valid = true;
 };
 
 struct BgfxSourceAbsentIntegrityReport {
@@ -192,6 +194,11 @@ inline BgfxSourceAbsentIntegrityReport EvaluateBgfxSourceAbsentIntegrityPolicy(
         }
         if (!input.signed_envelope_signature_material_valid) {
             report.reason = "source_missing_and_integrity_signed_envelope_signature_material_invalid";
+            return report;
+        }
+        if (input.signed_envelope_verification_inputs_checked &&
+            !input.signed_envelope_verification_inputs_valid) {
+            report.reason = "source_missing_and_integrity_signed_envelope_verification_inputs_invalid";
             return report;
         }
         if (!input.signed_envelope_signature_verified) {

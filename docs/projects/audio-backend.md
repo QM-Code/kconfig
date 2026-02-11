@@ -9,6 +9,16 @@
 ## Mission
 Own engine audio backend behavior and contract parity (`auto|sdl3audio|miniaudio`) across client and optional server-audio paths.
 
+## Backend Priority Policy (2026-02-11)
+- `sdl3audio` is the primary/default backend for runtime behavior and feature direction.
+- `miniaudio` is retained as:
+  - fallback backend path,
+  - secondary contract/smoke validation path.
+- Do not run co-equal feature-expansion work across both backends by default.
+- Expand `miniaudio` beyond shared contract parity only when:
+  - a concrete platform/runtime blocker is found, or
+  - a product requirement explicitly needs it.
+
 ## Primary Specs
 - `docs/projects/core-engine-infrastructure.md` (audio sections)
 - `docs/projects/engine-backend-testing.md`

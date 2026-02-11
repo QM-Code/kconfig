@@ -24,8 +24,10 @@ This is the delegation entrypoint for rewrite work.
 - `core-engine-infrastructure.md`
 - `engine-defaults-architecture.md`
 - `engine-backend-testing.md`
+- `engine-game-boundary-hygiene.md`
 - `engine-network-foundation.md`
 - `gameplay-netcode.md`
+- `network-backend-encapsulation.md`
 - `physics-backend.md`
 - `platform-backend-policy.md`
 - `renderer-parity.md`
@@ -36,8 +38,10 @@ This is the delegation entrypoint for rewrite work.
 ## Current Focus Board
 - `engine-network-foundation.md`: priority/ready, move generic transport/session boilerplate into engine-owned contracts while keeping game protocol semantics game-owned.
 - `core-engine-infrastructure.md`: in progress, backbone planning and dependency sequencing.
-- `renderer-parity.md`: priority/in progress, close KARMA-REPO capability gaps while preserving backend boundaries.
+- `renderer-parity.md`: priority/in progress, complete queued P0 integrity/signature continuity then execute merged P1 visual-quality slices (scene shadows + stable distance texture quality) under backend-parity guardrails.
 - `engine-defaults-architecture.md`: in progress, architecture baseline is now codified in `docs/architecture/ENGINE_DEFAULTS_MODEL.md`; next convert scheduling and component-catalog guidance into implementation slices.
+- `engine-game-boundary-hygiene.md`: queued (P2 low-medium; ready to assign), capture and execute bounded extraction of game-side boilerplate into engine-owned scaffolding contracts without moving gameplay/protocol semantics.
+- `network-backend-encapsulation.md`: queued (P1 medium-high; ready to assign), remove remaining direct ENet references from `src/game/*` so game networking consumes only engine transport contracts.
 - `server-network.md`: queued, continue runtime/protocol hardening after the engine-network-foundation first slice lands.
 - `physics-backend.md`: queued, continue backend parity while aligning to architecture/defaults decisions.
 - `platform-backend-policy.md`: queued (P2 medium; ready to assign), execute Slice 1 SDL3-only policy inventory/removal plan while preserving thin engine-owned platform seam and future adapter contract boundary.

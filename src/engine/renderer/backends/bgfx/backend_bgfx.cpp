@@ -90,6 +90,8 @@ std::string TrimAscii(const std::string& input) {
 constexpr int kBgfxIntegrityManifestVersion = 1;
 constexpr const char* kBgfxIntegrityManifestAlgorithm = "fnv1a64";
 constexpr const char* kBgfxIntegritySignedEnvelopeMode = "v1";
+constexpr std::size_t kBgfxTrustChainIdentityMaxLength = 64u;
+constexpr std::size_t kBgfxSignedEnvelopeSignatureMaxHexLength = 512u;
 
 bool ParseBgfxIntegrityManifestVersion(const std::string& token, int& out_version) {
     if (token.empty()) {
@@ -131,7 +133,9 @@ bool ParseBgfxIntegrityManifestEnvelopeSignature(
     if (candidate.rfind("0x", 0u) == 0u || candidate.rfind("0X", 0u) == 0u) {
         candidate.erase(0u, 2u);
     }
-    if (candidate.size() < 16u || (candidate.size() % 2u) != 0u) {
+    if (candidate.size() < 16u ||
+        candidate.size() > kBgfxSignedEnvelopeSignatureMaxHexLength ||
+        (candidate.size() % 2u) != 0u) {
         return false;
     }
     for (char& ch : candidate) {
@@ -142,6 +146,33 @@ bool ParseBgfxIntegrityManifestEnvelopeSignature(
         ch = static_cast<char>(std::tolower(uch));
     }
     out_signature = candidate;
+    return true;
+}
+
+bool IsCanonicalLowerHexToken(const std::string& token, std::size_t expected_size) {
+    if (token.size() != expected_size) {
+        return false;
+    }
+    for (char ch : token) {
+        const unsigned char uch = static_cast<unsigned char>(ch);
+        if (std::isxdigit(uch) == 0 || std::isupper(uch) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ValidateBgfxTrustIdentityToken(const std::string& token) {
+    if (token.empty() || token.size() > kBgfxTrustChainIdentityMaxLength) {
+        return false;
+    }
+    for (char ch : token) {
+        const unsigned char uch = static_cast<unsigned char>(ch);
+        const bool allowed = (std::isalnum(uch) != 0) || ch == '.' || ch == '_' || ch == '-';
+        if (!allowed) {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -164,6 +195,8 @@ bool ValidateBgfxIntegrityManifestTrustChainToken(const std::string& token) {
 struct ParsedBgfxIntegrityManifest {
     bool parse_ready = false;
     std::string parse_reason = "source_missing_and_integrity_manifest_parse_failed";
+    int version = 0;
+    std::string algorithm{};
     bool version_supported = false;
     bool algorithm_supported = false;
     bool hash_present = false;
@@ -263,6 +296,7 @@ ParsedBgfxIntegrityManifest ParseBgfxIntegrityManifest(const std::string& manife
             manifest.parse_reason = "source_missing_and_integrity_manifest_invalid_value_form";
             return manifest;
         }
+        manifest.version = parsed_version;
         manifest.version_supported = (parsed_version == kBgfxIntegrityManifestVersion);
     }
 
@@ -284,6 +318,7 @@ ParsedBgfxIntegrityManifest ParseBgfxIntegrityManifest(const std::string& manife
                 return manifest;
             }
         }
+        manifest.algorithm = algorithm;
         manifest.algorithm_supported = (algorithm == kBgfxIntegrityManifestAlgorithm);
     }
 
@@ -395,17 +430,39 @@ std::optional<std::string> ParseBgfxTrustRootIdFromChain(const std::string& trus
     const std::size_t slash_pos = chain.find('/', root_begin);
     const std::string root_id =
         (slash_pos == std::string::npos) ? chain.substr(root_begin) : chain.substr(root_begin, slash_pos - root_begin);
-    if (root_id.empty()) {
+    if (!ValidateBgfxTrustIdentityToken(root_id)) {
         return std::nullopt;
     }
-    for (char ch : root_id) {
-        const unsigned char uch = static_cast<unsigned char>(ch);
-        const bool allowed = (std::isalnum(uch) != 0) || ch == '.' || ch == '_' || ch == '-';
-        if (!allowed) {
-            return std::nullopt;
-        }
-    }
     return root_id;
+}
+
+std::optional<std::string> ParseBgfxSigningKeyIdFromChain(const std::string& trust_chain) {
+    constexpr const char* kRootPrefix = "root:";
+    constexpr const char* kSigningKeyPrefix = "/signing-key:";
+    const std::string chain = TrimAscii(trust_chain);
+    if (chain.rfind(kRootPrefix, 0u) != 0u) {
+        return std::nullopt;
+    }
+
+    const std::size_t root_begin = std::strlen(kRootPrefix);
+    const std::size_t key_pos = chain.find(kSigningKeyPrefix, root_begin);
+    if (key_pos == std::string::npos) {
+        return std::nullopt;
+    }
+    const std::string root_id = chain.substr(root_begin, key_pos - root_begin);
+    if (!ValidateBgfxTrustIdentityToken(root_id)) {
+        return std::nullopt;
+    }
+
+    const std::size_t key_begin = key_pos + std::strlen(kSigningKeyPrefix);
+    const std::string key_id = chain.substr(key_begin);
+    if (key_id.find('/') != std::string::npos) {
+        return std::nullopt;
+    }
+    if (!ValidateBgfxTrustIdentityToken(key_id)) {
+        return std::nullopt;
+    }
+    return key_id;
 }
 
 struct BgfxTrustRootPolicyResult {
@@ -440,8 +497,21 @@ BgfxTrustRootPolicyResult ResolveBgfxSignedEnvelopeTrustRootPolicy(
 std::string ComposeBgfxSignedEnvelopeVerificationPayload(
     const std::string& binary_hash,
     const std::string& trust_chain,
+    const std::string& trust_root_id,
+    const std::string& signing_key_id,
+    const std::string& signed_envelope_mode,
+    int manifest_version,
+    const std::string& manifest_algorithm,
     const std::string& trust_root_secret) {
-    return std::string("bgfx_signed_envelope_v1|") + binary_hash + "|" + trust_chain + "|" + trust_root_secret;
+    return std::string("bgfx_signed_envelope_v1")
+        + "|mode=" + signed_envelope_mode
+        + "|manifest.version=" + std::to_string(manifest_version)
+        + "|manifest.algorithm=" + manifest_algorithm
+        + "|binary.hash=" + binary_hash
+        + "|trust.root=" + trust_root_id
+        + "|trust.key=" + signing_key_id
+        + "|trust.chain=" + trust_chain
+        + "|trust.root_secret=" + trust_root_secret;
 }
 
 struct BgfxDirectSamplerShaderAlignment {
@@ -516,6 +586,8 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment() {
         bool signed_envelope_trust_chain_valid = false;
         bool signed_envelope_signature_material_valid = false;
         bool signed_envelope_signature_verified = false;
+        bool signed_envelope_verification_inputs_checked = false;
+        bool signed_envelope_verification_inputs_valid = true;
         ParsedBgfxIntegrityManifest parsed_manifest{};
 
         ec.clear();
@@ -542,7 +614,10 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment() {
         if (signed_envelope_declared) {
             const std::optional<std::string> trust_root_id =
                 ParseBgfxTrustRootIdFromChain(parsed_manifest.signed_envelope_trust_chain);
+            const std::optional<std::string> signing_key_id =
+                ParseBgfxSigningKeyIdFromChain(parsed_manifest.signed_envelope_trust_chain);
             signed_envelope_trust_chain_valid = trust_root_id.has_value();
+            signed_envelope_verification_inputs_checked = true;
 
             const BgfxTrustRootPolicyResult trust_root_policy =
                 ResolveBgfxSignedEnvelopeTrustRootPolicy(trust_root_id);
@@ -552,10 +627,31 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment() {
             signed_envelope_signature_material_valid =
                 (parsed_manifest.signed_envelope_signature.size() == 16u);
 
+            const bool binary_hash_canonical =
+                actual_hash.has_value() &&
+                IsCanonicalLowerHexToken(actual_hash.value(), 16u);
+            const bool manifest_hash_canonical =
+                parsed_manifest.hash_present &&
+                IsCanonicalLowerHexToken(parsed_manifest.hash, 16u);
+            const bool signed_envelope_mode_canonical =
+                (parsed_manifest.signed_envelope_mode == kBgfxIntegritySignedEnvelopeMode);
+            const bool manifest_version_canonical =
+                (parsed_manifest.version == kBgfxIntegrityManifestVersion);
+            const bool manifest_algorithm_canonical =
+                (parsed_manifest.algorithm == kBgfxIntegrityManifestAlgorithm);
+            signed_envelope_verification_inputs_valid =
+                signing_key_id.has_value() &&
+                binary_hash_canonical &&
+                manifest_hash_canonical &&
+                signed_envelope_mode_canonical &&
+                manifest_version_canonical &&
+                manifest_algorithm_canonical;
+
             if (signed_envelope_verification_available &&
                 signed_envelope_mode_supported &&
                 signed_envelope_trust_root_available &&
                 signed_envelope_trust_chain_valid &&
+                signed_envelope_verification_inputs_valid &&
                 signed_envelope_signature_material_valid &&
                 hash_matches_manifest &&
                 actual_hash.has_value()) {
@@ -563,6 +659,11 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment() {
                     ComposeBgfxSignedEnvelopeVerificationPayload(
                         actual_hash.value(),
                         parsed_manifest.signed_envelope_trust_chain,
+                        trust_root_id.value(),
+                        signing_key_id.value(),
+                        parsed_manifest.signed_envelope_mode,
+                        parsed_manifest.version,
+                        parsed_manifest.algorithm,
                         trust_root_policy.trust_root_secret));
                 signed_envelope_signature_verified =
                     (expected_signature == parsed_manifest.signed_envelope_signature);
@@ -586,6 +687,8 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment() {
                 signed_envelope_trust_chain_valid,
                 signed_envelope_signature_material_valid,
                 signed_envelope_signature_verified,
+                signed_envelope_verification_inputs_checked,
+                signed_envelope_verification_inputs_valid,
             });
     }
     report.source_absent_integrity_ready = source_absent_integrity.ready;

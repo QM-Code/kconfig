@@ -190,3 +190,13 @@ Format:
 - Impact:
   - KARMA intake remains timely and explicit,
   - startup output always includes freshness status (or explicit stale-state warning if fetch fails).
+
+### L) Audio backend hierarchy is primary+fallback, not co-equal feature expansion
+- Decision:
+  - keep `sdl3audio` as the primary/default runtime backend and treat `miniaudio` as fallback plus contract/smoke validation backend.
+- Why:
+  - this preserves backend resilience and parity checks without spending top-track bandwidth on co-equal feature expansion across both audio implementations.
+- Impact:
+  - audio work prioritizes correctness and stability of the default (`sdl3audio`) path,
+  - `miniaudio` remains compiled/tested and usable as fallback/validation oracle,
+  - backend feature parity beyond shared contract behavior is only expanded when a concrete blocker or product requirement justifies it.
