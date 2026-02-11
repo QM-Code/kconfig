@@ -2,9 +2,14 @@
 
 #include <enet.h>
 
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
+#include <string>
+#include <thread>
 #include <vector>
 
 namespace karma::network::tests {
@@ -49,5 +54,46 @@ bool SendLoopbackPayload(LoopbackEnetEndpoint* endpoint,
 bool DecodeLoopbackPayloadPair(const std::vector<std::byte>& payload,
                                uint8_t* out_first,
                                uint8_t* out_second);
+
+struct LoopbackPumpThread {
+    std::atomic<bool> keep_running{false};
+    std::thread thread{};
+};
+
+bool StartLoopbackEndpointPumpThread(LoopbackPumpThread* pump,
+                                     LoopbackEnetEndpoint* endpoint,
+                                     std::chrono::milliseconds sleep_interval =
+                                         std::chrono::milliseconds(1));
+
+void StopLoopbackEndpointPumpThread(LoopbackPumpThread* pump);
+
+struct BoundedProbeLoopOptions {
+    std::chrono::steady_clock::time_point deadline{};
+    std::chrono::milliseconds poll_sleep = std::chrono::milliseconds(1);
+    uint32_t probe_interval_polls = 0;
+    uint32_t probe_max_sends = 0;
+};
+
+struct BoundedProbeLoopDiagnostics {
+    uint32_t poll_loops = 0;
+    uint32_t probe_sends = 0;
+};
+
+bool RunBoundedProbeLoop(const BoundedProbeLoopOptions& options,
+                         const std::function<void()>& send_probe,
+                         const std::function<bool()>& poll_once,
+                         const std::function<bool()>& done,
+                         BoundedProbeLoopDiagnostics* diagnostics);
+
+struct BoundedProbePhaseResult {
+    bool completed = false;
+    BoundedProbeLoopDiagnostics diagnostics{};
+    std::string failure_message{};
+};
+
+BoundedProbePhaseResult RunBoundedProbePhase(const BoundedProbeLoopOptions& options,
+                                             const std::function<void()>& send_probe,
+                                             const std::function<bool(std::string* out_error)>& poll_once,
+                                             const std::function<bool()>& done);
 
 } // namespace karma::network::tests

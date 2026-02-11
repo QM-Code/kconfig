@@ -151,4 +151,91 @@ bool DecodeLoopbackPayloadPair(const std::vector<std::byte>& payload,
     return true;
 }
 
+void StopLoopbackEndpointPumpThread(LoopbackPumpThread* pump) {
+    if (!pump) {
+        return;
+    }
+    pump->keep_running.store(false);
+    if (pump->thread.joinable()) {
+        pump->thread.join();
+    }
+}
+
+bool StartLoopbackEndpointPumpThread(LoopbackPumpThread* pump,
+                                     LoopbackEnetEndpoint* endpoint,
+                                     std::chrono::milliseconds sleep_interval) {
+    if (!pump || !endpoint || !endpoint->host) {
+        return false;
+    }
+    StopLoopbackEndpointPumpThread(pump);
+    pump->keep_running.store(true);
+    pump->thread = std::thread([pump, endpoint, sleep_interval]() {
+        while (pump->keep_running.load()) {
+            PumpLoopbackEndpoint(endpoint);
+            std::this_thread::sleep_for(sleep_interval);
+        }
+    });
+    return true;
+}
+
+bool RunBoundedProbeLoop(const BoundedProbeLoopOptions& options,
+                         const std::function<void()>& send_probe,
+                         const std::function<bool()>& poll_once,
+                         const std::function<bool()>& done,
+                         BoundedProbeLoopDiagnostics* diagnostics) {
+    if (!poll_once || !done) {
+        return false;
+    }
+
+    BoundedProbeLoopDiagnostics local_diag{};
+    while (std::chrono::steady_clock::now() < options.deadline) {
+        ++local_diag.poll_loops;
+        if (send_probe && options.probe_interval_polls > 0 &&
+            local_diag.probe_sends < options.probe_max_sends &&
+            (local_diag.poll_loops % options.probe_interval_polls) == 0) {
+            send_probe();
+            ++local_diag.probe_sends;
+        }
+        if (!poll_once()) {
+            if (diagnostics) {
+                *diagnostics = local_diag;
+            }
+            return false;
+        }
+        if (done()) {
+            if (diagnostics) {
+                *diagnostics = local_diag;
+            }
+            return true;
+        }
+        std::this_thread::sleep_for(options.poll_sleep);
+    }
+
+    if (diagnostics) {
+        *diagnostics = local_diag;
+    }
+    return false;
+}
+
+BoundedProbePhaseResult RunBoundedProbePhase(const BoundedProbeLoopOptions& options,
+                                             const std::function<void()>& send_probe,
+                                             const std::function<bool(std::string* out_error)>& poll_once,
+                                             const std::function<bool()>& done) {
+    BoundedProbePhaseResult result{};
+    if (!poll_once || !done) {
+        result.failure_message = "invalid bounded probe phase callbacks";
+        return result;
+    }
+
+    std::string phase_error{};
+    result.completed = RunBoundedProbeLoop(
+        options,
+        send_probe,
+        [&]() { return poll_once(&phase_error); },
+        done,
+        &result.diagnostics);
+    result.failure_message = std::move(phase_error);
+    return result;
+}
+
 } // namespace karma::network::tests

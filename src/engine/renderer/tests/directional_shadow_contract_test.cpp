@@ -1247,6 +1247,153 @@ bool RunDirectSamplerObservabilityContractChecks() {
         return false;
     }
 
+    const auto bgfx_source_absent_integrity_signed_envelope_mode_unsupported =
+        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+                true,   // manifest_exists
+                true,   // manifest_parse_ready
+                "ok",
+                true,   // manifest_version_supported
+                true,   // manifest_algorithm_supported
+                true,   // manifest_hash_present
+                true,   // binary_hash_available
+                true,   // hash_matches_manifest
+                true,   // signed_envelope_declared
+                true,   // signed_envelope_verification_available
+                false,  // signed_envelope_mode_supported
+            });
+    if (bgfx_source_absent_integrity_signed_envelope_mode_unsupported.ready ||
+        bgfx_source_absent_integrity_signed_envelope_mode_unsupported.reason !=
+            "source_missing_and_integrity_signed_envelope_verification_mode_unsupported") {
+        std::cerr << "expected BGFX source-absent integrity policy to disable on signed-envelope mode mismatch\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_integrity_signed_envelope_trust_chain_invalid =
+        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+                true,   // manifest_exists
+                true,   // manifest_parse_ready
+                "ok",
+                true,   // manifest_version_supported
+                true,   // manifest_algorithm_supported
+                true,   // manifest_hash_present
+                true,   // binary_hash_available
+                true,   // hash_matches_manifest
+                true,   // signed_envelope_declared
+                true,   // signed_envelope_verification_available
+                true,   // signed_envelope_mode_supported
+                false,  // signed_envelope_trust_root_available
+                false,  // signed_envelope_trust_chain_valid
+            });
+    if (bgfx_source_absent_integrity_signed_envelope_trust_chain_invalid.ready ||
+        bgfx_source_absent_integrity_signed_envelope_trust_chain_invalid.reason !=
+            "source_missing_and_integrity_signed_envelope_trust_chain_material_invalid") {
+        std::cerr << "expected BGFX source-absent integrity policy to disable on signed-envelope trust-chain material mismatch\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_integrity_signed_envelope_trust_root_missing =
+        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+                true,   // manifest_exists
+                true,   // manifest_parse_ready
+                "ok",
+                true,   // manifest_version_supported
+                true,   // manifest_algorithm_supported
+                true,   // manifest_hash_present
+                true,   // binary_hash_available
+                true,   // hash_matches_manifest
+                true,   // signed_envelope_declared
+                true,   // signed_envelope_verification_available
+                true,   // signed_envelope_mode_supported
+                false,  // signed_envelope_trust_root_available
+                true,   // signed_envelope_trust_chain_valid
+            });
+    if (bgfx_source_absent_integrity_signed_envelope_trust_root_missing.ready ||
+        bgfx_source_absent_integrity_signed_envelope_trust_root_missing.reason !=
+            "source_missing_and_integrity_signed_envelope_trust_root_missing") {
+        std::cerr << "expected BGFX source-absent integrity policy to disable on missing signed-envelope trust root\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_integrity_signed_envelope_signature_material_invalid =
+        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+                true,   // manifest_exists
+                true,   // manifest_parse_ready
+                "ok",
+                true,   // manifest_version_supported
+                true,   // manifest_algorithm_supported
+                true,   // manifest_hash_present
+                true,   // binary_hash_available
+                true,   // hash_matches_manifest
+                true,   // signed_envelope_declared
+                true,   // signed_envelope_verification_available
+                true,   // signed_envelope_mode_supported
+                true,   // signed_envelope_trust_root_available
+                true,   // signed_envelope_trust_chain_valid
+                false,  // signed_envelope_signature_material_valid
+            });
+    if (bgfx_source_absent_integrity_signed_envelope_signature_material_invalid.ready ||
+        bgfx_source_absent_integrity_signed_envelope_signature_material_invalid.reason !=
+            "source_missing_and_integrity_signed_envelope_signature_material_invalid") {
+        std::cerr << "expected BGFX source-absent integrity policy to disable on invalid signed-envelope signature material\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_integrity_signed_envelope_signature_verification_failed =
+        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+                true,   // manifest_exists
+                true,   // manifest_parse_ready
+                "ok",
+                true,   // manifest_version_supported
+                true,   // manifest_algorithm_supported
+                true,   // manifest_hash_present
+                true,   // binary_hash_available
+                true,   // hash_matches_manifest
+                true,   // signed_envelope_declared
+                true,   // signed_envelope_verification_available
+                true,   // signed_envelope_mode_supported
+                true,   // signed_envelope_trust_root_available
+                true,   // signed_envelope_trust_chain_valid
+                true,   // signed_envelope_signature_material_valid
+                false,  // signed_envelope_signature_verified
+            });
+    if (bgfx_source_absent_integrity_signed_envelope_signature_verification_failed.ready ||
+        bgfx_source_absent_integrity_signed_envelope_signature_verification_failed.reason !=
+            "source_missing_and_integrity_signed_envelope_signature_verification_failed") {
+        std::cerr << "expected BGFX source-absent integrity policy to disable on signed-envelope signature verification failure\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_integrity_signed_envelope_verified =
+        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+                true,   // manifest_exists
+                true,   // manifest_parse_ready
+                "ok",
+                true,   // manifest_version_supported
+                true,   // manifest_algorithm_supported
+                true,   // manifest_hash_present
+                true,   // binary_hash_available
+                true,   // hash_matches_manifest
+                true,   // signed_envelope_declared
+                true,   // signed_envelope_verification_available
+                true,   // signed_envelope_mode_supported
+                true,   // signed_envelope_trust_root_available
+                true,   // signed_envelope_trust_chain_valid
+                true,   // signed_envelope_signature_material_valid
+                true,   // signed_envelope_signature_verified
+            });
+    if (!bgfx_source_absent_integrity_signed_envelope_verified.ready ||
+        bgfx_source_absent_integrity_signed_envelope_verified.reason !=
+            "ok_source_absent_signed_envelope_verified") {
+        std::cerr << "expected BGFX source-absent integrity policy to enable when signed-envelope verification succeeds\n";
+        return false;
+    }
+
     const auto bgfx_source_absent_alignment =
         karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
             karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
@@ -1317,6 +1464,114 @@ bool RunDirectSamplerObservabilityContractChecks() {
         bgfx_source_absent_alignment_signed_envelope_deferred.reason !=
             "source_missing_and_integrity_signed_envelope_verification_deferred") {
         std::cerr << "expected BGFX source-absent alignment policy to propagate signed-envelope verification-deferred reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_alignment_signed_envelope_mode_unsupported =
+        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+                false,  // source_exists
+                false,  // source_declares_direct_contract
+                true,   // binary_exists
+                true,   // binary_non_empty
+                false,  // binary_up_to_date
+                bgfx_source_absent_integrity_signed_envelope_mode_unsupported.ready,
+                bgfx_source_absent_integrity_signed_envelope_mode_unsupported.reason,
+            });
+    if (bgfx_source_absent_alignment_signed_envelope_mode_unsupported.ready ||
+        bgfx_source_absent_alignment_signed_envelope_mode_unsupported.reason !=
+            "source_missing_and_integrity_signed_envelope_verification_mode_unsupported") {
+        std::cerr << "expected BGFX source-absent alignment policy to propagate signed-envelope mode mismatch reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_alignment_signed_envelope_trust_root_missing =
+        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+                false,  // source_exists
+                false,  // source_declares_direct_contract
+                true,   // binary_exists
+                true,   // binary_non_empty
+                false,  // binary_up_to_date
+                bgfx_source_absent_integrity_signed_envelope_trust_root_missing.ready,
+                bgfx_source_absent_integrity_signed_envelope_trust_root_missing.reason,
+            });
+    if (bgfx_source_absent_alignment_signed_envelope_trust_root_missing.ready ||
+        bgfx_source_absent_alignment_signed_envelope_trust_root_missing.reason !=
+            "source_missing_and_integrity_signed_envelope_trust_root_missing") {
+        std::cerr << "expected BGFX source-absent alignment policy to propagate missing trust-root reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_alignment_signed_envelope_trust_chain_invalid =
+        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+                false,  // source_exists
+                false,  // source_declares_direct_contract
+                true,   // binary_exists
+                true,   // binary_non_empty
+                false,  // binary_up_to_date
+                bgfx_source_absent_integrity_signed_envelope_trust_chain_invalid.ready,
+                bgfx_source_absent_integrity_signed_envelope_trust_chain_invalid.reason,
+            });
+    if (bgfx_source_absent_alignment_signed_envelope_trust_chain_invalid.ready ||
+        bgfx_source_absent_alignment_signed_envelope_trust_chain_invalid.reason !=
+            "source_missing_and_integrity_signed_envelope_trust_chain_material_invalid") {
+        std::cerr << "expected BGFX source-absent alignment policy to propagate invalid trust-chain-material reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_alignment_signed_envelope_signature_material_invalid =
+        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+                false,  // source_exists
+                false,  // source_declares_direct_contract
+                true,   // binary_exists
+                true,   // binary_non_empty
+                false,  // binary_up_to_date
+                bgfx_source_absent_integrity_signed_envelope_signature_material_invalid.ready,
+                bgfx_source_absent_integrity_signed_envelope_signature_material_invalid.reason,
+            });
+    if (bgfx_source_absent_alignment_signed_envelope_signature_material_invalid.ready ||
+        bgfx_source_absent_alignment_signed_envelope_signature_material_invalid.reason !=
+            "source_missing_and_integrity_signed_envelope_signature_material_invalid") {
+        std::cerr << "expected BGFX source-absent alignment policy to propagate invalid signature-material reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_alignment_signed_envelope_signature_verification_failed =
+        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+                false,  // source_exists
+                false,  // source_declares_direct_contract
+                true,   // binary_exists
+                true,   // binary_non_empty
+                false,  // binary_up_to_date
+                bgfx_source_absent_integrity_signed_envelope_signature_verification_failed.ready,
+                bgfx_source_absent_integrity_signed_envelope_signature_verification_failed.reason,
+            });
+    if (bgfx_source_absent_alignment_signed_envelope_signature_verification_failed.ready ||
+        bgfx_source_absent_alignment_signed_envelope_signature_verification_failed.reason !=
+            "source_missing_and_integrity_signed_envelope_signature_verification_failed") {
+        std::cerr << "expected BGFX source-absent alignment policy to propagate signed-envelope verification-failure reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_alignment_signed_envelope_verified =
+        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+                false,  // source_exists
+                false,  // source_declares_direct_contract
+                true,   // binary_exists
+                true,   // binary_non_empty
+                false,  // binary_up_to_date
+                bgfx_source_absent_integrity_signed_envelope_verified.ready,
+                bgfx_source_absent_integrity_signed_envelope_verified.reason,
+            });
+    if (!bgfx_source_absent_alignment_signed_envelope_verified.ready ||
+        bgfx_source_absent_alignment_signed_envelope_verified.reason !=
+            "ok_source_absent_signed_envelope_verified") {
+        std::cerr << "expected BGFX source-absent alignment policy to allow verified signed-envelope deployment path\n";
         return false;
     }
 
@@ -1491,6 +1746,72 @@ bool RunDirectSamplerObservabilityContractChecks() {
         bgfx_source_absent_signed_envelope_deferred_contract.reason !=
             "source_missing_and_integrity_signed_envelope_verification_deferred") {
         std::cerr << "expected BGFX direct sampler readiness to propagate signed-envelope verification-deferred reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_signed_envelope_mode_unsupported_contract =
+        EvaluateBgfxDirectSamplerContract(
+            true,   // uniform_contract_ready
+            bgfx_source_absent_alignment_signed_envelope_mode_unsupported);
+    if (bgfx_source_absent_signed_envelope_mode_unsupported_contract.ready_for_direct_path ||
+        bgfx_source_absent_signed_envelope_mode_unsupported_contract.reason !=
+            "source_missing_and_integrity_signed_envelope_verification_mode_unsupported") {
+        std::cerr << "expected BGFX direct sampler readiness to propagate signed-envelope verification-mode mismatch reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_signed_envelope_trust_root_missing_contract =
+        EvaluateBgfxDirectSamplerContract(
+            true,   // uniform_contract_ready
+            bgfx_source_absent_alignment_signed_envelope_trust_root_missing);
+    if (bgfx_source_absent_signed_envelope_trust_root_missing_contract.ready_for_direct_path ||
+        bgfx_source_absent_signed_envelope_trust_root_missing_contract.reason !=
+            "source_missing_and_integrity_signed_envelope_trust_root_missing") {
+        std::cerr << "expected BGFX direct sampler readiness to propagate missing signed-envelope trust-root reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_signed_envelope_trust_chain_invalid_contract =
+        EvaluateBgfxDirectSamplerContract(
+            true,   // uniform_contract_ready
+            bgfx_source_absent_alignment_signed_envelope_trust_chain_invalid);
+    if (bgfx_source_absent_signed_envelope_trust_chain_invalid_contract.ready_for_direct_path ||
+        bgfx_source_absent_signed_envelope_trust_chain_invalid_contract.reason !=
+            "source_missing_and_integrity_signed_envelope_trust_chain_material_invalid") {
+        std::cerr << "expected BGFX direct sampler readiness to propagate invalid signed-envelope trust-chain-material reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_signed_envelope_signature_material_invalid_contract =
+        EvaluateBgfxDirectSamplerContract(
+            true,   // uniform_contract_ready
+            bgfx_source_absent_alignment_signed_envelope_signature_material_invalid);
+    if (bgfx_source_absent_signed_envelope_signature_material_invalid_contract.ready_for_direct_path ||
+        bgfx_source_absent_signed_envelope_signature_material_invalid_contract.reason !=
+            "source_missing_and_integrity_signed_envelope_signature_material_invalid") {
+        std::cerr << "expected BGFX direct sampler readiness to propagate signed-envelope signature-material mismatch reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_signed_envelope_signature_verification_failed_contract =
+        EvaluateBgfxDirectSamplerContract(
+            true,   // uniform_contract_ready
+            bgfx_source_absent_alignment_signed_envelope_signature_verification_failed);
+    if (bgfx_source_absent_signed_envelope_signature_verification_failed_contract.ready_for_direct_path ||
+        bgfx_source_absent_signed_envelope_signature_verification_failed_contract.reason !=
+            "source_missing_and_integrity_signed_envelope_signature_verification_failed") {
+        std::cerr << "expected BGFX direct sampler readiness to propagate signed-envelope verification-failure reason\n";
+        return false;
+    }
+
+    const auto bgfx_source_absent_signed_envelope_verified_contract =
+        EvaluateBgfxDirectSamplerContract(
+            true,   // uniform_contract_ready
+            bgfx_source_absent_alignment_signed_envelope_verified);
+    if (!bgfx_source_absent_signed_envelope_verified_contract.ready_for_direct_path ||
+        bgfx_source_absent_signed_envelope_verified_contract.reason !=
+            "ok_source_absent_signed_envelope_verified") {
+        std::cerr << "expected BGFX direct sampler readiness to allow verified signed-envelope deployment path\n";
         return false;
     }
 

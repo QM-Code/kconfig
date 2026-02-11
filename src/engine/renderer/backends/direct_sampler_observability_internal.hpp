@@ -57,6 +57,11 @@ struct BgfxSourceAbsentIntegrityInput {
     bool hash_matches_manifest = false;
     bool signed_envelope_declared = false;
     bool signed_envelope_verification_available = false;
+    bool signed_envelope_mode_supported = false;
+    bool signed_envelope_trust_root_available = false;
+    bool signed_envelope_trust_chain_valid = false;
+    bool signed_envelope_signature_material_valid = false;
+    bool signed_envelope_signature_verified = false;
 };
 
 struct BgfxSourceAbsentIntegrityReport {
@@ -168,8 +173,33 @@ inline BgfxSourceAbsentIntegrityReport EvaluateBgfxSourceAbsentIntegrityPolicy(
         report.reason = "source_missing_and_integrity_hash_mismatch";
         return report;
     }
-    if (input.signed_envelope_declared && !input.signed_envelope_verification_available) {
-        report.reason = "source_missing_and_integrity_signed_envelope_verification_deferred";
+    if (input.signed_envelope_declared) {
+        if (!input.signed_envelope_verification_available) {
+            report.reason = "source_missing_and_integrity_signed_envelope_verification_deferred";
+            return report;
+        }
+        if (!input.signed_envelope_mode_supported) {
+            report.reason = "source_missing_and_integrity_signed_envelope_verification_mode_unsupported";
+            return report;
+        }
+        if (!input.signed_envelope_trust_chain_valid) {
+            report.reason = "source_missing_and_integrity_signed_envelope_trust_chain_material_invalid";
+            return report;
+        }
+        if (!input.signed_envelope_trust_root_available) {
+            report.reason = "source_missing_and_integrity_signed_envelope_trust_root_missing";
+            return report;
+        }
+        if (!input.signed_envelope_signature_material_valid) {
+            report.reason = "source_missing_and_integrity_signed_envelope_signature_material_invalid";
+            return report;
+        }
+        if (!input.signed_envelope_signature_verified) {
+            report.reason = "source_missing_and_integrity_signed_envelope_signature_verification_failed";
+            return report;
+        }
+        report.ready = true;
+        report.reason = "ok_source_absent_signed_envelope_verified";
         return report;
     }
     report.ready = true;

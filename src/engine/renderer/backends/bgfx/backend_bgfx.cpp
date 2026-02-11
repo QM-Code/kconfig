@@ -169,6 +169,10 @@ struct ParsedBgfxIntegrityManifest {
     bool hash_present = false;
     std::string hash{};
     bool signed_envelope_declared = false;
+    bool signed_envelope_mode_supported = false;
+    std::string signed_envelope_mode{"none"};
+    std::string signed_envelope_signature{};
+    std::string signed_envelope_trust_chain{};
 };
 
 ParsedBgfxIntegrityManifest ParseBgfxIntegrityManifest(const std::string& manifest_path) {
@@ -314,29 +318,32 @@ ParsedBgfxIntegrityManifest ParseBgfxIntegrityManifest(const std::string& manife
             manifest.parse_reason = "source_missing_and_integrity_manifest_signed_envelope_invalid_value_form";
             return manifest;
         }
+        manifest.signed_envelope_mode = signed_envelope_mode;
         if (signed_envelope_mode == "none") {
             if (has_signature || has_trust_chain) {
                 manifest.parse_reason = "source_missing_and_integrity_manifest_signed_envelope_metadata_unexpected";
                 return manifest;
             }
-        } else if (signed_envelope_mode == kBgfxIntegritySignedEnvelopeMode) {
+        } else {
             if (!has_signature || !has_trust_chain) {
                 manifest.parse_reason = "source_missing_and_integrity_manifest_signed_envelope_metadata_missing";
                 return manifest;
             }
             std::string normalized_signature{};
             if (!ParseBgfxIntegrityManifestEnvelopeSignature(signature_it->second, normalized_signature)) {
-                manifest.parse_reason = "source_missing_and_integrity_manifest_signed_envelope_invalid_value_form";
+                manifest.parse_reason =
+                    "source_missing_and_integrity_manifest_signed_envelope_signature_invalid_value_form";
                 return manifest;
             }
             if (!ValidateBgfxIntegrityManifestTrustChainToken(trust_chain_it->second)) {
-                manifest.parse_reason = "source_missing_and_integrity_manifest_signed_envelope_invalid_value_form";
+                manifest.parse_reason =
+                    "source_missing_and_integrity_manifest_signed_envelope_trust_chain_invalid_value_form";
                 return manifest;
             }
             manifest.signed_envelope_declared = true;
-        } else {
-            manifest.parse_reason = "source_missing_and_integrity_manifest_signed_envelope_invalid_value_form";
-            return manifest;
+            manifest.signed_envelope_mode_supported = (signed_envelope_mode == kBgfxIntegritySignedEnvelopeMode);
+            manifest.signed_envelope_signature = normalized_signature;
+            manifest.signed_envelope_trust_chain = TrimAscii(trust_chain_it->second);
         }
     }
 
@@ -365,6 +372,76 @@ std::optional<std::string> ComputeFnv1a64FileHash(const std::string& path) {
     std::ostringstream encoded;
     encoded << std::hex << std::nouppercase << std::setfill('0') << std::setw(16) << hash;
     return encoded.str();
+}
+
+std::string ComputeFnv1a64TextHash(const std::string& text) {
+    std::uint64_t hash = UINT64_C(14695981039346656037);
+    for (char ch : text) {
+        hash ^= static_cast<unsigned char>(ch);
+        hash *= UINT64_C(1099511628211);
+    }
+    std::ostringstream encoded;
+    encoded << std::hex << std::nouppercase << std::setfill('0') << std::setw(16) << hash;
+    return encoded.str();
+}
+
+std::optional<std::string> ParseBgfxTrustRootIdFromChain(const std::string& trust_chain) {
+    constexpr const char* kRootPrefix = "root:";
+    const std::string chain = TrimAscii(trust_chain);
+    if (chain.rfind(kRootPrefix, 0u) != 0u) {
+        return std::nullopt;
+    }
+    const std::size_t root_begin = std::strlen(kRootPrefix);
+    const std::size_t slash_pos = chain.find('/', root_begin);
+    const std::string root_id =
+        (slash_pos == std::string::npos) ? chain.substr(root_begin) : chain.substr(root_begin, slash_pos - root_begin);
+    if (root_id.empty()) {
+        return std::nullopt;
+    }
+    for (char ch : root_id) {
+        const unsigned char uch = static_cast<unsigned char>(ch);
+        const bool allowed = (std::isalnum(uch) != 0) || ch == '.' || ch == '_' || ch == '-';
+        if (!allowed) {
+            return std::nullopt;
+        }
+    }
+    return root_id;
+}
+
+struct BgfxTrustRootPolicyResult {
+    bool verification_available = false;
+    bool trust_root_available = false;
+    std::string trust_root_secret{};
+};
+
+BgfxTrustRootPolicyResult ResolveBgfxSignedEnvelopeTrustRootPolicy(
+    const std::optional<std::string>& trust_root_id) {
+    static const std::array<std::pair<const char*, const char*>, 2u> kTrustedRoots{{
+        {"karma-dev", "bz3_bgfx_trust_root_karma_dev"},
+        {"karma-release", "bz3_bgfx_trust_root_karma_release"},
+    }};
+
+    BgfxTrustRootPolicyResult policy{};
+    policy.verification_available = !kTrustedRoots.empty();
+    if (!policy.verification_available || !trust_root_id.has_value()) {
+        return policy;
+    }
+
+    for (const auto& [id, secret] : kTrustedRoots) {
+        if (trust_root_id.value() == id) {
+            policy.trust_root_available = true;
+            policy.trust_root_secret = secret;
+            break;
+        }
+    }
+    return policy;
+}
+
+std::string ComposeBgfxSignedEnvelopeVerificationPayload(
+    const std::string& binary_hash,
+    const std::string& trust_chain,
+    const std::string& trust_root_secret) {
+    return std::string("bgfx_signed_envelope_v1|") + binary_hash + "|" + trust_chain + "|" + trust_root_secret;
 }
 
 struct BgfxDirectSamplerShaderAlignment {
@@ -433,7 +510,12 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment() {
         bool binary_hash_available = false;
         bool hash_matches_manifest = false;
         bool signed_envelope_declared = false;
-        constexpr bool kSignedEnvelopeVerificationAvailable = false;
+        bool signed_envelope_verification_available = false;
+        bool signed_envelope_mode_supported = false;
+        bool signed_envelope_trust_root_available = false;
+        bool signed_envelope_trust_chain_valid = false;
+        bool signed_envelope_signature_material_valid = false;
+        bool signed_envelope_signature_verified = false;
         ParsedBgfxIntegrityManifest parsed_manifest{};
 
         ec.clear();
@@ -446,6 +528,7 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment() {
             manifest_algorithm_supported = parsed_manifest.algorithm_supported;
             manifest_hash_present = parsed_manifest.hash_present;
             signed_envelope_declared = parsed_manifest.signed_envelope_declared;
+            signed_envelope_mode_supported = parsed_manifest.signed_envelope_mode_supported;
         }
 
         std::optional<std::string> actual_hash{};
@@ -455,6 +538,36 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment() {
         binary_hash_available = actual_hash.has_value();
         hash_matches_manifest =
             manifest_hash_present && binary_hash_available && (*actual_hash == parsed_manifest.hash);
+
+        if (signed_envelope_declared) {
+            const std::optional<std::string> trust_root_id =
+                ParseBgfxTrustRootIdFromChain(parsed_manifest.signed_envelope_trust_chain);
+            signed_envelope_trust_chain_valid = trust_root_id.has_value();
+
+            const BgfxTrustRootPolicyResult trust_root_policy =
+                ResolveBgfxSignedEnvelopeTrustRootPolicy(trust_root_id);
+            signed_envelope_verification_available = trust_root_policy.verification_available;
+            signed_envelope_trust_root_available = trust_root_policy.trust_root_available;
+
+            signed_envelope_signature_material_valid =
+                (parsed_manifest.signed_envelope_signature.size() == 16u);
+
+            if (signed_envelope_verification_available &&
+                signed_envelope_mode_supported &&
+                signed_envelope_trust_root_available &&
+                signed_envelope_trust_chain_valid &&
+                signed_envelope_signature_material_valid &&
+                hash_matches_manifest &&
+                actual_hash.has_value()) {
+                const std::string expected_signature = ComputeFnv1a64TextHash(
+                    ComposeBgfxSignedEnvelopeVerificationPayload(
+                        actual_hash.value(),
+                        parsed_manifest.signed_envelope_trust_chain,
+                        trust_root_policy.trust_root_secret));
+                signed_envelope_signature_verified =
+                    (expected_signature == parsed_manifest.signed_envelope_signature);
+            }
+        }
 
         source_absent_integrity = detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
             detail::BgfxSourceAbsentIntegrityInput{
@@ -467,7 +580,12 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment() {
                 binary_hash_available,
                 hash_matches_manifest,
                 signed_envelope_declared,
-                kSignedEnvelopeVerificationAvailable,
+                signed_envelope_verification_available,
+                signed_envelope_mode_supported,
+                signed_envelope_trust_root_available,
+                signed_envelope_trust_chain_valid,
+                signed_envelope_signature_material_valid,
+                signed_envelope_signature_verified,
             });
     }
     report.source_absent_integrity_ready = source_absent_integrity.ready;

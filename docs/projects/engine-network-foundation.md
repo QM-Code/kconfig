@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `specialist-engine-network-foundation`
-- Status: `priority/ready for review (slices 1-27 accepted; slice 28 ready for review)`
-- Immediate next task: overseer review/disposition for slice 28 timeout-race harness drift-reduction follow-up and any residual test-only cleanup.
+- Status: `priority/in progress (slices 1-28 accepted; slice 29 queued)`
+- Immediate next task: launch fresh specialist session for slice 29 (timeout-race test-harness remaining-duplication cleanup only; no transport runtime changes).
 - Validation gate: `./scripts/test-server-net.sh <assigned-build-dir>` must pass after `./bzbuild.py -c` in both assigned build dirs.
 
 ## Mission
@@ -479,13 +479,13 @@ From `m-rewrite/`:
   - Required validation rerun by specialist and overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
   - Risks/deferrals:
     - live timeout-race coverage remains scheduler/load sensitive due runtime ENet timing behavior; this slice is build/linkage consolidation only and does not alter runtime timing behavior.
-- `2026-02-11`: Slice 28 ready for review:
+- `2026-02-11`: Landed twenty-eighth vertical slice (accepted):
   - Extracted reusable timeout-race phase-driver scaffolding into shared test support:
     - added `RunBoundedProbePhase` + `BoundedProbePhaseResult` to
       `src/engine/network/tests/loopback_enet_fixture.hpp/.cpp`,
     - refactored timeout-race reconnect/terminal phases in
       `src/engine/network/tests/client_transport_contract_test.cpp` to consume the shared helper while keeping existing assertions/order checks intact.
-  - Required validation passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
   - Risks/deferrals:
     - live timeout-race coverage remains scheduler/load sensitive because ENet timeout/reconnect progression is runtime timing-dependent; this slice reduces harness drift only and does not change runtime behavior.
 

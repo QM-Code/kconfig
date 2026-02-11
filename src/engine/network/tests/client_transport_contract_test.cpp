@@ -429,24 +429,23 @@ bool TestLiveTimeoutDisconnectRaceTerminalOrdering() {
     if (!Expect(server_opt.has_value(), "live timeout-race stress failed to create loopback server")) {
         return false;
     }
+    constexpr auto kPollSleep = std::chrono::milliseconds(1);
+    constexpr auto kInitialPeerDeadline = std::chrono::seconds(3);
+    constexpr auto kReconnectReadinessDeadline = std::chrono::seconds(11);
+    constexpr auto kReconnectDeliveryDeadline = std::chrono::seconds(5);
+    constexpr auto kTerminalDisconnectDeadline = std::chrono::seconds(15);
+    constexpr int kPostTerminalSettlePolls = 140;
+    constexpr uint32_t kReconnectProbeSendIntervalPolls = 4;
+    constexpr uint32_t kReconnectProbeMaxSends = 3000;
+    constexpr uint32_t kReconnectReadyStablePolls = 2;
+    constexpr uint32_t kTerminalProbeSendIntervalPolls = 5;
+    constexpr uint32_t kTerminalProbeMaxSends = 3000;
+
     LoopbackServerEndpoint server = std::move(*server_opt);
-    std::atomic<bool> keep_server_pumping{false};
-    std::thread server_pump_thread{};
-    auto stop_server_pump = [&]() {
-        if (server_pump_thread.joinable()) {
-            keep_server_pumping.store(false);
-            server_pump_thread.join();
-        }
-    };
+    karma::network::tests::LoopbackPumpThread server_pump{};
+    auto stop_server_pump = [&]() { karma::network::tests::StopLoopbackEndpointPumpThread(&server_pump); };
     auto start_server_pump = [&]() {
-        stop_server_pump();
-        keep_server_pumping.store(true);
-        server_pump_thread = std::thread([&]() {
-            while (keep_server_pumping.load()) {
-                PumpLoopbackServerEndpoint(&server);
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-        });
+        return karma::network::tests::StartLoopbackEndpointPumpThread(&server_pump, &server, kPollSleep);
     };
     auto cleanup_server = [&]() {
         stop_server_pump();
@@ -461,18 +460,6 @@ bool TestLiveTimeoutDisconnectRaceTerminalOrdering() {
     options.reconnect_backoff_initial_ms = 0;
     options.reconnect_backoff_max_ms = 0;
     options.reconnect_timeout_ms = 180;
-
-    constexpr auto kInitialPeerDeadline = std::chrono::seconds(3);
-    constexpr auto kReconnectReadinessDeadline = std::chrono::seconds(11);
-    constexpr auto kReconnectDeliveryDeadline = std::chrono::seconds(5);
-    constexpr auto kTerminalDisconnectDeadline = std::chrono::seconds(15);
-    constexpr auto kPollSleep = std::chrono::milliseconds(1);
-    constexpr int kPostTerminalSettlePolls = 140;
-    constexpr uint32_t kReconnectProbeSendIntervalPolls = 4;
-    constexpr uint32_t kReconnectProbeMaxSends = 3000;
-    constexpr uint32_t kReconnectReadyStablePolls = 2;
-    constexpr uint32_t kTerminalProbeSendIntervalPolls = 5;
-    constexpr uint32_t kTerminalProbeMaxSends = 3000;
 
     std::atomic<bool> pump_connect{true};
     std::thread connect_pump_thread([&]() {
@@ -491,7 +478,11 @@ bool TestLiveTimeoutDisconnectRaceTerminalOrdering() {
     }
 
     std::vector<ClientTransportEvent> client_events{};
-    start_server_pump();
+    if (!Expect(start_server_pump(),
+                "live timeout-race stress failed to start loopback server pump")) {
+        cleanup_server();
+        return false;
+    }
     const auto initial_deadline = std::chrono::steady_clock::now() + kInitialPeerDeadline;
     while (std::chrono::steady_clock::now() < initial_deadline) {
         PollClientTransport(&transport, &client_events);
@@ -524,7 +515,11 @@ bool TestLiveTimeoutDisconnectRaceTerminalOrdering() {
         return false;
     }
     server = std::move(*restarted_server);
-    start_server_pump();
+    if (!Expect(start_server_pump(),
+                "live timeout-race stress failed to restart loopback server pump")) {
+        cleanup_server();
+        return false;
+    }
 
     bool saw_reconnect_connected = false;
     bool sent_reconnect_burst = false;
@@ -533,43 +528,55 @@ bool TestLiveTimeoutDisconnectRaceTerminalOrdering() {
     uint32_t reconnect_probe_sends = 0;
     uint32_t reconnect_stable_ready_polls = 0;
     constexpr uint32_t kReconnectBurstCount = 10;
-    const auto reconnect_readiness_deadline =
+    karma::network::tests::BoundedProbeLoopOptions reconnect_readiness_options{};
+    reconnect_readiness_options.deadline =
         std::chrono::steady_clock::now() + kReconnectReadinessDeadline;
-    while (std::chrono::steady_clock::now() < reconnect_readiness_deadline) {
-        ++reconnect_poll_loops;
-        if (reconnect_probe_sends < kReconnectProbeMaxSends &&
-            (reconnect_poll_loops % kReconnectProbeSendIntervalPolls) == 0) {
-            (void)transport->sendReliable(timeout_probe);
-            ++reconnect_probe_sends;
-        }
-
-        if (!PollClientTransport(&transport, &client_events)) {
-            cleanup_server();
-            return Fail("live timeout-race stress failed polling reconnect phase");
-        }
-        for (const auto& event : client_events) {
-            if (event.type == ClientTransportEventType::Connected) {
-                saw_reconnect_connected = true;
-            } else if (event.type == ClientTransportEventType::Received) {
-                if (!saw_reconnect_connected) {
-                    cleanup_server();
-                    return Fail("live timeout-race stress saw payload before reconnect Connected");
+    reconnect_readiness_options.poll_sleep = kPollSleep;
+    reconnect_readiness_options.probe_interval_polls = kReconnectProbeSendIntervalPolls;
+    reconnect_readiness_options.probe_max_sends = kReconnectProbeMaxSends;
+    const auto reconnect_readiness_phase = karma::network::tests::RunBoundedProbePhase(
+        reconnect_readiness_options,
+        [&]() { (void)transport->sendReliable(timeout_probe); },
+        [&](std::string* out_error) {
+            if (!PollClientTransport(&transport, &client_events)) {
+                if (out_error) {
+                    *out_error = "live timeout-race stress failed polling reconnect phase";
                 }
-                ++received_after_reconnect;
-            } else if (event.type == ClientTransportEventType::Disconnected) {
-                cleanup_server();
-                return Fail("live timeout-race stress emitted terminal Disconnected before reconnect recovered");
+                return false;
             }
-        }
-        if (saw_reconnect_connected && server.peer != nullptr) {
-            ++reconnect_stable_ready_polls;
-        } else {
-            reconnect_stable_ready_polls = 0;
-        }
-        if (reconnect_stable_ready_polls >= kReconnectReadyStablePolls) {
-            break;
-        }
-        std::this_thread::sleep_for(kPollSleep);
+            for (const auto& event : client_events) {
+                if (event.type == ClientTransportEventType::Connected) {
+                    saw_reconnect_connected = true;
+                } else if (event.type == ClientTransportEventType::Received) {
+                    if (!saw_reconnect_connected) {
+                        if (out_error) {
+                            *out_error =
+                                "live timeout-race stress saw payload before reconnect Connected";
+                        }
+                        return false;
+                    }
+                    ++received_after_reconnect;
+                } else if (event.type == ClientTransportEventType::Disconnected) {
+                    if (out_error) {
+                        *out_error = "live timeout-race stress emitted terminal Disconnected before "
+                                     "reconnect recovered";
+                    }
+                    return false;
+                }
+            }
+            if (saw_reconnect_connected && server.peer != nullptr) {
+                ++reconnect_stable_ready_polls;
+            } else {
+                reconnect_stable_ready_polls = 0;
+            }
+            return true;
+        },
+        [&]() { return reconnect_stable_ready_polls >= kReconnectReadyStablePolls; });
+    reconnect_poll_loops = reconnect_readiness_phase.diagnostics.poll_loops;
+    reconnect_probe_sends = reconnect_readiness_phase.diagnostics.probe_sends;
+    if (!reconnect_readiness_phase.completed && !reconnect_readiness_phase.failure_message.empty()) {
+        cleanup_server();
+        return Fail(reconnect_readiness_phase.failure_message);
     }
     if (!Expect(reconnect_stable_ready_polls >= kReconnectReadyStablePolls,
                 "live timeout-race stress timed out waiting for deterministic reconnect readiness "
@@ -587,37 +594,50 @@ bool TestLiveTimeoutDisconnectRaceTerminalOrdering() {
     }
     sent_reconnect_burst = true;
 
-    const auto reconnect_delivery_deadline =
+    karma::network::tests::BoundedProbeLoopOptions reconnect_delivery_options{};
+    reconnect_delivery_options.deadline =
         std::chrono::steady_clock::now() + kReconnectDeliveryDeadline;
-    while (std::chrono::steady_clock::now() < reconnect_delivery_deadline) {
-        ++reconnect_poll_loops;
-        if (reconnect_probe_sends < kReconnectProbeMaxSends &&
-            (reconnect_poll_loops % kReconnectProbeSendIntervalPolls) == 0) {
-            (void)transport->sendReliable(timeout_probe);
-            ++reconnect_probe_sends;
-        }
-        if (!PollClientTransport(&transport, &client_events)) {
-            cleanup_server();
-            return Fail("live timeout-race stress failed polling reconnect delivery phase");
-        }
-        for (const auto& event : client_events) {
-            if (event.type == ClientTransportEventType::Connected) {
-                saw_reconnect_connected = true;
-            } else if (event.type == ClientTransportEventType::Received) {
-                if (!saw_reconnect_connected) {
-                    cleanup_server();
-                    return Fail("live timeout-race stress saw payload before reconnect Connected");
+    reconnect_delivery_options.poll_sleep = kPollSleep;
+    reconnect_delivery_options.probe_interval_polls = kReconnectProbeSendIntervalPolls;
+    reconnect_delivery_options.probe_max_sends = kReconnectProbeMaxSends;
+    const auto reconnect_delivery_phase = karma::network::tests::RunBoundedProbePhase(
+        reconnect_delivery_options,
+        [&]() { (void)transport->sendReliable(timeout_probe); },
+        [&](std::string* out_error) {
+            if (!PollClientTransport(&transport, &client_events)) {
+                if (out_error) {
+                    *out_error = "live timeout-race stress failed polling reconnect delivery phase";
                 }
-                ++received_after_reconnect;
-            } else if (event.type == ClientTransportEventType::Disconnected) {
-                cleanup_server();
-                return Fail("live timeout-race stress emitted terminal Disconnected before reconnect delivery completed");
+                return false;
             }
-        }
-        if (received_after_reconnect >= kReconnectBurstCount) {
-            break;
-        }
-        std::this_thread::sleep_for(kPollSleep);
+            for (const auto& event : client_events) {
+                if (event.type == ClientTransportEventType::Connected) {
+                    saw_reconnect_connected = true;
+                } else if (event.type == ClientTransportEventType::Received) {
+                    if (!saw_reconnect_connected) {
+                        if (out_error) {
+                            *out_error =
+                                "live timeout-race stress saw payload before reconnect Connected";
+                        }
+                        return false;
+                    }
+                    ++received_after_reconnect;
+                } else if (event.type == ClientTransportEventType::Disconnected) {
+                    if (out_error) {
+                        *out_error = "live timeout-race stress emitted terminal Disconnected before "
+                                     "reconnect delivery completed";
+                    }
+                    return false;
+                }
+            }
+            return true;
+        },
+        [&]() { return received_after_reconnect >= kReconnectBurstCount; });
+    reconnect_poll_loops += reconnect_delivery_phase.diagnostics.poll_loops;
+    reconnect_probe_sends += reconnect_delivery_phase.diagnostics.probe_sends;
+    if (!reconnect_delivery_phase.completed && !reconnect_delivery_phase.failure_message.empty()) {
+        cleanup_server();
+        return Fail(reconnect_delivery_phase.failure_message);
     }
     if (!Expect(sent_reconnect_burst && received_after_reconnect == kReconnectBurstCount,
                 "live timeout-race stress did not fully receive reconnect burst (received=" +
@@ -643,35 +663,42 @@ bool TestLiveTimeoutDisconnectRaceTerminalOrdering() {
     bool saw_received_after_terminal = false;
     uint32_t terminal_poll_loops = 0;
     uint32_t terminal_probe_sends = 0;
-    const auto terminal_deadline = std::chrono::steady_clock::now() + kTerminalDisconnectDeadline;
-    while (std::chrono::steady_clock::now() < terminal_deadline) {
-        ++terminal_poll_loops;
-        if (terminal_probe_sends < kTerminalProbeMaxSends &&
-            (terminal_poll_loops % kTerminalProbeSendIntervalPolls) == 0) {
-            (void)transport->sendReliable(timeout_probe);
-            ++terminal_probe_sends;
-        }
-        if (!PollClientTransport(&transport, &client_events)) {
-            return Fail("live timeout-race stress failed polling terminal phase");
-        }
-        for (const auto& event : client_events) {
-            if (event.type == ClientTransportEventType::Disconnected) {
-                saw_terminal_disconnected = true;
-                ++terminal_disconnect_count;
-            } else if (event.type == ClientTransportEventType::Connected) {
-                if (saw_terminal_disconnected) {
-                    saw_connected_after_terminal = true;
+    karma::network::tests::BoundedProbeLoopOptions terminal_options{};
+    terminal_options.deadline = std::chrono::steady_clock::now() + kTerminalDisconnectDeadline;
+    terminal_options.poll_sleep = kPollSleep;
+    terminal_options.probe_interval_polls = kTerminalProbeSendIntervalPolls;
+    terminal_options.probe_max_sends = kTerminalProbeMaxSends;
+    const auto terminal_phase = karma::network::tests::RunBoundedProbePhase(
+        terminal_options,
+        [&]() { (void)transport->sendReliable(timeout_probe); },
+        [&](std::string* out_error) {
+            if (!PollClientTransport(&transport, &client_events)) {
+                if (out_error) {
+                    *out_error = "live timeout-race stress failed polling terminal phase";
                 }
-            } else if (event.type == ClientTransportEventType::Received) {
-                if (saw_terminal_disconnected) {
-                    saw_received_after_terminal = true;
+                return false;
+            }
+            for (const auto& event : client_events) {
+                if (event.type == ClientTransportEventType::Disconnected) {
+                    saw_terminal_disconnected = true;
+                    ++terminal_disconnect_count;
+                } else if (event.type == ClientTransportEventType::Connected) {
+                    if (saw_terminal_disconnected) {
+                        saw_connected_after_terminal = true;
+                    }
+                } else if (event.type == ClientTransportEventType::Received) {
+                    if (saw_terminal_disconnected) {
+                        saw_received_after_terminal = true;
+                    }
                 }
             }
-        }
-        if (saw_terminal_disconnected) {
-            break;
-        }
-        std::this_thread::sleep_for(kPollSleep);
+            return true;
+        },
+        [&]() { return saw_terminal_disconnected; });
+    terminal_poll_loops = terminal_phase.diagnostics.poll_loops;
+    terminal_probe_sends = terminal_phase.diagnostics.probe_sends;
+    if (!terminal_phase.completed && !terminal_phase.failure_message.empty()) {
+        return Fail(terminal_phase.failure_message);
     }
     if (!Expect(saw_terminal_disconnected,
                 "live timeout-race stress timed out waiting for terminal Disconnected (polls=" +
