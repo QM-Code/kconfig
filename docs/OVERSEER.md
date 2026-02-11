@@ -102,11 +102,11 @@ Standard isolated build-dir pairs:
 ## Git Persistence Policy (Required)
 - Git operations are run from `m-rewrite/`.
 - After each accepted slice batch:
-  1. stage only accepted-scope files,
-  2. commit with a slice-oriented summary,
-  3. push to `origin/m-rewrite`.
+  1. run `./scripts/overseer-checkpoint.sh -m "<slice batch summary>" --all-accepted`,
+  2. verify it exits successfully.
 - Do not batch accepted work for long periods; checkpoint frequently so outage recovery is straightforward.
 - Never include unreviewed or out-of-scope dirty files in a checkpoint commit.
+- Assignment gate: do not issue any new specialist instructions until the checkpoint script succeeds.
 
 ## Rotation Protocol
 Use this when cycling specialists in/out.
@@ -128,7 +128,7 @@ Use this when cycling specialists in/out.
 - Update `docs/projects/ASSIGNMENTS.md`.
 - Update project file `Project Snapshot` + status section.
 - Add major policy/architecture decisions to `docs/DECISIONS.md`.
- - Create/push a scoped checkpoint commit for accepted slices.
+ - Run `./scripts/overseer-checkpoint.sh -m "<slice batch summary>" --all-accepted`.
 
 4. Retire or continue
 - Retire if slice is complete and next step is a new concern.

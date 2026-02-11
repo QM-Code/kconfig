@@ -12,7 +12,8 @@ Global overseer directive:
   - `m-dev` behavior parity delivery for the rewrite game path,
   - `KARMA-REPO` engine capability intake under rewrite-owned architecture.
 - For each accepted slice rationale, state which track (or unblocker) it advances.
-- After accepted slices, overseer performs scoped git checkpoint commit + push in `m-rewrite/`.
+- After accepted slices, overseer runs `./scripts/overseer-checkpoint.sh -m "<slice batch summary>" --all-accepted`.
+- No new specialist assignment is sent until that checkpoint script succeeds.
 
 | Project | Owner | Status | Next Task | Last Update |
 |---|---|---|---|---|

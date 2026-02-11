@@ -157,9 +157,8 @@ From `m-rewrite/`:
 ## Accepted Slice Persistence Gate (Required)
 - Overseer owns git checkpointing for accepted slices in `m-rewrite/`.
 - Minimum cadence:
-  - stage accepted-scope files only,
-  - commit with slice/batch summary,
-  - push `origin/m-rewrite`.
+  - run `./scripts/overseer-checkpoint.sh -m "<slice batch summary>" --all-accepted`,
+  - require successful exit before any new specialist assignment is sent.
 - Do not leave accepted multi-slice batches uncommitted for long; frequent push-backed checkpoints are required for outage recovery.
 
 ## Docs Lint

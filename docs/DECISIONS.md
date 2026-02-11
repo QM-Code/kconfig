@@ -172,3 +172,12 @@ Format:
 - Impact:
   - accepted work is frequently persisted (`commit` + `push`) with slice-level traceability,
   - unreviewed/out-of-scope dirty files remain excluded from checkpoint commits.
+
+### J) Checkpoint script is a hard gate before new specialist assignments
+- Decision:
+  - overseer must run `./scripts/overseer-checkpoint.sh -m "<slice batch summary>" --all-accepted` after accepted slice batches, and no new specialist assignment is allowed until it succeeds.
+- Why:
+  - convert checkpointing from soft process to a mechanical gate with explicit success/failure.
+- Impact:
+  - accepted batches are pushed with consistent workflow and verification,
+  - assignment cadence is blocked until persistence is confirmed.
