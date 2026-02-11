@@ -1,0 +1,91 @@
+# UI Integration
+
+## Project Snapshot
+- Current owner: `codex`
+- Status: `in progress (HUD/console + chat-entry/input-focus parity slices landed)`
+- Immediate next task: add one follow-up console parity slice for escape/focus-release ordering without expanding backend-specific surface area.
+- Validation gate: `./bzbuild.py -c <assigned-build-dir>` and client runs across BGFX + Diligent with `--backend-ui imgui`.
+
+## Mission
+Port and stabilize BZ3 UI behavior in `m-rewrite` while preserving engine ownership of frame lifecycle and backend boundaries.
+
+## UI Policy (Locked)
+1. Engine supports both `imgui` and `rmlui`.
+2. Game code intentionally chooses a primary UI backend.
+3. Engine owns lifecycle, backend wiring, render submission, and diagnostics.
+4. Game owns UI content/state mapping and gameplay-to-UI translation.
+
+## Owned Paths
+- `m-rewrite/src/engine/ui/*`
+- `m-rewrite/include/karma/ui/*`
+- `m-rewrite/src/game/*` (UI call sites only)
+
+## Interface Boundaries
+- Inputs: engine frame events + game UI intent.
+- Outputs: backend UI frame output and overlay presentation.
+- Coordinate before changing:
+  - `m-rewrite/src/engine/renderer/*` (overlay integration)
+  - `m-rewrite/src/game/game.cpp` and related game UI call sites
+
+## Current State (Implemented)
+1. Engine-owned UI system lifecycle is integrated in `EngineApp` tick flow.
+2. Runtime UI backend selection via config + CLI is working.
+3. ImGui and RmlUi software bridge paths are integrated.
+4. Cross-backend overlay behavior is functioning on BGFX/Diligent baseline paths.
+5. Game-side HUD/console state mapping now includes parity slices from `m-dev`: HUD visibility follows `connected || !consoleVisible`, console toggles/closes via global actions, and gameplay input is suppressed while console/chat-entry focus state is active.
+
+## Current Gaps
+1. Full HUD/console parity with `m-dev` is incomplete.
+2. UI asset/service interfaces can be tightened for cleaner game-side usage.
+3. Some backend-specific parity polish remains (layout/visual behavior edge cases).
+
+## Execution Order
+1. Select one concrete UI parity slice.
+2. Implement it through engine-owned lifecycle hooks.
+3. Validate on both render backends for chosen UI backend.
+4. Expand to next slice without broad refactors.
+
+## Validation
+From `m-rewrite/`:
+
+```bash
+./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
+./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --backend-render bgfx --backend-ui imgui
+./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render diligent --backend-ui imgui
+```
+
+## Trace Channels
+- `ui.system`
+- `ui.system.overlay`
+- `ui.system.imgui`
+- `ui.system.rmlui`
+
+## Archive Reference
+Full legacy material preserved at:
+- `docs/archive/ui-integration-legacy-2026-02-09.md`
+
+## Handoff Checklist
+- [x] UI behavior change scoped to one parity slice.
+- [x] Engine/game boundary preserved.
+- [x] Multi-backend validation recorded.
+- [x] Docs updated with new policy/behavior if changed.
+
+## Status/Handoff Notes (2026-02-10)
+- Slices landed: HUD/console + chat-entry/input-focus parity mapping in `m-rewrite/src/game/game.cpp` + `m-rewrite/src/game/game.hpp`.
+- Behavior landed: console toggles with global `console` action (grave by default).
+- Behavior landed: escape (`quickMenu` action) closes console if open.
+- Behavior landed: `chat` action opens console (if needed) and enters chat-entry focus state.
+- Behavior landed: HUD presentation rule matches `m-dev` slice target (`connected || !consoleVisible`).
+- Behavior landed: spawn/fire gameplay actions are suppressed while console/chat-entry focus state is active.
+- Implementation note: presentation stays backend-policy-safe via engine-owned lifecycle (`onUiUpdate`) and backend-agnostic `UiDrawContext::TextPanel`.
+
+Validation commands run:
+- `cd m-rewrite && ./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` (pass)
+- `cd m-rewrite && ./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` (pass)
+- `cd m-rewrite && timeout 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --backend-render bgfx --backend-ui imgui` (launched; bounded runtime timeout exit `124`; startup warning only: missing optional `librenderdoc.so`)
+- `cd m-rewrite && timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render diligent --backend-ui imgui` (launched; bounded runtime timeout exit `124`)
+
+Remaining risks/open questions:
+- This slice uses text-panel presentation plus game-side focus state as a bounded interim step; full text-entry widget parity and submitted chat message path are still pending.
+- UI capture policy remains config-gated (`ui.captureInput`); if disabled, backend capture signals do not gate camera input.
