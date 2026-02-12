@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `specialist-renderer-parity`
-- Status: `priority/in progress (R1-R25 accepted; VQ1-VQ2 accepted; VQ3 in progress with acceptance pending manual SV scoring; VQ4 queued)`
-- Immediate next task: capture manual VQ3 SV worksheet scoring at `t=6s` and `t=16s` for BGFX + Diligent, apply VQ3 decision rules, and keep VQ4 untouched/queued.
+- Status: `priority/in progress (R1-R25 accepted; VQ1-VQ2 accepted; VQ3 corrective debug/fix remains in progress with acceptance blocked on operator visual+perf confirmation; VQ4 queued)`
+- Immediate next task: run operator VQ3 re-check on corrected BGFX+Diligent builds (`t=6s`, `t=16s`) and confirm both localized ground cast shadows and no hitching regressions before any acceptance decision; keep VQ4 untouched/queued.
 - Validation gate: both assigned renderer build dirs via `./bzbuild.py` plus both client runs listed in this file; run docs lint whenever this project doc or assignment board is updated.
 
 ## Mission
@@ -86,6 +86,9 @@ timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render dil
 - `2026-02-11`: VQ2 evidence-unblock slice added deterministic operator runner `./scripts/run-renderer-vq2-evidence.sh` (strict config + canonical VQ1 flags + timestamped logs + backend exit-code reporting + lingering-process verification) so acceptance is pending scored TA checkpoints only.
 - `2026-02-11`: VQ2 closeout accepted from manual TA worksheet inputs: BGFX `t=6s=0`, BGFX `t=12s=0`, Diligent `t=6s=0`, Diligent `t=12s=0`; parity deltas are `0` at both checkpoints and all VQ2 pass rules are satisfied.
 - `2026-02-11`: VQ3 implementation slice is in progress with shared projected directional-shadow sampling improvements wired for BGFX + Diligent and directional shadow contract tests passing in both assigned build dirs; VQ3 acceptance is blocked on manual SV worksheet scoring at checkpoints `t=6s` and `t=16s` because this environment cannot perform reliable visual scoring.
+- `2026-02-11`: operator-reported VQ3 baseline failure is documented (`SV` visually in failing `0-1` range: no obvious caster->receiver shadows around brick blocks), and VQ3 remains blocked on corrective evidence plus manual SV worksheet scoring.
+- `2026-02-11`: VQ3 rejection-correction follow-up identified three regression drivers in the prior slice: inverted per-draw light direction contract (side-lighting break), oversized chunk/tessellation settings (64 chunk draws + seam pressure), and non-local receiver bounds sampling per chunk (excess CPU work + diluted locality). Corrective updates now restore the original light-direction uniform contract, use chunk-index-local receiver bounds sampling, and reduce ground chunk/tessellation pressure (`chunkDraws=16`, `layer0 draws=30`, `localized delta=0.053`, `localized=1`) on both BGFX and Diligent. Frame-trace stability is mixed: BGFX improved (`avg/max dt_raw 0.0202/0.4072 -> 0.0199/0.3468`), Diligent max improved but avg remains slightly above baseline (`0.0245/0.3482 -> 0.0261/0.3456`), so VQ3 remains `not accepted`.
+- `2026-02-11`: stabilization rollback pass completed for VQ3 rejection handling: directional-shadow backend/test files were restored to pre-regression baseline to remove chunk/tessellation receiver paths, per-chunk draw amplification, and light-direction instability from this slice. Validation/build/runtime/test gates pass, and VQ3 remains in progress/not accepted pending new corrective planning and operator confirmation.
 - Cross-backend startup/rendering path is working.
 - R1 is implemented: both BGFX and Diligent now consume shared material semantics for metallic/roughness/emissive/alpha/double-sided fields plus metallic-roughness and emissive texture influence when present.
 - R2 is now landed: engine-owned `DirectionalLightData::shadow` contract fields are consumed by both BGFX and Diligent through one shared bounded shadow-map build/sample path (`directional_shadow_internal.hpp`) with deterministic per-draw light attenuation.
@@ -220,6 +223,22 @@ VQ2 closeout decision (`2026-02-11`, manual visual worksheet inputs):
 ## VQ3 Operator Worksheet (Manual SV Scoring)
 Use the accepted VQ1 deterministic repro recipe and scoring checkpoints (`t=6s`, `t=16s`) for both backends.
 
+Baseline failure case (`2026-02-11`, operator report):
+- No obvious cast shadows under/around brick blocks in default roaming scene; treat baseline SV as failing (`0-1` range) until corrected.
+
+Corrective observability run commands (copy/paste):
+```bash
+cd /home/karmak/dev/bz3-rewrite/m-rewrite
+timeout 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --backend-render bgfx --backend-ui imgui --strict-config=true --config /tmp/bz3-vq1-user-config.json -v -t engine.app,render.system,render.bgfx,render.mesh
+timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render diligent --backend-ui imgui --strict-config=true --config /tmp/bz3-vq1-user-config.json -v -t engine.app,render.system,render.diligent,render.mesh
+```
+
+Corrective observability evidence (`2026-02-11`, latest corrective slice):
+- BGFX trace: `shadow obs backend=bgfx layer=0 mapReady=1 casters=15 considered=15 sampledDraws=30 factorDraws=30 visCombined(min=0.078 avg=0.673) visReceiver(min=0.000 avg=0.810) shadowFactor(min=0.401 max=0.975)`.
+- Diligent trace: `shadow obs backend=diligent layer=0 mapReady=1 casters=15 considered=15 sampledDraws=30 factorDraws=30 visCombined(min=0.078 avg=0.673) visReceiver(min=0.000 avg=0.810) shadowFactor(min=0.401 max=0.975)`.
+- BGFX ground before/after diagnostic: `shadow ground diag backend=bgfx ... beforeUniform ... factor=0.901 ... afterChunked=1 chunkDraws=16 ... factorRange(min=0.864 max=0.917 delta=0.053) ... localized=1`.
+- Diligent ground before/after diagnostic: `shadow ground diag backend=diligent ... beforeUniform ... factor=0.901 ... afterChunked=1 chunkDraws=16 ... factorRange(min=0.864 max=0.917 delta=0.053) ... localized=1`.
+
 SV worksheet (fill from manual visual run):
 
 | Checkpoint | SV_bgfx | SV_diligent | Parity delta \|SV_bgfx-SV_diligent\| | Backend SV rule (`>= 2`) | No-dropout rule (`SV != 0`) | Parity rule (`<= 1`) | Checkpoint result |
@@ -233,8 +252,8 @@ VQ3 decision rules:
 - parity guardrail must hold at each checkpoint: `|SV_bgfx - SV_diligent| <= 1`.
 
 VQ3 closeout decision (`2026-02-11`, current state):
-- Rule checks: `Pending manual visual scoring inputs`.
-- Decision: `Not accepted yet (in progress)` due to missing SV worksheet values for BGFX + Diligent at `t=6s` and `t=16s`.
+- Rule checks: `Pending manual visual scoring inputs` (corrective technical evidence now confirms localized ground shadow-factor variation is active on both backends).
+- Decision: `Not accepted yet (in progress)` until SV worksheet values are captured for BGFX + Diligent at `t=6s` and `t=16s`.
 
 ## Capability Gap Checklist (2026-02-10 Baseline)
 | Capability | KARMA-REPO Reference | `m-rewrite` Current State | Gap |
@@ -274,7 +293,7 @@ VQ3 closeout decision (`2026-02-11`, current state):
 24. R25 BGFX source-absent integrity signature-model hardening slice: codify canonical asymmetric-signature verification contract inputs/validation boundaries for signed-envelope metadata (without introducing external trust-store rotation tooling yet), preserving deterministic disable reasons and accepted R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11/R12/R13/R14/R15/R16/R17/R18/R19/R20/R21/R22/R23/R24 behavior. `Accepted 2026-02-11` (canonical verification-input boundary checks + deterministic `...verification_inputs_invalid` propagation).
 25. VQ1 visual-quality diagnostics baseline slice: capture deterministic repro settings and concrete acceptance thresholds for distant texture aliasing/grain and obvious shadow caster/receiver visibility in roaming scenes. `Accepted 2026-02-11` (deterministic repro recipe + phased camera-path scoring rubric + explicit VQ2/VQ3 thresholds).
 26. VQ2 texture minification quality slice: add mip-chain generation/upload plus trilinear/anisotropic sampler policy across BGFX + Diligent material texture paths (including fallback/composite paths) with parity guardrails. `Accepted 2026-02-11` (manual worksheet TA scores: BGFX `0/0`, Diligent `0/0`, parity deltas `0/0`, all VQ2 rules passed).
-27. VQ3 visible directional shadowing slice: evolve bounded directional shadow path toward backend-parity projected shadow-map pass with per-pixel depth sampling (bias + bounded PCF), preserving deterministic fallback policy and contract boundaries. `In progress 2026-02-11` (build/runtime/contracts validations pass; acceptance pending manual SV worksheet scoring at `t=6s` and `t=16s`).
+27. VQ3 visible directional shadowing slice: evolve bounded directional shadow path toward backend-parity projected shadow-map pass with per-pixel depth sampling (bias + bounded PCF), preserving deterministic fallback policy and contract boundaries. `In progress 2026-02-11` (operator baseline failure recorded; rejection-correction follow-up restored light-direction contract, reduced chunk/tessellation pressure, and re-established localized-ground diagnostics on BGFX/Diligent; acceptance still blocked on operator-visible ground-shadow and hitching confirmation + SV worksheet scoring at `t=6s` and `t=16s`).
 28. VQ4 visual regression guardrail slice: add deterministic visual-quality assertions/metrics and align wrapper/testing docs with new renderer quality expectations. `Queued 2026-02-11`
 
 ## Active Specialist Packet (R2)
@@ -403,6 +422,6 @@ Handoff must include:
 - [x] VQ2 kickoff landed: shared mip-chain generation/upload + sampler-policy parity wiring for BGFX/Diligent is in place (acceptance closeout still pending).
 - [x] VQ2 evidence runner/worksheet is in place (`scripts/run-renderer-vq2-evidence.sh`) for deterministic closeout capture.
 - [x] VQ2 texture minification quality improvements completed with BGFX/Diligent parity. (`Accepted 2026-02-11`: TA scores BGFX `0/0`, Diligent `0/0`, parity deltas `0/0`.)
-- [ ] VQ3 visible directional shadowing improvements completed with BGFX/Diligent parity. (In progress: implementation + validation done; acceptance pending manual SV worksheet scoring.)
+- [ ] VQ3 visible directional shadowing improvements completed with BGFX/Diligent parity. (In progress: rejection-correction follow-up restored light-direction contract, reduced ground chunking to 16 chunk draws with localized=1 diagnostics on BGFX+Diligent, and improved BGFX frame-time spikes; acceptance remains blocked pending operator-visible ground-shadow + hitching confirmation and SV worksheet scoring.)
 - [ ] VQ4 deterministic visual regression guardrails + wrapper/docs updates completed.
 - [x] Post-R3 deferrals are explicitly documented.
