@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `codex`
-- Status: `in progress (P2 low-medium; CLI-first override active; Slice 2A/2B/2C/3/4 complete; awaiting next prioritized slice)`
-- Immediate next task: hold for reprioritization; Candidate 6 remains deferred pending explicit protocol-boundary review criteria.
+- Status: `completed (P2 closeout; Slices 1/2A/2B/2C/3/4 complete; policy decisions finalized)`
+- Immediate next task: none; reopen only if a new project explicitly approves Candidate 6 protocol-boundary review scope.
 - Validation gate: docs lint must pass on every slice; code-touching slices must pass assigned `bzbuild.py` + wrapper gates.
 
 ## Mission
@@ -329,6 +329,13 @@ From `m-rewrite/`:
   - duplicated client/server transport backend config parsing and reconnect-policy mapping moved into engine-owned `karma::network` helpers,
   - call-sites in `src/game/client/net/client_connection.cpp` and `src/game/server/net/transport_event_source.cpp` migrated with key/default parity preserved,
   - dual-build + dual-wrapper validation passed in assigned network build dirs.
+- `2026-02-12`: Final leakage follow-up completed:
+  - remaining game-side platform backend leakage (`sdl/glfw` mentions and `platform.SdlVideoDriver` direct read) moved behind `karma::app` backend-resolution helpers,
+  - `src/game/*` no longer contains platform-backend tokens.
+- `2026-02-12`: Project closeout completed:
+  - all planned slices marked complete with validation evidence captured,
+  - open policy decisions resolved and recorded below,
+  - project marked complete with explicit reopen criteria.
 
 ## Slice Queue
 1. Slice 1 (docs-only inventory + extraction plan):
@@ -356,18 +363,25 @@ From `m-rewrite/`:
    - keep protocol and runtime transport semantics unchanged.
    - Status: `Completed (2026-02-12)`.
 
-## Open Questions
-- Confirm strict-mode policy finalization for single-backend builds:
-  - preferred target is "no backend override flag recognized when there is no meaningful choice,"
-  - compatibility fallback is "flag hidden from help but accepted for scripted invocations."
-- Confirm whether `--backend-ui` strict-mode behavior should follow the same single-choice policy as renderer/physics/audio (currently yes via build-aware exposure).
-- Keep backend config-key ownership in game docs while moving parser/mapping mechanics into engine helpers, unless engine-network ownership requests key contract changes.
-- Candidate 6 remains deferred pending explicit protocol-boundary review criteria; no extraction planned in Slice 2/3/4.
+## Closeout Decisions (2026-02-12)
+- Strict-mode policy is finalized as:
+  - when a backend family has no meaningful choice (<=1 compiled backend), its override flag is not recognized.
+  - compatibility fallback mode ("hidden from help but still accepted") is not adopted for this project.
+- `--backend-ui` follows the same strict single-choice policy as renderer/physics/audio/platform.
+- Backend config-key ownership remains game-doc owned; parser/mapping mechanics remain engine-owned unless a future engine-network ownership change explicitly re-scopes key contracts.
+- Candidate 6 (`World/package transfer assembler`) is deferred out-of-scope for this closeout:
+  - reopen only under a new project doc with explicit protocol-boundary review entry criteria and acceptance gates.
+- `m-dev` parity posture:
+  - active parity objective for this project is complete (game-side boilerplate/leakage reduction without gameplay/protocol semantic drift).
+  - remaining parity gaps are outside this track and belong to active P0/P1 projects.
+- KARMA capability-intake posture:
+  - no additional KARMA capability intake is activated in this closeout.
+  - rationale: this track is boundary hygiene/extraction, and candidate intake is unnecessary unless Candidate 6 (or similar protocol-adjacent scope) is explicitly reopened.
 
 ## Handoff Checklist
-- [ ] Slice scope completed
-- [ ] Boundary constraints preserved (no gameplay/protocol semantic drift)
-- [ ] Validation run and summarized
-- [ ] This file updated
-- [ ] `docs/projects/ASSIGNMENTS.md` updated
-- [ ] Risks/open questions listed
+- [x] Slice scope completed
+- [x] Boundary constraints preserved (no gameplay/protocol semantic drift)
+- [x] Validation run and summarized
+- [x] This file updated
+- [x] `docs/projects/ASSIGNMENTS.md` updated
+- [x] Risks/open questions listed

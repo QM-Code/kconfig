@@ -37,7 +37,7 @@ This is the delegation entrypoint for rewrite work.
 - `renderer-parity.md`: priority/in progress, complete queued P0 integrity/signature continuity then execute merged P1 visual-quality slices (scene shadows + stable distance texture quality) under backend-parity guardrails.
 - `renderer-shadow-hardening.md`: priority/in progress, sandbox-first directional-shadow stabilization plus KARMA capability intake (bias controls, stable fitting, cascades) to close remaining alignment/blockiness/distance-dropout defects before VQ3 acceptance.
 - `engine-defaults-architecture.md`: in progress, architecture baseline is now codified in `docs/architecture/ENGINE_DEFAULTS_MODEL.md`; next convert scheduling and component-catalog guidance into implementation slices.
-- `engine-game-boundary-hygiene.md`: queued (P2 low-medium; ready to assign), capture and execute bounded extraction of game-side boilerplate into engine-owned scaffolding contracts without moving gameplay/protocol semantics.
+- `engine-game-boundary-hygiene.md`: completed closeout; keep as reference record for completed extraction slices and policy decisions. Reopen only via a new project doc if protocol-boundary review for deferred Candidate 6 is explicitly approved.
 - `server-network`: archived closeout snapshot at `docs/archive/server-network-completed-2026-02-12.md`; reopen only by creating a new active project doc if concrete regressions appear.
 - `physics-backend.md`: queued, continue backend parity while aligning to architecture/defaults decisions.
 - `platform-backend-policy`: archived closeout snapshot at `docs/archive/platform-backend-policy-completed-2026-02-12.md`; reopen only by creating a new active project doc if a concrete second-backend blocker is accepted.
