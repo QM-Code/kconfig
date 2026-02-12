@@ -1,8 +1,9 @@
 # EXTRAS.md
 
 Use this file only for material that does not fit cleanly into:
-- `AGENTS.md`
-- `docs/AGENTS.md`
+- `docs/foundation/policy/*`
+- `docs/foundation/governance/*`
+- `docs/foundation/architecture/*`
 - `docs/projects/<project>.md`
 
 Current status:

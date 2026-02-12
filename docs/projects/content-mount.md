@@ -4,7 +4,7 @@
 - Current owner: `codex`
 - Status: `in progress`
 - Immediate next task: add stronger transfer-integrity controls for chunked world payloads (chunk hash chain or equivalent) with one targeted regression test.
-- Validation gate: `./scripts/test-server-net.sh` plus manual client/server world-override smoke.
+- Validation gate: `./scripts/test-server-net.sh <build-dir>` plus manual client/server world-override smoke.
 
 ## Mission
 Implement the engine-facing content mount abstraction so default shipped content is always available and world-specific packages can override it safely.
@@ -77,14 +77,14 @@ This project enables:
 From `m-rewrite/`:
 
 ```bash
-./scripts/test-server-net.sh
+./scripts/test-server-net.sh <build-dir>
 ```
 
 Manual smoke:
 
 ```bash
-./build-dev/bz3-server -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -w common
-./build-dev/bz3 -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -n tester
+./<build-dir>/bz3-server -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -w common
+./<build-dir>/bz3 -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -n tester
 ```
 
 ## Trace Channels

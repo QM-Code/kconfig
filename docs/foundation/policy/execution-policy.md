@@ -8,15 +8,15 @@ This file is the canonical execution policy for delegated work:
 - handoff quality minimum.
 
 Rewrite-level strategy and boundaries live in `AGENTS.md`.
-Overseer-only coordination workflow lives in `docs/OVERSEER.md`.
+Overseer-only coordination workflow lives in `docs/foundation/governance/overseer-playbook.md`.
 
 ## Canonical Document Ownership
-- `docs/STARTUP_BRIEF.md`: quick startup checklist.
+- `docs/BOOTSTRAP.md`: canonical startup entrypoint.
 - `AGENTS.md`: rewrite invariants and architecture ownership.
-- `docs/AGENTS.md` (this file): execution mechanics and validation policy.
-- `docs/OVERSEER.md`: overseer startup/rotation/checkpoint protocol.
+- `docs/foundation/policy/execution-policy.md` (this file): execution mechanics and validation policy.
+- `docs/foundation/governance/overseer-playbook.md`: overseer startup/rotation/checkpoint protocol.
 - `docs/projects/README.md` + `docs/projects/*.md`: project scopes and project-specific validation.
-- `docs/DECISIONS.md`: durable decisions and rationale.
+- `docs/foundation/policy/decisions-log.md`: durable decisions and rationale.
 
 ## Execution Root (Required)
 - Delegated sessions may begin at workspace root (`bz3-rewrite/`) where shorthand paths are ambiguous.
@@ -35,7 +35,7 @@ cd m-rewrite
 - `m-rewrite/src/game/protos/messages.proto`
 - `m-rewrite/src/game/net/protocol.hpp`
 - `m-rewrite/src/game/net/protocol_codec.cpp`
-- `docs/projects/core-engine-infrastructure.md`
+- `docs/foundation/architecture/core-engine-contracts.md`
 
 If multiple agents need a hotspot, assign one owner and queue merge order.
 

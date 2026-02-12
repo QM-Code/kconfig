@@ -1,72 +1,42 @@
-# Projects Index (docs/projects)
+# Projects Index (Transient Execution Tracks)
 
-This is the delegation entrypoint for rewrite work.
+`docs/projects/` is for active, discardable execution tracking only.
 
-## Strategic Directive (Required)
-- Run two tracks in parallel:
-  - `m-dev` behavior parity needed for the modern BZ3 game path in `m-rewrite`,
-  - significant engine capability intake from `KARMA-REPO` under rewrite-owned contracts.
-- Keep rewrite architecture ownership intact:
-  - capability parity by behavior/outcome, never by file/layout mirroring,
-  - game rules/protocol semantics remain game-owned unless explicitly re-scoped.
-- If prioritization conflicts occur, choose slices that best unblock both tracks (or clearly document why one track is being deferred).
+Durable policy/governance/architecture belongs in `docs/foundation/`.
 
-## How To Use This Folder
-1. Read `AGENTS.md` (repo root).
-2. Read `docs/AGENTS.md`.
-3. Select one project file below.
-4. Use that single file as the project-level source of truth.
-5. Start from its `Project Snapshot` section.
+## How To Use
+1. Read `AGENTS.md`.
+2. Read `docs/foundation/policy/execution-policy.md`.
+3. Pick one project file below.
+4. Treat that project file as the execution source of truth for the slice.
+5. Update `docs/projects/ASSIGNMENTS.md` in the same handoff.
 
-## Project Files
+## Active Project Files
 - `content-mount.md`
 - `core-engine-infrastructure.md`
-- `engine-defaults-architecture.md`
-- `engine-backend-testing.md`
 - `gameplay-netcode.md`
 - `physics-backend.md`
 - `renderer-parity.md`
 - `renderer-shadow-hardening.md`
-- `testing-ci-docs.md`
 - `ui-integration.md`
 
 ## Current Focus Board
-- `engine-network-foundation`: archived closeout snapshot at `docs/archive/engine-network-foundation-completed-2026-02-12.md`; reopen only by creating a new active project doc if concrete transport contract regressions appear.
-- `core-engine-infrastructure.md`: in progress, backbone planning and dependency sequencing.
-- `renderer-parity.md`: priority/in progress, complete queued P0 integrity/signature continuity then execute merged P1 visual-quality slices (scene shadows + stable distance texture quality) under backend-parity guardrails.
-- `renderer-shadow-hardening.md`: priority/in progress, sandbox-first directional-shadow stabilization plus KARMA capability intake (bias controls, stable fitting, cascades) to close remaining alignment/blockiness/distance-dropout defects before VQ3 acceptance.
-- `engine-defaults-architecture.md`: in progress, architecture baseline is now codified in `docs/architecture/ENGINE_DEFAULTS_MODEL.md`; next convert scheduling and component-catalog guidance into implementation slices.
-- `engine-game-boundary-hygiene`: archived closeout snapshot at `docs/archive/engine-game-boundary-hygiene-completed-2026-02-12.md`; reopen only by creating a new active project doc if Candidate 6 protocol-boundary review scope is explicitly approved.
-- `server-network`: archived closeout snapshot at `docs/archive/server-network-completed-2026-02-12.md`; reopen only by creating a new active project doc if concrete regressions appear.
-- `physics-backend.md`: queued, continue backend parity while aligning to architecture/defaults decisions.
-- `platform-backend-policy`: archived closeout snapshot at `docs/archive/platform-backend-policy-completed-2026-02-12.md`; reopen only by creating a new active project doc if a concrete second-backend blocker is accepted.
-- `audio-backend`: archived closeout snapshot at `docs/archive/audio-backend-completed-2026-02-12.md`; reopen only by creating a new active project doc if new audio capability/parity work is explicitly prioritized.
-- `content-mount.md`: queued, continue after top-priority renderer/network milestones unless it blocks runtime stability.
-- `ui-integration.md`: queued, continue after top-priority renderer/network milestones unless it blocks validation.
-- `gameplay-netcode.md`: queued, continue prediction/reconciliation after engine-network-foundation boundary is established.
-- `engine-backend-testing.md`: in progress, keep backend tests authoritative as implementation deepens.
-- `testing-ci-docs.md`: in progress, keep wrappers/CI/docs synchronized as tracks evolve.
+- `renderer-shadow-hardening.md`: P0 active.
+- `renderer-parity.md`: P0 active (ledger + parity guardrails while shadow hardening executes).
+- `core-engine-infrastructure.md`: in progress (integration sequencing and contract rollout tracking).
+- `physics-backend.md`: in progress (backend parity depth and contract hardening).
+- `content-mount.md`: in progress (transfer integrity + compatibility hardening).
+- `ui-integration.md`: queued/in progress follow-up slices.
+- `gameplay-netcode.md`: queued behind current renderer/network priorities.
 
-## Shared Files
-- `PROJECT_TEMPLATE.md` (use to create new project docs)
-- `ASSIGNMENTS.md` (active owner/status board for project delegation)
+## Assignment and Build Policy
+- Keep one owner per project whenever possible.
+- Use `./bzbuild.py <build-dir>` only for configure/build/test workflows.
+- In parallel work, use isolated build dirs and explicit wrapper build-dir args:
+  - `./scripts/test-engine-backends.sh <build-dir>`
+  - `./scripts/test-server-net.sh <build-dir>`
 
-## Assignment Pattern
-- Prefer one agent per project.
-- Avoid concurrent edits to conflict hotspots listed in `docs/AGENTS.md`.
-- If cross-project edits are required, name a single integration owner.
-- Update `ASSIGNMENTS.md` in the same handoff when owner/status/next-task changes.
-
-## Assigned Build Profiles
-- Always use `./bzbuild.py <build-dir>` from `m-rewrite/`.
-- Do not use raw `cmake -S/-B` for delegated work.
-- Standard isolated pairs:
-  - Physics: `build-sdl3-bgfx-jolt-rmlui-sdl3audio`, `build-sdl3-bgfx-physx-rmlui-sdl3audio`
-  - Audio: `build-sdl3-bgfx-jolt-imgui-sdl3audio`, `build-sdl3-bgfx-jolt-imgui-miniaudio`
-  - Renderer: `build-sdl3-bgfx-physx-imgui-sdl3audio`, `build-sdl3-diligent-physx-imgui-sdl3audio`
-  - Engine-network foundation: `build-sdl3-bgfx-jolt-rmlui-miniaudio`, `build-sdl3-bgfx-physx-rmlui-miniaudio`
-
-## Hygiene
-- Run docs lint after structural doc changes:
-  - `./docs/scripts/lint-project-docs.sh`
-- Legacy snapshots are preserved under `docs/archive/` and are reference-only.
+## Related Files
+- `PROJECT_TEMPLATE.md`: template for new transient project docs.
+- `ASSIGNMENTS.md`: active owner/status board.
+- `docs/archive/`: completed or legacy snapshots (reference-only).

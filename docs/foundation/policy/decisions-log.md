@@ -99,11 +99,11 @@ Format:
 
 Note:
 - this file records the decision and rationale,
-- canonical procedure text is maintained in `AGENTS.md`, `docs/AGENTS.md`, `docs/OVERSEER.md`, and `docs/projects/ASSIGNMENTS.md`.
+- canonical procedure text is maintained in `AGENTS.md`, `docs/foundation/policy/execution-policy.md`, `docs/foundation/governance/overseer-playbook.md`, and `docs/projects/ASSIGNMENTS.md`.
 
 ### A) Documentation hierarchy and startup order are fixed
 - Decision:
-  - keep startup hierarchy stable with a single quick-entry page (`docs/STARTUP_BRIEF.md`) feeding the canonical docs stack.
+  - keep startup hierarchy stable with a single quick-entry page (`docs/BOOTSTRAP.md`) feeding the canonical docs stack.
 - Why:
   - reduce onboarding ambiguity and duplicate startup instructions.
 - Impact:

@@ -1,6 +1,6 @@
 # Engine Defaults Model
 
-Status: active architecture guidance for the `engine-defaults-architecture.md` project.
+Status: active long-lived architecture guidance.
 
 ## Goal
 Define rewrite-native engine defaults that keep the common path fast to adopt while preserving explicit, bounded override hooks for advanced cases.
@@ -203,10 +203,9 @@ The facade should map to core primitives and stay backend-neutral.
 
 ## 6) Required Cross-Doc Sync
 When this model changes, update:
-- `docs/projects/engine-defaults-architecture.md` (status, open questions, next tasks),
-- `docs/projects/core-engine-infrastructure.md` (implementation sequencing impact),
-- `docs/projects/physics-backend.md` and `docs/archive/audio-backend-completed-2026-02-12.md` (contract implications; audio snapshot is reference-only unless reopened),
-- `docs/projects/ASSIGNMENTS.md` (owner/status/next task).
+- `docs/foundation/architecture/core-engine-contracts.md` (staged rollout and test/evidence expectations),
+- `docs/foundation/architecture/engine-defaults-program.md` (program posture and active intake/defer calls),
+- affected transient execution docs under `docs/projects/` (only where active tasks/validation change).
 
 ## Open Questions
 - Should component catalog metadata live as code-adjacent manifests, docs-first tables, or both?

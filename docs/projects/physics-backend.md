@@ -4,14 +4,14 @@
 - Current owner: `codex`
 - Status: `in progress` (collision-query + dynamic gravity body-flag + rotation-lock + translation-lock parity slices complete)
 - Immediate next task: decide and implement runtime lock mutation/query contract (or explicitly keep constraints creation-time only for this phase) with backend-matching assertions.
-- Validation gate: `./scripts/test-engine-backends.sh`
+- Validation gate: `./scripts/test-engine-backends.sh <build-dir>`
 
 ## Mission
 Own engine physics backend behavior and contract parity (`auto|jolt|physx`) without leaking backend specifics into game code.
 
 ## Primary Specs
-- `docs/projects/core-engine-infrastructure.md` (physics sections)
-- `docs/projects/engine-backend-testing.md`
+- `docs/foundation/architecture/core-engine-contracts.md` (physics sections)
+- `docs/foundation/governance/engine-backend-testing.md`
 
 ## Why This Is Separate
 Physics backend implementation and parity checks are mostly independent from UI, renderer, and server protocol details.
@@ -26,7 +26,7 @@ Physics backend implementation and parity checks are mostly independent from UI,
 - Exposed contract: `PhysicsSystem` and backend factory behavior.
 - Coordinate before changing:
   - `m-rewrite/src/engine/CMakeLists.txt`
-  - `docs/projects/core-engine-infrastructure.md`
+  - `docs/foundation/architecture/core-engine-contracts.md`
 
 ## Layering Contract Alignment (Implementation-Ready)
 
@@ -97,14 +97,14 @@ From `m-rewrite/`:
 ```
 
 ## First Session Checklist
-1. Read `docs/projects/core-engine-infrastructure.md` physics sections.
+1. Read `docs/foundation/architecture/core-engine-contracts.md` physics sections.
 2. Confirm backend selection + lifecycle expectations.
 3. Implement smallest contract-safe change.
 4. Run both assigned isolated physics builds with `./bzbuild.py`.
 5. Update this file's status notes.
 
 ## Current Status
-- `2026-02-10`: Synced this project doc with implementation-ready physics layering contract boundaries and required test/wrapper expectations from `docs/projects/core-engine-infrastructure.md`.
+- `2026-02-10`: Synced this project doc with implementation-ready physics layering contract boundaries and required test/wrapper expectations from `docs/foundation/architecture/core-engine-contracts.md`.
 - Contract/lifecycle scaffolding and backend selection are in place.
 - Physics backend parity tests are present and should remain the authoritative regression gate.
 - Real backend path is active for both compiled backends (`jolt`, `physx`) behind the same `PhysicsSystem` contract.

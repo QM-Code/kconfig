@@ -4,7 +4,7 @@
 - Current owner: `unassigned`
 - Status: `in progress`
 - Immediate next task: implement Phase 2 predicted-shot path (`local_shot_id` mapping + reconciliation) after existing immediate-local-feedback behavior.
-- Validation gate: `./scripts/test-server-net.sh` plus local multiplayer smoke with trace channels.
+- Validation gate: `./scripts/test-server-net.sh <build-dir>` plus local multiplayer smoke with trace channels.
 
 ## Mission
 Preserve responsive local gameplay feel under latency while keeping server authority for world truth.
@@ -52,14 +52,14 @@ Not implemented:
 From `m-rewrite/`:
 
 ```bash
-./scripts/test-server-net.sh
+./scripts/test-server-net.sh <build-dir>
 ```
 
 Interactive smoke:
 
 ```bash
-./build-dev/bz3-server -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -w common
-./build-dev/bz3 -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -n tester -t input.events,net.client
+./<build-dir>/bz3-server -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -w common
+./<build-dir>/bz3 -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -n tester -t input.events,net.client
 ```
 
 ## Trace Channels

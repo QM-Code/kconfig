@@ -9,6 +9,10 @@
 ## Mission
 Describe the specific objective for this project.
 
+## Foundation References
+- List any canonical references under `docs/foundation/` that this project depends on.
+- Do not copy long-lived policy/governance/architecture text into this project file.
+
 ## Why This Is Separate
 Explain why this work can proceed mostly independent of other projects.
 
@@ -41,7 +45,7 @@ From `m-rewrite/`:
 ```
 
 ## First Session Checklist
-1. Read `AGENTS.md`, then `docs/AGENTS.md`, then this file.
+1. Read `AGENTS.md`, then `docs/foundation/policy/execution-policy.md`, then this file.
 2. Confirm scope and known blockers.
 3. Implement a minimal vertical slice.
 4. Run required validation.

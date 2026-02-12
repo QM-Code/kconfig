@@ -18,5 +18,6 @@ Use this setup:
 6. Start Codex from `~/dev/bz3-rewrite/` and run the instructions in `README.md`.
 
 Notes:
-- All canonical overseer/specialist docs are tracked under `m-rewrite/AGENTS.md` and `m-rewrite/docs/`.
+- All canonical long-lived policy/governance/architecture docs are tracked under `m-rewrite/docs/foundation/`.
+- Transient execution-track docs are tracked under `m-rewrite/docs/projects/`.
 - `m-dev` is behavior parity reference; `KARMA-REPO` is capability-intake reference.

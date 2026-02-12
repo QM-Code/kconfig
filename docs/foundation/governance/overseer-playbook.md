@@ -6,15 +6,15 @@ This file defines overseer-only workflow:
 - specialist assignment/rotation protocol,
 - accepted-slice checkpoint gate.
 
-Execution command policy (for all specialists) is canonical in `docs/AGENTS.md`.
+Execution command policy (for all specialists) is canonical in `docs/foundation/policy/execution-policy.md`.
 
 ## Overseer Responsibilities
-1. Keep direction aligned with `AGENTS.md`, `docs/AGENTS.md`, and `docs/DECISIONS.md`.
+1. Keep direction aligned with `AGENTS.md`, `docs/foundation/policy/execution-policy.md`, and `docs/foundation/policy/decisions-log.md`.
 2. Convert user goals into bounded specialist packets.
 3. Prevent overlap by enforcing owned paths and assigned build dirs from `docs/projects/ASSIGNMENTS.md`.
 4. Review specialist handoffs for scope, validation, risks, and boundary integrity.
 5. Keep `docs/projects/ASSIGNMENTS.md` plus project snapshot fields current.
-6. Maintain durable memory in `docs/DECISIONS.md`.
+6. Maintain durable memory in `docs/foundation/policy/decisions-log.md`.
 7. Enforce default-first direction (`95% defaults / 5% overrides`) and dual-track framing.
 8. Run continuous `KARMA-REPO` capability intake without structure mirroring.
 9. Persist accepted work via overseer checkpoint commits/pushes.
@@ -27,13 +27,8 @@ cd m-rewrite
 ```
 
 2. Read in order:
-  - `docs/STARTUP_BRIEF.md`
-  - `AGENTS.md`
-  - `docs/AGENTS.md`
-  - `docs/projects/README.md`
-  - `docs/projects/ASSIGNMENTS.md`
-  - active `docs/projects/<project>.md` files
-  - `docs/DECISIONS.md`
+  - `docs/BOOTSTRAP.md`
+  - then execute the read order defined in `docs/BOOTSTRAP.md`
 3. Restate startup alignment:
   - engine owns lifecycle/subsystems; game owns BZ3 rules/protocol semantics,
   - default-first assignment posture,
@@ -64,7 +59,7 @@ git -C ../KARMA-REPO fetch --all --prune
 
 ## Assignment Protocol
 When issuing a specialist packet:
-- use `docs/HANDOFF_TEMPLATE.md`,
+- use `docs/foundation/governance/handoff-template.md`,
 - include explicit owned paths, non-goals, and conflict hotspots,
 - include assigned isolated build dirs from `docs/projects/ASSIGNMENTS.md`,
 - enforce `./bzbuild.py <build-dir>`-only operator flows,
@@ -83,7 +78,7 @@ When issuing a specialist packet:
 3. Update durable state:
   - update `docs/projects/ASSIGNMENTS.md`,
   - update project `Project Snapshot` and status section,
-  - record major cross-track decisions in `docs/DECISIONS.md`.
+  - record major cross-track decisions in `docs/foundation/policy/decisions-log.md`.
 4. Decide retire vs continue:
   - retire complete slice,
   - continue only narrow adjacent follow-up.
@@ -107,24 +102,10 @@ Rules:
 Act as project overseer/integrator for bz3-rewrite.
 
 Read in order:
-1) m-rewrite/docs/STARTUP_BRIEF.md
-2) m-rewrite/AGENTS.md
-3) m-rewrite/docs/AGENTS.md
-4) m-rewrite/docs/OVERSEER.md
-5) m-rewrite/docs/projects/README.md
-6) m-rewrite/docs/projects/ASSIGNMENTS.md
-7) m-rewrite/docs/DECISIONS.md
+1) m-rewrite/docs/BOOTSTRAP.md
 
 Then:
-- summarize current project state and active tracks,
-- identify overlap/conflict risks,
-- propose a prioritized shortlist of high-value targets (including interrupted in-progress work),
-- ask the human to pick one of those or override with a different focus,
-- STOP and wait for the human selection,
-- do not draft specialist instruction packets until the selection is made,
-- then draft only the selected specialist packet with isolated build dirs,
-- enforce bzbuild.py-only build policy and explicit wrapper build-dir args,
-- include `m-dev` parity posture and KARMA intake posture (adopt now vs defer).
+- execute all startup/read-order and output requirements defined in that file.
 ```
 
 ### Retire Specialist
@@ -137,4 +118,4 @@ Do only:
 ```
 
 ### Start Specialist
-Use `docs/HANDOFF_TEMPLATE.md` and fill only one selected track packet.
+Use `docs/foundation/governance/handoff-template.md` and fill only one selected track packet.

@@ -18,7 +18,7 @@ Expand renderer capability toward BGFX/Diligent parity behind stable engine cont
 - Port capability and behavior from KARMA-REPO; do not mirror KARMA-REPO backend file organization.
 
 ## Primary Specs
-- `docs/projects/core-engine-infrastructure.md` (renderer sections)
+- `docs/foundation/architecture/core-engine-contracts.md` (renderer sections)
 - `docs/projects/ui-integration.md` (renderer/UI coupling points)
 
 ## Why This Is Separate
@@ -37,9 +37,9 @@ Renderer feature work can proceed independently of server networking and backend
 - Outputs: frame rendering and backend parity behavior.
 - Coordinate before changing:
   - UI integration paths (`m-rewrite/src/engine/ui/*`)
-  - `docs/projects/core-engine-infrastructure.md` renderer sections
-  - `docs/projects/engine-backend-testing.md`
-  - `docs/projects/testing-ci-docs.md`
+  - `docs/foundation/architecture/core-engine-contracts.md` renderer sections
+  - `docs/foundation/governance/engine-backend-testing.md`
+  - `docs/foundation/governance/testing-ci-governance.md`
 
 ## Non-Goals
 - Gameplay/network semantics.
@@ -72,7 +72,7 @@ timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render dil
 ```
 
 ## First Session Checklist
-1. Read renderer sections in `docs/projects/core-engine-infrastructure.md`.
+1. Read renderer sections in `docs/foundation/architecture/core-engine-contracts.md`.
 2. Confirm current parity target is capability/behavior, not file mirroring.
 3. Implement one capability slice at a time.
 4. Validate on both render backends.
@@ -301,7 +301,7 @@ VQ3 closeout decision (`2026-02-11`, current state):
 ```text
 Read in order:
 1) AGENTS.md
-2) docs/AGENTS.md
+2) docs/foundation/policy/execution-policy.md
 3) docs/projects/README.md
 4) docs/projects/ASSIGNMENTS.md
 5) docs/projects/renderer-parity.md
@@ -387,7 +387,7 @@ Handoff must include:
 ## Open Questions
 - Which missing features are highest impact for gameplay/UI parity (for example: environment, shadows, material coverage)?
 - Are any missing capabilities blocked by scene/content pipeline assumptions outside renderer code?
-- Should dedicated renderer assertions for R1 semantics groups be landed inside R2 or delegated to `engine-backend-testing.md` immediately after R2?
+- Should dedicated renderer assertions for R1 semantics groups be landed inside R2 or delegated to `docs/foundation/governance/engine-backend-testing.md` immediately after R2?
 - Should anisotropic filtering default above `1x` globally or per material class once VQ2 begins?
 - Which visual regression strategy is preferred for CI after VQ4 (image snapshots vs numeric metrics vs trace-derived proxies)?
 

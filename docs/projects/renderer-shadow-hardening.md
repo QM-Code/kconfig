@@ -33,8 +33,8 @@ Shadow defects are currently the primary visual blocker and are cross-cutting (r
   - deterministic diagnostics for operator-visible regression detection.
 - Coordinate before changing:
   - `docs/projects/renderer-parity.md`
-  - `docs/projects/testing-ci-docs.md`
-  - `docs/projects/core-engine-infrastructure.md` (renderer contract notes)
+  - `docs/foundation/governance/testing-ci-governance.md`
+  - `docs/foundation/architecture/core-engine-contracts.md` (renderer contract notes)
 
 ## Non-Goals
 - Do not change gameplay/network semantics.
