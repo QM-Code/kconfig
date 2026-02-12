@@ -64,6 +64,9 @@ This project enables:
 - client/server/world compatibility policy needs explicit hard-reject gating (current behavior is mostly trace/soft handling).
 3. Delta policy hardening
 - delta applicability heuristics are functional but need tuning/telemetry hardening.
+4. Deferred boundary-hygiene candidate tracking
+- Deferred extraction candidate from `engine-game-boundary-hygiene` (world/package transfer assembler path in `src/game/client/net/client_connection.cpp`) remains intentionally game-owned.
+- Revisit only via a new explicitly scoped project doc with protocol-boundary review entry criteria and acceptance gates; do not silently fold this into generic engineization work.
 
 ## Execution Plan
 1. Add stronger transfer-integrity controls for streamed world payloads.
