@@ -45,6 +45,9 @@ From repo root:
 - Local repo `./vcpkg` is mandatory for all delegated builds.
 - External `VCPKG_ROOT` paths are not allowed for delegated builds.
 - If `./vcpkg` is missing or not bootstrapped, treat as immediate blocker and notify the human before continuing any build/test execution.
+- Preferred bootstrap helpers:
+  - Linux/macOS: `./scripts/setup.sh`
+  - Windows: `scripts\\setup.bat`
 - Mandatory bootstrap commands (run once from repo root):
   - `git clone https://github.com/microsoft/vcpkg.git vcpkg`
   - `./vcpkg/bootstrap-vcpkg.sh -disableMetrics`
