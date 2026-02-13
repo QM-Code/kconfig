@@ -14,7 +14,14 @@ This document defines long-lived governance for validation wrappers, guard scrip
    - `./scripts/test-engine-backends.sh <build-dir>`
 2. Server/network gate:
    - `./scripts/test-server-net.sh <build-dir>`
+   - includes network-backend seam guard (`./scripts/check-network-backend-encapsulation.sh`) as part of wrapper execution.
 3. Additional standalone guards/evidence scripts remain explicit unless integrated into wrappers.
+
+## Server/Network Gate Interpretation
+- Treat `server_*` test failures as actionable contract/runtime regressions.
+- Transport loopback integration tests may `SKIP` when loopback preconditions are unavailable in the local environment.
+- Treat unexpected loopback test failures in healthy environments as actionable regressions.
+- Keep wrapper expectations aligned with the current server/network suite in `src/game/tests/*` and update this section if interpretation rules change.
 
 ## CI Baseline Contract
 - `.github/workflows/core-test-suite.yml` should continue to invoke wrapper gates.

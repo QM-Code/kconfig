@@ -98,10 +98,6 @@ Manual smoke:
 - Compatibility drift can surface as late runtime failures until explicit gating is enforced.
 - Transfer retries currently rely on chunk ordering/size invariants without per-chunk cryptographic integrity.
 
-## Archive Reference
-Full legacy material preserved at:
-- `docs/archive/content-mount-legacy-2026-02-09.md`
-
 ## Handoff Checklist
 - [x] Mount precedence contract preserved.
 - [x] Package apply safety constraints enforced.

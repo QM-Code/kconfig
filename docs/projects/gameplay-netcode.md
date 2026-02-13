@@ -67,10 +67,6 @@ Interactive smoke:
 - `net.server`
 - `input.events`
 
-## Archive Reference
-Full legacy material preserved at:
-- `docs/archive/gameplay-netcode-legacy-2026-02-09.md`
-
 ## Handoff Checklist
 - [ ] Local responsiveness preserved.
 - [ ] Server authority unchanged.

@@ -1,23 +1,11 @@
-# m-rewrite (Tracked Control Plane + Production Rewrite)
+# BZ3 Rewrite Workspace
 
-If you are reading this file directly, your workspace is probably incomplete.
+Start Codex from this directory, then paste:
 
-Use this setup:
+```text
+Act as project overseer for m-rewrite.
 
-1. Create an empty workspace directory:
-   - `mkdir -p ~/dev/bz3-rewrite`
-   - `cd ~/dev/bz3-rewrite`
-2. Clone `KARMA-REPO` (main):
-   - `git clone --branch main https://github.com/QM-Code/karma.git KARMA-REPO`
-3. Clone `m-dev` (source-of-truth behavior baseline):
-   - `git clone --branch m-dev https://github.com/QM-Code/bz3.git m-dev`
-4. Clone `m-rewrite` (active implementation branch):
-   - `git clone --branch m-rewrite https://github.com/QM-Code/bz3.git m-rewrite`
-5. Initialize the root bootstrap README:
-   - `cp m-rewrite/README.init README.md`
-6. Start Codex from `~/dev/bz3-rewrite/` and run the instructions in `README.md`.
+Read and follow the instructions in this file:
 
-Notes:
-- All canonical long-lived policy/governance/architecture docs are tracked under `m-rewrite/docs/foundation/`.
-- Transient execution-track docs are tracked under `m-rewrite/docs/projects/`.
-- `m-dev` is behavior parity reference; `KARMA-REPO` is capability-intake reference.
+- docs/BOOTSTRAP.md
+```

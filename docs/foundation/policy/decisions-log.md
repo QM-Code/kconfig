@@ -94,6 +94,7 @@ Format:
   - backend breadth is not currently on the critical path.
 - Impact:
   - platform expansion stays on TODO without consuming top-priority bandwidth.
+  - any non-SDL3 backend proposal must satisfy the admission/conformance policy in `docs/foundation/policy/execution-policy.md`.
 
 ## Standing Operating Decisions (Always On)
 

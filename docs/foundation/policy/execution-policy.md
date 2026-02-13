@@ -1,4 +1,4 @@
-# AGENTS.md (docs)
+# Execution Policy
 
 ## Purpose
 This file is the canonical execution policy for delegated work:
@@ -19,28 +19,27 @@ Overseer-only coordination workflow lives in `docs/foundation/governance/oversee
 - `docs/foundation/policy/decisions-log.md`: durable decisions and rationale.
 
 ## Execution Root (Required)
-- Delegated sessions may begin at workspace root (`bz3-rewrite/`) where shorthand paths are ambiguous.
-- Before reading docs or running project commands, anchor to repo root:
+- Standalone mode: if the current directory is the `m-rewrite` repository root (contains `bzbuild.py` and `docs/`), use unprefixed repo-relative paths (`AGENTS.md`, `docs/...`).
+- Integration mode: if the current directory is workspace root (`bz3-rewrite/`), anchor first:
 
 ```bash
 cd m-rewrite
 ```
 
-- After anchoring, unprefixed paths are repo-relative (`AGENTS.md`, `docs/...`).
-- If staying at workspace root, prefix all paths with `m-rewrite/`.
+- If staying at integration workspace root, prefix every project path with `m-rewrite/`.
 
 ## Conflict Hotspots (Coordinate Ownership)
-- `m-rewrite/src/engine/CMakeLists.txt`
-- `m-rewrite/src/game/CMakeLists.txt`
-- `m-rewrite/src/game/protos/messages.proto`
-- `m-rewrite/src/game/net/protocol.hpp`
-- `m-rewrite/src/game/net/protocol_codec.cpp`
+- `src/engine/CMakeLists.txt`
+- `src/game/CMakeLists.txt`
+- `src/game/protos/messages.proto`
+- `src/game/net/protocol.hpp`
+- `src/game/net/protocol_codec.cpp`
 - `docs/foundation/architecture/core-engine-contracts.md`
 
 If multiple agents need a hotspot, assign one owner and queue merge order.
 
 ## Build and Isolation Policy (Required)
-From `m-rewrite/`:
+From repo root:
 - Use `./bzbuild.py <build-dir>` for configure/build/test flows.
 - Do not run raw `cmake -S/-B` directly for delegated project work.
 - Build dir names must follow `build-<platform>-<renderer>-<physics>-<ui>-<audio>`.
@@ -67,8 +66,31 @@ Wrapper gate policy:
 - `build-dev` default runs are serialized shared resources.
 - Wrapper internals may still use direct `cmake`/`ctest`; this does not change operator policy above.
 
+## Platform Backend Expansion Admission (Required for non-SDL3 work)
+- SDL3 remains the default active platform backend unless a separate explicit default-switch acceptance is approved.
+- No second-backend implementation work starts until all entry criteria are met:
+  - concrete blocker documented (cannot be resolved inside SDL3-only policy),
+  - named owner assigned with isolated build dirs,
+  - proposal includes seam changes, validation commands, and rollback plan,
+  - overseer approval recorded.
+- Required seam invariants:
+  - engine-facing platform contract stays centered on `karma::platform::Window`,
+  - `./scripts/check-platform-seam.sh` stays passing,
+  - backend headers/types stay out of `src/game/*` and engine/game-facing public contracts,
+  - no dormant/stub-only backend trees.
+- Required conformance evidence (in one handoff):
+  - baseline: `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio`
+  - baseline wrapper: `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio`
+  - candidate build: `./bzbuild.py -c build-<candidate>-bgfx-jolt-rmlui-sdl3audio` (or explicitly approved equivalent)
+  - candidate wrapper: `./scripts/test-engine-backends.sh build-<candidate>-bgfx-jolt-rmlui-sdl3audio` (or explicitly approved equivalent)
+- Reject speculative backend work when:
+  - blocker/proposal/approval is missing,
+  - backend leakage breaks seam policy,
+  - renderer/network/gameplay scope is pulled in,
+  - any conformance gate fails.
+
 ## Validation Gates
-Global baseline (from `m-rewrite/`):
+Global baseline:
 
 ```bash
 ./scripts/test-engine-backends.sh

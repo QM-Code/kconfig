@@ -1,4 +1,4 @@
-# AGENTS.md (bz3-rewrite)
+# Rewrite Invariants
 
 ## Purpose
 This file defines rewrite-level invariants and ownership boundaries.
@@ -33,10 +33,10 @@ Repository roles:
 - `m-rewrite/docs/`: canonical rewrite guidance, decisions, and project specs.
 
 ## Workspace Scope (Required)
-- Treat `m-rewrite/` as the only active codebase for edits, builds, and git operations.
-- Run git commands from `m-rewrite/` (or with `git -C m-rewrite ...`).
-- Do not stage/commit from workspace root.
-- Workspace root (`bz3-rewrite/`) is bootstrap-only and should contain only `README.md` plus sibling repos (`m-rewrite/`, `m-dev/`, `KARMA-REPO/`).
+- Standalone mode (this repo only): treat repo root as the active codebase for edits, builds, and git operations.
+- Integration mode (`bz3-rewrite/` with sibling repos): treat `m-rewrite/` as the only active codebase for edits, builds, and git operations.
+- In integration mode, run git commands from `m-rewrite/` (or with `git -C m-rewrite ...`) and do not stage/commit from workspace root.
+- In integration mode, workspace root (`bz3-rewrite/`) is bootstrap-only and should contain only `README.md` plus sibling repos (`m-rewrite/`, `m-dev/`, `KARMA-REPO/`).
 
 ## Core Architecture Contract
 - `src/engine/` is game-agnostic and owns loop/lifecycle/timing.

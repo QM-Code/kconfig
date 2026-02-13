@@ -1096,7 +1096,7 @@ Ready for broad multi-agent parallelization when all are true:
 ## References
 - UI integration project: `docs/projects/ui-integration.md`
 - Gameplay netcode project: `docs/projects/gameplay-netcode.md`
-- Server network closeout snapshot: `docs/archive/server-network-completed-2026-02-12.md`
 - Engine backend testing governance: `docs/foundation/governance/engine-backend-testing.md`
+- Testing/CI governance: `docs/foundation/governance/testing-ci-governance.md`
 - Delegation guidance: `docs/foundation/policy/execution-policy.md`
 - Root rewrite guide: `AGENTS.md`

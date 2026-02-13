@@ -61,10 +61,6 @@ From `m-rewrite/`:
 - `ui.system.imgui`
 - `ui.system.rmlui`
 
-## Archive Reference
-Full legacy material preserved at:
-- `docs/archive/ui-integration-legacy-2026-02-09.md`
-
 ## Handoff Checklist
 - [x] UI behavior change scoped to one parity slice.
 - [x] Engine/game boundary preserved.

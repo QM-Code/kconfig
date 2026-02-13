@@ -8,6 +8,10 @@ This file defines overseer-only workflow:
 
 Execution command policy (for all specialists) is canonical in `docs/foundation/policy/execution-policy.md`.
 
+Mode note:
+- Standalone mode (default): `m-rewrite` only.
+- Integration mode (optional): `m-rewrite` + `m-dev` + `KARMA-REPO` via `docs/rewrite-overseer/BOOTSTRAP.md`.
+
 ## Overseer Responsibilities
 1. Keep direction aligned with `AGENTS.md`, `docs/foundation/policy/execution-policy.md`, and `docs/foundation/policy/decisions-log.md`.
 2. Convert user goals into bounded specialist packets.
@@ -15,8 +19,8 @@ Execution command policy (for all specialists) is canonical in `docs/foundation/
 4. Review specialist handoffs for scope, validation, risks, and boundary integrity.
 5. Keep `docs/projects/ASSIGNMENTS.md` plus project snapshot fields current.
 6. Maintain durable memory in `docs/foundation/policy/decisions-log.md`.
-7. Enforce default-first direction (`95% defaults / 5% overrides`) and dual-track framing.
-8. Run continuous `KARMA-REPO` capability intake without structure mirroring.
+7. Enforce default-first direction (`95% defaults / 5% overrides`).
+8. In integration mode, run continuous `KARMA-REPO` capability intake without structure mirroring.
 9. Persist accepted work via overseer checkpoint commits/pushes.
 
 ## Startup Protocol (Required)
@@ -31,15 +35,14 @@ cd m-rewrite
   - then execute the read order defined in `docs/BOOTSTRAP.md`
 3. Restate startup alignment:
   - engine owns lifecycle/subsystems; game owns BZ3 rules/protocol semantics,
-  - default-first assignment posture,
-  - dual-track posture (`m-dev` parity + KARMA capability intake).
-4. Run KARMA refresh gate before proposing targets:
+  - default-first assignment posture.
+4. Integration mode only: run KARMA refresh gate before proposing targets:
 
 ```bash
 git -C ../KARMA-REPO fetch --all --prune
 ```
 
-5. Summarize KARMA freshness in startup output:
+5. Integration mode only: summarize KARMA freshness in startup output:
   - new remote branches (if any),
   - notable upstream head commits,
   - intake candidates (adopt now / defer).
@@ -50,7 +53,7 @@ git -C ../KARMA-REPO fetch --all --prune
 - Prioritize these ahead of non-blocking audio/content-mount/UI and queued backend follow-up.
 - Convert KARMA feature intent into rewrite-owned contracts/docs.
 
-## KARMA Intake Loop (Required)
+## KARMA Intake Loop (Integration Mode)
 1. Detect upstream capability deltas.
 2. Triage significance (default-path leverage, parity unblock, rework reduction).
 3. Reframe accepted deltas into rewrite project slices with owned paths and validation.
@@ -99,14 +102,17 @@ Rules:
 
 ### Summon Overseer
 ```text
-Act as project overseer/integrator for bz3-rewrite.
+Act as project overseer/integrator for m-rewrite.
 
 Read in order:
-1) m-rewrite/docs/BOOTSTRAP.md
+1) docs/BOOTSTRAP.md
 
 Then:
 - execute all startup/read-order and output requirements defined in that file.
 ```
+
+Integration-mode summon template is in:
+- `docs/rewrite-overseer/BOOTSTRAP.md`
 
 ### Retire Specialist
 ```text
