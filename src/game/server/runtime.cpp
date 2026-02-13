@@ -1,4 +1,5 @@
 #include "server/runtime.hpp"
+#include "server/community_heartbeat.hpp"
 #include "server/domain/world_session.hpp"
 #include "server/net/event_source.hpp"
 #include "server/server_game.hpp"
@@ -8,6 +9,7 @@
 #include "karma/app/bootstrap_scaffold.hpp"
 #include "karma/app/engine_server_app.hpp"
 #include "karma/common/config_helpers.hpp"
+#include "karma/common/config_store.hpp"
 #include "karma/common/config_validation.hpp"
 #include "karma/common/logging.hpp"
 
@@ -51,7 +53,7 @@ int RunRuntime(const CLIOptions& options) {
     }
     if (options.community_explicit) {
         KARMA_TRACE("engine.server",
-                    "CLI option --community parsed (not wired yet): '{}'",
+                    "CLI option --community set: '{}'",
                     options.community);
     }
     if (options.backend_physics_explicit) {
@@ -82,6 +84,15 @@ int RunRuntime(const CLIOptions& options) {
         karma::app::ResolveAudioBackendFromOption(options.backend_audio, options.backend_audio_explicit);
     engineConfig.enable_audio = options.backend_audio_explicit
         || karma::config::ReadBoolConfig({"audio.serverEnabled"}, false);
+    const uint16_t listen_port = options.host_port_explicit
+        ? options.host_port
+        : karma::config::ReadUInt16Config({"network.ServerPort"}, static_cast<uint16_t>(11899));
+
+    CommunityHeartbeat community_heartbeat{};
+    const std::string community_override = options.community_explicit ? options.community : std::string{};
+    community_heartbeat.configureFromConfig(karma::config::ConfigStore::Merged(),
+                                            listen_port,
+                                            community_override);
     ServerGame game{world_context->world_name};
     std::unique_ptr<net::ServerEventSource> event_source = net::CreateServerEventSource(options);
     uint32_t next_global_shot_id = 1;
@@ -211,6 +222,7 @@ int RunRuntime(const CLIOptions& options) {
             }
         }
         app.tick();
+        community_heartbeat.update(game);
         if (!g_running.load()) {
             app.requestStop();
         }

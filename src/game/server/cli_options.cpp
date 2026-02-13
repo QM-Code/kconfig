@@ -27,7 +27,7 @@ std::vector<karma::app::CliRegisteredOption> BuildGameCliOptions(CLIOptions& opt
         "-p",
         "--port",
         "<port>",
-        "Server port (parsed; not yet wired)",
+        "Server listen port",
         [&opts](uint16_t value) {
             opts.host_port = value;
             opts.host_port_explicit = true;
@@ -36,7 +36,7 @@ std::vector<karma::app::CliRegisteredOption> BuildGameCliOptions(CLIOptions& opt
         "-C",
         "--community",
         "<url>",
-        "Community endpoint (parsed; not yet wired)",
+        "Community endpoint (http://host:port or host:port)",
         [&opts](const std::string& value) {
             opts.community = value;
             opts.community_explicit = true;

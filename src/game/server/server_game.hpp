@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,6 +30,7 @@ class ServerGame final : public karma::app::ServerGameInterface {
     bool onClientJoin(uint32_t client_id, std::string_view player_name);
     bool onClientLeave(uint32_t client_id);
     bool hasClient(uint32_t client_id) const;
+    size_t connectedClientCount() const;
     const std::string& lastJoinRejectReason() const;
     std::vector<SessionSnapshot> activeSessionSnapshot() const;
 

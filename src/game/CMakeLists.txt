@@ -24,10 +24,12 @@ add_executable(bz3
 add_executable(bz3-server
     ${PROJECT_SOURCE_DIR}/src/game/server/bootstrap.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/cli_options.cpp
+    ${PROJECT_SOURCE_DIR}/src/game/server/community_heartbeat.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/domain/actor_system.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/domain/match_system.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/domain/session_system.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/domain/world_session.cpp
+    ${PROJECT_SOURCE_DIR}/src/game/server/heartbeat_client.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/main.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/net/transport_event_source.cpp
     ${PROJECT_SOURCE_DIR}/src/game/server/net/event_source.cpp

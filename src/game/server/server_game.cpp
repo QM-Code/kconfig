@@ -167,6 +167,10 @@ bool ServerGame::hasClient(uint32_t client_id) const {
     return session_by_client_id_.contains(client_id);
 }
 
+size_t ServerGame::connectedClientCount() const {
+    return session_by_client_id_.size();
+}
+
 void ServerGame::onStart() {
     if (!world) {
         return;

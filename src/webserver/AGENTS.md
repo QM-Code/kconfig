@@ -1,36 +1,82 @@
-# Webserver
+# Webserver Agent Guide
 
-Use this prompt when working on the community webserver in `webserver/`.
+## Purpose
+This file is the canonical agent guide for `src/webserver/`.
 
-## Start here
-1) Read and summarize `webserver/README.md` and `webserver/TODO.md`.
-2) Scan `webserver/karma/` (handlers, views, db, auth, router, tools, static) and note drift from the docs.
-3) Only after that, proceed with new tasks.
+Use it for:
+- community-host operations support (initialize/start/check/maintenance),
+- developer changes inside the webserver code.
 
-## Key context
-- Python WSGI app under `webserver/karma/`; `waitress` if available, fallback to `wsgiref`.
-- Config defaults live in `webserver/config.json` and are authoritative; avoid hardcoded defaults in code.
-- Language strings live under `webserver/strings/<lang>.json` (distribution) and `<community>/strings/<lang>.json` (overrides). Missing keys fall back to `strings/en.json`.
-- Database lives under `<community>/data/karma.db`, uploads under `<community>/uploads/`.
-- `bin/initialize.py` defaults for community name/admin come from `strings/<lang>.json` under `scripts.initialize.*`.
-- `/` redirects to `/servers`. `/servers` is HTML list. `/api/servers` is JSON list (overview only; includes active + inactive). `/api/servers/active` and `/api/servers/inactive` return active/inactive lists. `/api/server/<name|id>` returns a full server record. `/api/users/<name>` returns a user + server list. `/api/admins` takes host+port and returns owner’s admin list (1-level trust). `/api/auth` accepts POST `passhash` only; GET is allowed only when `debug.auth` is true and accepts `password` or `passhash`.
-- The client should only consume `/api/servers/active` (web UI can show inactive).
-- Host+port is enforced unique at DB level via unique index + CHECK constraints for player counts.
-- Deleted users are hidden from public profile and excluded from server lists and admin lists. Locked users cannot log in.
-- CSRF protection is implemented for both authenticated and unauthenticated forms.
-- Server list rendering is “widgetized” in `views.render_server_section` and used on `/servers` and `/users/<username>`.
+## Scope And Ownership
+- `src/webserver/` is a game-agnostic community-management sidecar service.
+- It is not `src/game/` ownership.
+- It is not engine runtime SDK surface (`src/engine/`), but part of the engine ecosystem toolchain.
+
+## Read Order
+1. `src/webserver/AGENTS.md` (this file)
+2. Relevant entrypoint code:
+   - `src/webserver/bin/start.py`
+   - `src/webserver/bin/initialize.py`
+   - `src/webserver/karma/app.py`
+   - `src/webserver/karma/cli.py`
+3. If changing behavior, inspect affected handlers under `src/webserver/karma/handlers/`.
+
+## Runtime Model
+- App type: Python WSGI.
+- Server backend:
+  - prefers `waitress` when installed,
+  - falls back to stdlib `wsgiref`.
+- Config layers:
+  - distribution defaults: `src/webserver/config.json` (authoritative),
+  - community overrides: `<community>/config.json`.
+
+## Community-Host Operations Mode
+Primary operator tasks:
+1. Initialize a new community directory:
+   - `python3 ./src/webserver/bin/initialize.py <community-dir>`
+2. Start service:
+   - `python3 ./src/webserver/bin/start.py <community-dir>`
+   - optional port override: `-p <port>`
+3. Health checks:
+   - `curl -fsS http://127.0.0.1:<port>/api/health`
+   - `curl -fsS http://127.0.0.1:<port>/api/info`
+4. Data maintenance helpers:
+   - `python3 ./src/webserver/bin/db-snapshot.py <community-dir> <output.json>`
+   - `python3 ./src/webserver/bin/db-restore.py <community-dir> -f <input.json>`
+   - `python3 ./src/webserver/bin/db-merge.py <community-dir> -f <input.json>`
+   - `python3 ./src/webserver/bin/clean-images.py <community-dir> [--dry-run]`
+
+## Developer Mode
+When changing webserver code:
+1. Keep changes scoped to `src/webserver/*`.
+2. Run string validation after any translation or UI-text key change:
+   - `python3 ./src/webserver/tests/validate_strings.py --all`
+3. For basic runtime smoke:
+   - start server on a demo community,
+   - verify `/api/health` and `/api/info`.
+4. Optional dev-data helpers:
+   - `python3 ./src/webserver/tests/makedata.py <community-dir> -s <n> -u <n>`
+   - `python3 ./src/webserver/tests/heartbeat.py <community-dir> [-w <seconds>]`
+
+## API Surface (High-Level)
+- `/api/health`: service health check.
+- `/api/info`: community metadata.
+- `/api/servers`, `/api/servers/active`, `/api/servers/inactive`: server list endpoints.
+- `/api/server/<token>`: server details.
+- `/api/auth`: auth endpoint.
 
 ## Guardrails
 - Do not store plaintext passwords.
-- Treat `webserver/config.json` as the authoritative source of defaults; do not hardcode any configurable defaults in code. If a value is missing, prefer surfacing a clear error instead of falling back.
-- Strings should be configurable via `strings/<lang>.json`; avoid hardcoding UI text.
-- For any new strings, add a translation for every language file. English text must only live in `strings/en.json`.
-- `cache_headers.static` and `cache_headers.uploads` are required config keys; static/uploads responses use them.
-- Static/uploads serving enforces path containment; do not relax the realpath checks in `karma/router.py`.
-- CSRF cookies are centralized in `karma/app.py` (GET + HTML responses); render helpers should call `auth.csrf_token(request)` internally.
-- Multipart parsing uses `Request.body()` + buffered `cgi.FieldStorage`; avoid reading `wsgi.input` directly elsewhere.
+- Keep config defaults in `src/webserver/config.json`; avoid new hardcoded defaults in Python code.
+- Keep UI strings in `src/webserver/strings/*.json`; avoid hardcoded English text in handlers/views.
+- Preserve path-containment checks for static/uploads serving.
+- Preserve CSRF behavior and auth/session validation paths.
 
-## Sanity checks
-- If `python` is missing, try `python3`.
-- Quick check: `python3 -m py_compile` on edited files.
-- Use `tests/validate_strings.py` after touching translation files.
+## Path Conventions
+- Run commands from `m-rewrite/`.
+- Use explicit repo-relative paths (`src/webserver/...`) in handoffs.
+
+## Handoff Minimum
+- Scope: what changed and what did not.
+- Validation: exact commands and outcomes.
+- Risk: open issues/assumptions.
