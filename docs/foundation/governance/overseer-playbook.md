@@ -66,6 +66,7 @@ When issuing a specialist packet:
 - include explicit owned paths, non-goals, and conflict hotspots,
 - include assigned isolated build dirs from `docs/projects/ASSIGNMENTS.md`,
 - enforce `./bzbuild.py <build-dir>`-only operator flows,
+- require test/demo data paths under `demo/` (`demo/communities`, `demo/users`, `demo/worlds`) unless explicitly justified otherwise,
 - require project-specific validation and wrapper gates with explicit build-dir args.
 
 ## Review and Rotation Protocol

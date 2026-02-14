@@ -13,6 +13,7 @@ struct BootstrapConfigSpec {
     std::string app_name;
     std::string data_dir_env_var;
     std::string required_data_marker;
+    bool enable_user_config = true;
     std::filesystem::path default_user_config_relative = std::filesystem::path("config.json");
     std::vector<config::ConfigFileSpec> config_specs{};
 };

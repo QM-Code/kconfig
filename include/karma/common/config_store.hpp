@@ -30,7 +30,7 @@ struct ConfigLayer {
 class ConfigStore {
  public:
     static void Initialize(const std::vector<ConfigFileSpec>& defaultSpecs,
-                           const std::filesystem::path& userConfigPath,
+                           const std::optional<std::filesystem::path>& userConfigPath = std::nullopt,
                            const std::vector<ConfigFileSpec>& runtimeSpecs = {});
     static bool Initialized();
     static uint64_t Revision();

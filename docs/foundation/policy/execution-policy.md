@@ -28,6 +28,15 @@ cd m-rewrite
 
 - If staying at integration workspace root, prefix every project path with `m-rewrite/`.
 
+## Demo Test Data Root (Required)
+- Use `demo/` as the canonical tracked root for local test/demo fixtures and reusable state.
+- Path conventions:
+  - communities/webserver state: `demo/communities/*`
+  - user-home/config state: `demo/users/*`
+  - world fixtures and world archives: `demo/worlds/*`
+- Prefer running local client/server/webserver verification against these paths.
+- Do not rely on personal `~/.config/bz3` or ad-hoc `/tmp` locations for durable/reusable test fixtures.
+
 ## Conflict Hotspots (Coordinate Ownership)
 - `src/engine/CMakeLists.txt`
 - `src/game/CMakeLists.txt`

@@ -46,13 +46,17 @@ Primary operator tasks:
    - `python3 ./src/webserver/bin/db-merge.py <community-dir> -f <input.json>`
    - `python3 ./src/webserver/bin/clean-images.py <community-dir> [--dry-run]`
 
+Community-dir policy:
+- use tracked demo community roots under `demo/communities/*` for local testing.
+- avoid ad-hoc `/tmp/*` community dirs for reusable test fixtures.
+
 ## Developer Mode
 When changing webserver code:
 1. Keep changes scoped to `src/webserver/*`.
 2. Run string validation after any translation or UI-text key change:
    - `python3 ./src/webserver/tests/validate_strings.py --all`
 3. For basic runtime smoke:
-   - start server on a demo community,
+   - start server on a tracked demo community (for example `./demo/communities/r55man`),
    - verify `/api/health` and `/api/info`.
 4. Optional dev-data helpers:
    - `python3 ./src/webserver/tests/makedata.py <community-dir> -s <n> -u <n>`

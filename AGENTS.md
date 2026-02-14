@@ -19,3 +19,8 @@ Workspace guardrails:
 - Use `./bzbuild.py <build-dir>` for delegated configure/build/test flows.
 - In parallel work, use isolated build dirs and explicit wrapper build-dir args.
 - Local `./vcpkg` bootstrap is mandatory before delegated build/test work.
+- Use `demo/` as the canonical tracked test-data root for local fixtures/state:
+  - communities: `demo/communities/*`
+  - user homes/config state: `demo/users/*`
+  - world fixtures: `demo/worlds/*`
+- Do not create durable test fixtures/state under personal `~/.config/bz3` or ad-hoc `/tmp` paths.

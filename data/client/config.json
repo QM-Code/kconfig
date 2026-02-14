@@ -1,4 +1,8 @@
 {
+  "config": {
+    "SaveIntervalSeconds": 3,
+    "MergeIntervalSeconds": 0.1
+  },
   "userDefaults": {
     "username": "MPCarbon",
     "password": "securepassword123",

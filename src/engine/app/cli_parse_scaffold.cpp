@@ -412,16 +412,18 @@ bool ShouldExposeAudioBackendCliOption() {
     return audio_backend::CompiledBackends().size() > 1;
 }
 
-void AppendCommonCliHelp(std::ostream& out) {
+void AppendCommonCliHelp(std::ostream& out, bool include_user_config_option) {
     out
         << "  -h, --help                      Show this help message\n"
         << "  -v, --verbose                   Enable debug-level logging\n"
         << "  -t, --trace <channels>          Enable comma-separated trace channels\n"
         << "  -d, --data-dir <dir>            Data directory override\n"
-        << "      --language <code>           Language override (applied to config)\n"
-        << "  -c, --config <path>             User config file path override\n"
+        << "      --language <code>           Language override (runtime only)\n"
         << "      --strict-config=<bool>      Required-config validation (default: true)\n"
         << "  -T, --timestamp-logging         Enable timestamped log output\n";
+    if (include_user_config_option) {
+        out << "  -c, --config <path>             User config file path override\n";
+    }
 }
 
 void AppendCoreBackendCliHelp(std::ostream& out) {

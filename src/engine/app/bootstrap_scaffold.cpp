@@ -7,6 +7,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <optional>
 #include <stdexcept>
 
 namespace karma::app {
@@ -29,7 +30,9 @@ void ApplyCommonCliConfigOverrides(const CliCommonState& state) {
     if (!state.language_explicit) {
         return;
     }
-    if (!config::ConfigStore::Set("language", state.language)) {
+    karma::json::Value overlay = karma::json::Object();
+    overlay["language"] = state.language;
+    if (!config::ConfigStore::AddRuntimeLayer("cli overrides", overlay, {})) {
         throw std::runtime_error("Failed to apply CLI language override.");
     }
     KARMA_TRACE("config", "Applied CLI language override: {}", state.language);
@@ -56,8 +59,11 @@ void ConfigureDataAndConfigFromSpec(const BootstrapConfigSpec& spec, int argc, c
     data::SetDataPathSpec(data_spec);
 
     const auto data_dir_result =
-        data::ApplyDataDirOverrideFromArgs(argc, argv, spec.default_user_config_relative);
-    config::ConfigStore::Initialize(spec.config_specs, data_dir_result.userConfigPath);
+        data::ApplyDataDirOverrideFromArgs(argc, argv, spec.default_user_config_relative, spec.enable_user_config);
+    const auto user_config_path =
+        spec.enable_user_config ? std::optional<std::filesystem::path>(data_dir_result.userConfigPath)
+                                : std::nullopt;
+    config::ConfigStore::Initialize(spec.config_specs, user_config_path);
     ApplyCommonCliConfigOverrides(ParseCommonCliState(argc, argv));
 }
 

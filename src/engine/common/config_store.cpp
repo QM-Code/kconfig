@@ -284,24 +284,24 @@ std::vector<karma::config::ConfigLayer> loadLayers(const std::vector<karma::conf
 namespace karma::config {
 
 void ConfigStore::Initialize(const std::vector<ConfigFileSpec> &defaultSpecs,
-                             const std::filesystem::path &userConfigPath,
+                             const std::optional<std::filesystem::path> &userConfigPath,
                              const std::vector<ConfigFileSpec> &runtimeSpecs) {
     std::vector<ConfigFileSpec> combinedDefaults = defaultSpecs;
 
     std::vector<ConfigLayer> defaults = loadLayers(combinedDefaults);
     std::vector<ConfigLayer> runtime = loadLayers(runtimeSpecs);
 
-    const std::filesystem::path resolvedUserPath = userConfigPath.empty()
-        ? karma::data::EnsureUserConfigFile("config.json")
-        : TryCanonical(userConfigPath);
-
+    std::filesystem::path resolvedUserPath{};
     karma::json::Value userJson = karma::json::Object();
-    KARMA_TRACE("config", "config_store: loading user config '{}'", resolvedUserPath.string());
-    if (auto userOpt = karma::data::LoadJsonFile(resolvedUserPath, "user config", spdlog::level::debug)) {
-        if (userOpt->is_object()) {
-            userJson = std::move(*userOpt);
-        } else {
-            spdlog::warn("config_store: User config {} is not a JSON object", resolvedUserPath.string());
+    if (userConfigPath.has_value() && !userConfigPath->empty()) {
+        resolvedUserPath = TryCanonical(*userConfigPath);
+        KARMA_TRACE("config", "config_store: loading user config '{}'", resolvedUserPath.string());
+        if (auto userOpt = karma::data::LoadJsonFile(resolvedUserPath, "user config", spdlog::level::debug)) {
+            if (userOpt->is_object()) {
+                userJson = std::move(*userOpt);
+            } else {
+                spdlog::warn("config_store: User config {} is not a JSON object", resolvedUserPath.string());
+            }
         }
     }
 
@@ -311,7 +311,7 @@ void ConfigStore::Initialize(const std::vector<ConfigFileSpec> &defaultSpecs,
     }
 
     std::optional<ConfigLayer> userLayer;
-    if (userJson.is_object()) {
+    if (!resolvedUserPath.empty() && userJson.is_object()) {
         userLayer = ConfigLayer{userJson, resolvedUserPath.parent_path(), "user config"};
     }
 
@@ -322,8 +322,14 @@ void ConfigStore::Initialize(const std::vector<ConfigFileSpec> &defaultSpecs,
     g_state.defaults = std::move(defaultsMerged);
     g_state.user = userJson;
     g_state.userConfigPath = resolvedUserPath;
-    g_state.saveIntervalSeconds = readIntervalSeconds(g_state.defaults, "config.SaveIntervalSeconds", 0.0);
-    g_state.mergeIntervalSeconds = readIntervalSeconds(g_state.defaults, "config.MergeIntervalSeconds", 0.0);
+    if (!resolvedUserPath.empty()) {
+        g_state.saveIntervalSeconds = readIntervalSeconds(g_state.defaults, "config.SaveIntervalSeconds", 0.0);
+        g_state.mergeIntervalSeconds = readIntervalSeconds(g_state.defaults, "config.MergeIntervalSeconds", 0.0);
+    } else {
+        // Persistence disabled (e.g., server mode): no user-config save/merge intervals apply.
+        g_state.saveIntervalSeconds = 0.0;
+        g_state.mergeIntervalSeconds = 0.0;
+    }
     g_state.lastSaveTime = std::chrono::steady_clock::now();
     g_state.lastMergeTime = g_state.lastSaveTime;
     g_state.lastSavedRevision = 0;
@@ -405,6 +411,9 @@ bool ConfigStore::Set(std::string_view path, karma::json::Value value) {
     if (g_state.mergeIntervalSeconds <= 0.0) {
         rebuildMergedLocked();
     }
+    if (g_state.userConfigPath.empty()) {
+        return true;
+    }
     g_state.pendingSave = true;
     if (g_state.saveIntervalSeconds <= 0.0) {
         return saveUserUnlocked(nullptr, true);
@@ -426,6 +435,9 @@ bool ConfigStore::Erase(std::string_view path) {
     g_state.mergedDirty = true;
     if (g_state.mergeIntervalSeconds <= 0.0) {
         rebuildMergedLocked();
+    }
+    if (g_state.userConfigPath.empty()) {
+        return true;
     }
     g_state.pendingSave = true;
     if (g_state.saveIntervalSeconds <= 0.0) {
@@ -450,6 +462,9 @@ bool ConfigStore::ReplaceUserConfig(karma::json::Value userConfig, std::string *
     if (g_state.mergeIntervalSeconds <= 0.0) {
         rebuildMergedLocked();
     }
+    if (g_state.userConfigPath.empty()) {
+        return true;
+    }
     g_state.pendingSave = true;
     if (g_state.saveIntervalSeconds <= 0.0) {
         return saveUserUnlocked(error, true);
@@ -462,6 +477,12 @@ bool ConfigStore::SaveUser(std::string *error) {
     if (!g_state.initialized) {
         if (error) {
             *error = "Config store not initialized.";
+        }
+        return false;
+    }
+    if (g_state.userConfigPath.empty()) {
+        if (error) {
+            *error = "User config persistence is disabled.";
         }
         return false;
     }
@@ -485,6 +506,13 @@ void ConfigStore::Tick() {
 }
 
 bool ConfigStore::saveUserUnlocked(std::string *error, bool ignoreInterval) {
+    if (g_state.userConfigPath.empty()) {
+        if (error) {
+            *error = "User config persistence is disabled.";
+        }
+        g_state.pendingSave = false;
+        return false;
+    }
     const auto now = std::chrono::steady_clock::now();
     if (g_state.revision <= g_state.lastSavedRevision) {
         g_state.pendingSave = false;
@@ -496,9 +524,7 @@ bool ConfigStore::saveUserUnlocked(std::string *error, bool ignoreInterval) {
         return true;
     }
 
-    const std::filesystem::path path = g_state.userConfigPath.empty()
-        ? karma::data::EnsureUserConfigFile("config.json")
-        : g_state.userConfigPath;
+    const std::filesystem::path path = g_state.userConfigPath;
 
     std::error_code ec;
     const auto parentDir = path.parent_path();

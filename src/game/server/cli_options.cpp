@@ -49,7 +49,7 @@ void PrintHelp(const std::vector<karma::app::CliRegisteredOption>& game_options)
         << "Usage: bz3-server [options]\n"
         << "\n"
         << "Options:\n";
-    karma::app::AppendCommonCliHelp(std::cout);
+    karma::app::AppendCommonCliHelp(std::cout, false);
     karma::app::AppendCoreBackendCliHelp(std::cout);
     karma::app::AppendRegisteredCliHelp(std::cout, game_options);
 }

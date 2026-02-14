@@ -21,7 +21,7 @@ void ConfigureDataAndConfig(int argc, char** argv) {
     spec.app_name = "bz3";
     spec.data_dir_env_var = "BZ3_DATA_DIR";
     spec.required_data_marker = "common/config.json";
-    spec.default_user_config_relative = std::filesystem::path("server/config.json");
+    spec.enable_user_config = false;
     spec.config_specs = {
         {"common/config.json", "data/common/config.json", spdlog::level::err, true, true},
         {"server/config.json", "data/server/config.json", spdlog::level::err, true, true}

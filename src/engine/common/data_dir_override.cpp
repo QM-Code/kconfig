@@ -190,13 +190,25 @@ void ValidateDataDirOrExit(const std::filesystem::path &path, const std::string 
 
 namespace karma::data {
 
-DataDirOverrideResult ApplyDataDirOverrideFromArgs(int argc, char *argv[], const std::filesystem::path &defaultConfigRelative) {
+DataDirOverrideResult ApplyDataDirOverrideFromArgs(int argc,
+                                                   char *argv[],
+                                                   const std::filesystem::path &defaultConfigRelative,
+                                                   bool enableUserConfig) {
     try {
         const auto cliConfigPath = ParsePathArg(argc, argv, "-c", "--config");
         const auto cliDataDir = ParsePathArg(argc, argv, "-d", "--data-dir");
+        std::filesystem::path configPath{};
+        std::optional<std::filesystem::path> configDataDir{};
 
-        const std::filesystem::path configPath = EnsureConfigFileAtPath(cliConfigPath ? *cliConfigPath : std::filesystem::path{}, defaultConfigRelative);
-        const auto configDataDir = cliDataDir ? std::optional<std::filesystem::path>{} : ExtractDataDirFromConfig(configPath);
+        if (enableUserConfig) {
+            configPath = EnsureConfigFileAtPath(cliConfigPath ? *cliConfigPath : std::filesystem::path{},
+                                                defaultConfigRelative);
+            configDataDir = cliDataDir ? std::optional<std::filesystem::path>{}
+                                       : ExtractDataDirFromConfig(configPath);
+        } else if (cliConfigPath) {
+            std::cerr << "The --config option is not supported for this executable.\n";
+            std::exit(1);
+        }
 
         if (cliDataDir) {
             ValidateDataDirOrExit(*cliDataDir, std::string("-d ") + cliDataDir->string());
@@ -227,14 +239,21 @@ DataDirOverrideResult ApplyDataDirOverrideFromArgs(int argc, char *argv[], const
         std::cerr << "The data directory could not be found.\n";
         std::cerr << "\n";
         std::cerr << "This should not happen and may indicate a problem with installation.\n\n";
-        std::cerr << "This directory can be specified in three ways:\n";
+        std::cerr << "This directory can be specified";
+        if (enableUserConfig) {
+            std::cerr << " in three ways:\n";
+        } else {
+            std::cerr << " in two ways:\n";
+        }
         std::cerr << "  1. Set the " << spec.dataDirEnvVar << " environment variable.\n";
         std::cerr << "  2. Use the command-line option \"-d <datadir>\".\n";
-        std::cerr << "  3. Add the following to your config file:\n";
-        std::cerr << "     " << configPath.string() << "\n";
-        std::cerr << "     {\n";
-        std::cerr << "         \"DataDir\" : \"<datadir>\"\n";
-        std::cerr << "     }\n";
+        if (enableUserConfig) {
+            std::cerr << "  3. Add the following to your config file:\n";
+            std::cerr << "     " << configPath.string() << "\n";
+            std::cerr << "     {\n";
+            std::cerr << "         \"DataDir\" : \"<datadir>\"\n";
+            std::cerr << "     }\n";
+        }
         std::cerr << "\n";
         std::exit(1);
     } catch (const std::exception &ex) {

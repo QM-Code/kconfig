@@ -100,7 +100,7 @@ CliConsumeResult ConsumeAudioBackendCliOption(const std::string& arg,
 bool ShouldExposePhysicsBackendCliOption();
 bool ShouldExposeAudioBackendCliOption();
 
-void AppendCommonCliHelp(std::ostream& out);
+void AppendCommonCliHelp(std::ostream& out, bool include_user_config_option = true);
 void AppendCoreBackendCliHelp(std::ostream& out);
 CliConsumeResult ConsumeRegisteredCliOption(const std::string& arg,
                                             int& index,

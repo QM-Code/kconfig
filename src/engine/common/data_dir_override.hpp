@@ -10,6 +10,9 @@ struct DataDirOverrideResult {
     std::optional<std::filesystem::path> dataDir;
 };
 
-DataDirOverrideResult ApplyDataDirOverrideFromArgs(int argc, char *argv[], const std::filesystem::path &defaultConfigRelative = std::filesystem::path("config.json"));
+DataDirOverrideResult ApplyDataDirOverrideFromArgs(int argc,
+                                                   char *argv[],
+                                                   const std::filesystem::path &defaultConfigRelative = std::filesystem::path("config.json"),
+                                                   bool enableUserConfig = true);
 
 } // namespace karma::data
