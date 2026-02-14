@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `overseer`
-- Status: `in progress (G2 landed; G3 next)`
-- Immediate next task: execute G3 hit-attribution migration slice by introducing rewrite-owned combat resolution over `ShotSystem` state (still keep score semantics isolated from UI track).
+- Status: `in progress (G2 + D1 landed; D2 next)`
+- Immediate next task: execute D2 movement-replication slice by wiring client `PlayerLocation` intent and server-authoritative tank drive state updates.
 - Validation gate: `./docs/scripts/lint-project-docs.sh` for planning/doc slices; for code slices, run `./scripts/test-server-net.sh <build-dir>` with assigned build-dir args.
 
 ## Mission
@@ -55,6 +55,7 @@ This migration is cross-cutting and risk-heavy:
 ## Migration Tracks
 1. Track A (blocked until UI completion): HUD/console/chat/scoreboard presentation migration from `m-dev/src/game/ui/*` after `docs/projects/ui-integration.md` closeout.
 2. Track B (active now): gameplay-rule extraction and migration (shots, hit attribution, scoring/scoreboard triggers, round state) from `m-dev` into rewrite game-owned modules.
+3. Track C (shared unblocker): drivable-tank baseline and movement replication seam before expanding hit/score semantics.
 
 Strategic alignment:
 - Primary track label: `m-dev parity`.
@@ -63,15 +64,18 @@ Strategic alignment:
 ## Execution Plan
 1. G1 discovery ledger: map current shot/hit/scoreboard/round semantics from `m-dev` paths to rewrite target paths and boundary category.
 2. G2 shot lifecycle migration: move shot creation/ownership/lifecycle semantics into explicit rewrite game-owned modules.
-3. G3 hit attribution migration: migrate authoritative hit resolution and attacker/victim attribution rules.
-4. G4 scoring and scoreboard trigger migration: migrate kill/score events and scoreboard state transitions.
-5. G5 round lifecycle migration: migrate round start/end/spawn/respawn control flow.
-6. G6 UI migration track: once `ui-integration.md` closes, port HUD/console/chat/scoreboard UI behaviors from `m-dev/src/game/ui/*`.
+3. D1 drivable-tank baseline slice: stand up rewrite-owned local tank drive controller + visible tank entity + follow camera in client gameplay loop.
+4. D2 movement replication slice: add client `PlayerLocation` intent + server authoritative movement/event handling seam for tank state.
+5. G3 hit attribution migration: migrate authoritative hit resolution and attacker/victim attribution rules.
+6. G4 scoring and scoreboard trigger migration: migrate kill/score events and scoreboard state transitions.
+7. G5 round lifecycle migration: migrate round start/end/spawn/respawn control flow.
+8. G6 UI migration track: once `ui-integration.md` closes, port HUD/console/chat/scoreboard UI behaviors from `m-dev/src/game/ui/*`.
 
 ## Migration Ledger (G1 Populated)
 | Domain | Legacy source path(s) in `m-dev` | Rewrite target path(s) | Boundary type | Status |
 |---|---|---|---|---|
 | Shots | `src/game/client/player.cpp`, `src/game/client/shot.cpp`, `src/game/client/shot.hpp`, `src/game/server/game.cpp`, `src/game/server/shot.cpp`, `src/game/server/shot.hpp`, `src/game/net/messages.hpp`, plus engine leakage in `src/engine/graphics/backends/bgfx/backend.cpp` and `src/engine/graphics/backends/diligent/backend.cpp` (`shot.glb` special-casing) | Existing: `src/game/client/net/client_connection.*`, `src/game/server/runtime_event_rules.cpp`, `src/game/server/runtime.cpp`, `src/game/net/protocol_codec.*`; Landed in G2: `src/game/server/domain/shot_system.hpp`, `src/game/server/domain/shot_system.cpp`, `src/game/server/domain/shot_types.hpp` | game-owned with explicit engine-leak cleanup seam | `G2 landed` |
+| Tank locomotion baseline | `src/game/client/player.cpp` (movement intent, controller, camera follow), `src/game/client/actor.hpp` | Landed in D1: `src/game/client/domain/tank_drive_controller.hpp`, `src/game/client/domain/tank_drive_controller.cpp`, `src/game/game.cpp`; proof in `src/game/tests/tank_drive_controller_test.cpp` | game-owned over existing engine render/input contracts | `D1 landed` |
 | Hit attribution | `src/game/server/shot.cpp` (`hits`), `src/game/server/game.cpp` (victim/killer resolution), `src/game/server/plugin.cpp` (`killPlayer`) | New: `src/game/server/domain/combat_system.hpp`, `src/game/server/domain/combat_system.cpp`; integration in `src/game/server/runtime.cpp` + `src/game/server/server_game.cpp` | game-owned | `queued (G3)` |
 | Scoreboard/scoring | `src/game/server/client.cpp` (`setScore`), `src/game/server/game.cpp` (authoritative +/-), `src/game/client/actor.hpp`, `src/game/client/game.cpp` (scoreboard assembly), UI consumption in `src/game/ui/core/system.cpp` | New: `src/game/server/domain/score_system.hpp`, `src/game/server/domain/score_system.cpp`; component extension in `src/game/server/domain/components.hpp`; client/UI bridge in `src/game/game.cpp` once `ui-integration` closes | game-owned semantics over engine UI contracts | `queued (G4)` |
 | Round lifecycle | `src/game/server/client.cpp` (`trySpawn`, `die`), `src/game/server/world_session.cpp` (`pickSpawnLocation`), `src/game/server/game.cpp` (spawn request consume), `src/game/client/player.cpp` (spawn request when dead) | Existing scaffold: `src/game/server/runtime_event_rules.cpp`, `src/game/server/runtime.cpp`, `src/game/server/domain/world_session.*`; New: `src/game/server/domain/spawn_system.hpp`, `src/game/server/domain/spawn_system.cpp` | game-owned | `partially scaffolded; queued (G5)` |
@@ -117,6 +121,23 @@ Implementation landed:
 - Added protobuf encode helper `EncodeServerRemoveShot` in `src/game/net/protocol_codec.*`.
 - Added remove-shot round-trip coverage in `src/game/tests/server_net_contract_test.cpp`.
 
+## D1 Slice (Landed 2026-02-14)
+Goal:
+- Prove in-game drivable tank behavior in rewrite client before further shot/hit extraction, while staying inside rewrite-owned game paths.
+
+Scope landed:
+- Added `src/game/client/domain/tank_drive_controller.hpp`.
+- Added `src/game/client/domain/tank_drive_controller.cpp`.
+- Integrated local tank entity lifecycle + drive controls + follow camera in `src/game/game.cpp`.
+- Added deterministic movement contract test `src/game/tests/tank_drive_controller_test.cpp`.
+- Wired build/test target in `src/game/CMakeLists.txt`.
+
+Acceptance:
+1. A visible local tank entity is spawned from `assets.models.playerModel` when gameplay starts.
+2. Arrow-key movement (`moveForward/moveBackward/moveLeft/moveRight`) drives tank pose through rewrite-owned game logic.
+3. Follow camera tracks tank pose in gameplay mode.
+4. Movement math is proven by `tank_drive_controller_test` in both assigned build dirs.
+
 ## Validation
 From `m-rewrite/`:
 
@@ -126,6 +147,7 @@ From `m-rewrite/`:
 
 # code-touch slices in this project
 ./scripts/test-server-net.sh <build-dir>
+./<build-dir>/src/game/tank_drive_controller_test
 ```
 
 ## Trace Channels
@@ -145,11 +167,11 @@ From `m-rewrite/`:
 ## First Session Checklist
 1. Read `AGENTS.md`, then `docs/foundation/policy/execution-policy.md`, then this file.
 2. Build G1 extraction ledger from `m-dev` by domain and boundary category.
-3. Propose one smallest safe code slice (shots-first) with owned rewrite paths only.
+3. Propose one smallest safe code slice (movement/authority seam or shots/hits) with owned rewrite paths only.
 4. Execute required validation for touched scope.
 5. Update this file and `docs/projects/ASSIGNMENTS.md` in the same handoff.
 
-## Active Specialist Packet (G3)
+## Active Specialist Packet (D2)
 ```text
 Execution root:
 - Standalone mode: if you are already in `m-rewrite` repo root, use unprefixed paths below.
@@ -167,26 +189,23 @@ Read in order:
 Take ownership of: docs/projects/gameplay-migration.md
 
 Goal:
-- Implement G3 hit-attribution migration: introduce rewrite-owned combat resolution on top of ShotSystem without broad score/UI churn.
+- Implement D2 movement replication slice: wire client movement intent (`PlayerLocation`) to rewrite server-authoritative movement state updates.
 
 Scope:
-- Add:
-  - src/game/server/domain/combat_system.hpp
-  - src/game/server/domain/combat_system.cpp
-- Integrate CombatSystem in:
-  - src/game/server/runtime.cpp
-  - src/game/server/server_game.cpp (only if required for clean ownership)
-- Keep ShotSystem ownership and protocol/event interfaces stable:
-  - src/game/server/domain/shot_system.*
+- Add/extend movement protocol/event handling in:
+  - src/game/net/protocol_codec.*
   - src/game/server/net/event_source.hpp
   - src/game/server/net/transport_event_source.cpp
-  - src/game/net/protocol_codec.*
-- In this slice: migrate authoritative hit-detection/attribution only.
-- Do not redesign scoreboard/UI mapping yet.
+  - src/game/server/runtime_event_rules.*
+  - src/game/server/runtime.cpp
+- Keep existing shot contracts stable:
+  - src/game/server/domain/shot_system.*
+- In this slice: migrate movement intent ingestion + authoritative position update seam only.
+- Do not redesign hit/scoring/UI mapping yet.
 
 Strategic alignment (required):
-- Track: m-dev parity.
-- This slice continues gameplay-rule migration by moving server-authoritative hit semantics into rewrite-owned game domain code.
+- Track: shared unblocker.
+- This slice unblocks gameplay parity by establishing a clean movement authority seam before deeper shot/hit migration.
 
 Constraints:
 - Stay within owned paths and interface boundaries in docs/projects/gameplay-migration.md.
@@ -204,6 +223,8 @@ Validation (required):
 - ./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
 - ./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
 - ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
+- ./build-sdl3-bgfx-jolt-rmlui-miniaudio/src/game/tank_drive_controller_test
+- ./build-sdl3-bgfx-physx-rmlui-miniaudio/src/game/tank_drive_controller_test
 - ./docs/scripts/lint-project-docs.sh
 
 Docs updates (required):
@@ -224,13 +245,17 @@ Handoff must include:
 - `2026-02-13`: identified engine/game leak in `m-dev` renderer backends (`shot.glb` special-casing), marked as explicit anti-pattern for rewrite migration.
 - `2026-02-13`: G2 implemented in rewrite server runtime/domain: active-shot tracking + deterministic expiry/remove broadcast path are now rewrite-owned.
 - `2026-02-13`: G2 validation passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh <build-dir>` on jolt/physx).
+- `2026-02-14`: D1 landed: rewrite client now has local drivable tank baseline (`tank_drive_controller` + in-game tank entity + follow camera).
+- `2026-02-14`: D1 movement proof passed in both assigned build dirs via `src/game/tank_drive_controller_test`.
 
 ## Open Questions
-- Should G3 preserve `m-dev` immediate distance-sphere hit rules first, or directly migrate to backend ray/shape query attribution for server authority?
+- Should D2 keep player movement state as transport-side events first, or immediately establish a server-domain movement system owning authoritative player pose?
+- Should D2 map `ClientMsg_PlayerLocation` directly onto existing server session entities, or introduce a dedicated movement component/system seam first?
 - Should owner-local remove semantics (`local id for owner`, `global id for others`) stay transport-only, or be hoisted into explicit game-domain removal policy before scoreboard migration?
 
 ## Handoff Checklist
 - [x] Migration tracks and boundaries documented.
 - [x] G1 ledger populated with concrete source->target mappings.
 - [x] G2 implementation slice accepted.
-- [x] Next implementation packet drafted (G3).
+- [x] D1 drivable-tank baseline slice accepted.
+- [x] Next implementation packet drafted (D2).

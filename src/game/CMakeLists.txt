@@ -16,6 +16,7 @@ add_executable(bz3
     ${PROJECT_SOURCE_DIR}/src/game/client/bootstrap.cpp
     ${PROJECT_SOURCE_DIR}/src/game/client/cli_options.cpp
     ${PROJECT_SOURCE_DIR}/src/game/client/community_server_list.cpp
+    ${PROJECT_SOURCE_DIR}/src/game/client/domain/tank_drive_controller.cpp
     ${PROJECT_SOURCE_DIR}/src/game/client/net/client_connection.cpp
     ${PROJECT_SOURCE_DIR}/src/game/client/main.cpp
     ${PROJECT_SOURCE_DIR}/src/game/game.cpp
@@ -207,4 +208,16 @@ if(BUILD_TESTING)
     set_tests_properties(client_world_package_safety_integration_test PROPERTIES
                          RUN_SERIAL TRUE
                          SKIP_RETURN_CODE 77)
+
+    add_executable(tank_drive_controller_test
+        ${PROJECT_SOURCE_DIR}/src/game/tests/tank_drive_controller_test.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/client/domain/tank_drive_controller.cpp
+    )
+    target_include_directories(tank_drive_controller_test PRIVATE
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/src/game
+    )
+    target_link_libraries(tank_drive_controller_test PRIVATE karma_engine_core)
+    add_test(NAME tank_drive_controller_test
+             COMMAND tank_drive_controller_test)
 endif()
