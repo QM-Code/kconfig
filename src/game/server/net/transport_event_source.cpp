@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <unordered_map>
 #include <vector>
 
@@ -288,7 +289,9 @@ std::optional<std::vector<std::byte>> BuildWorldDeltaArchive(
 
 class TransportServerEventSource final : public ServerEventSource {
  public:
-    explicit TransportServerEventSource(uint16_t port) : port_(port) {
+    TransportServerEventSource(uint16_t port, std::string app_name)
+        : port_(port),
+          app_name_(std::move(app_name)) {
         bool custom_backend = false;
         karma::network::ServerTransportConfig transport_config =
             karma::network::ResolveServerTransportConfigFromConfig(port_,
@@ -915,7 +918,7 @@ class TransportServerEventSource final : public ServerEventSource {
             peer,
             bz3::net::EncodeServerInit(
                 client_id,
-                karma::config::ReadStringConfig({"serverName"}, std::string("bz3-server")),
+                karma::config::ReadStringConfig("serverName", app_name_),
                 world_name,
                 bz3::net::kProtocolVersion,
                 world_hash,
@@ -1178,6 +1181,7 @@ class TransportServerEventSource final : public ServerEventSource {
 
     std::unique_ptr<karma::network::ServerTransport> transport_{};
     uint16_t port_ = 0;
+    std::string app_name_{};
     bool initialized_ = false;
     uint32_t next_client_id_ = kFirstClientId;
     uint64_t next_transfer_id_ = 1;
@@ -1186,8 +1190,11 @@ class TransportServerEventSource final : public ServerEventSource {
 
 } // namespace
 
-std::unique_ptr<ServerEventSource> CreateServerTransportEventSource(uint16_t port) {
-    auto transport_source = std::make_unique<TransportServerEventSource>(port);
+std::unique_ptr<ServerEventSource> CreateServerTransportEventSource(uint16_t port,
+                                                                    std::string_view app_name) {
+    auto transport_source = std::make_unique<TransportServerEventSource>(
+        port,
+        app_name.empty() ? std::string("server") : std::string(app_name));
     if (!transport_source->initialized()) {
         return nullptr;
     }

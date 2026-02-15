@@ -6,6 +6,7 @@
 namespace bz3::client {
 
 struct CLIOptions {
+    std::string app_name;
     std::string player_name;
     std::string connect_addr;
     std::string data_dir;

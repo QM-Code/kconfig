@@ -1,6 +1,7 @@
 #include "server/cli_options.hpp"
 
-#include "karma/app/cli_parse_scaffold.hpp"
+#include "karma/cli/cli_parse_scaffold.hpp"
+#include "karma/cli/server_runtime_options.hpp"
 #include "karma/common/logging.hpp"
 
 #include <cstdlib>
@@ -12,81 +13,60 @@ namespace bz3::server {
 
 namespace {
 
-std::vector<karma::app::CliRegisteredOption> BuildGameCliOptions(CLIOptions& opts) {
-    std::vector<karma::app::CliRegisteredOption> options{};
-    options.push_back(karma::app::DefineStringOption(
-        "",
-        "--server-config",
-        "<path>",
-        "Server config overlay file",
-        [&opts](const std::string& value) {
-            opts.server_config_path = value;
-            opts.server_config_explicit = true;
-        }));
-    options.push_back(karma::app::DefineUInt16Option(
-        "-p",
-        "--listen-port",
-        "<port>",
-        "Server listen port",
-        [&opts](uint16_t value) {
-            opts.listen_port = value;
-            opts.listen_port_explicit = true;
-        }));
-    options.push_back(karma::app::DefineStringOption(
-        "-C",
-        "--community",
-        "<url>",
-        "Community endpoint (http://host:port or host:port)",
-        [&opts](const std::string& value) {
-            opts.community = value;
-            opts.community_explicit = true;
-        }));
-    return options;
+std::vector<karma::cli::CliRegisteredOption> BuildGameCliOptions(CLIOptions& opts) {
+    (void)opts;
+    return {};
 }
 
-void PrintHelp(const std::vector<karma::app::CliRegisteredOption>& game_options) {
+void PrintHelp(const std::string& app_name,
+               const std::vector<karma::cli::CliRegisteredOption>& game_options) {
     std::cout
-        << "Usage: bz3-server [options]\n"
+        << "Usage: " << app_name << " [options]\n"
         << "\n"
         << "Options:\n";
-    karma::app::AppendCommonCliHelp(std::cout, false);
-    karma::app::AppendCoreBackendCliHelp(std::cout);
-    karma::app::AppendRegisteredCliHelp(std::cout, game_options);
+    karma::cli::AppendCommonCliHelp(std::cout, false);
+    karma::cli::AppendCoreBackendCliHelp(std::cout);
+    karma::cli::AppendServerRuntimeCliHelp(std::cout);
+    karma::cli::AppendRegisteredCliHelp(std::cout, game_options);
 }
 
 [[noreturn]] void Fail(const std::string& message,
-                       const std::vector<karma::app::CliRegisteredOption>& game_options) {
+                       const std::string& app_name,
+                       const std::vector<karma::cli::CliRegisteredOption>& game_options) {
     std::cerr << "Error: " << message << "\n\n";
-    PrintHelp(game_options);
+    PrintHelp(app_name, game_options);
     std::exit(1);
 }
 
 } // namespace
 
 CLIOptions ParseCLIOptions(int argc, char** argv) {
-    karma::app::RequireTraceList(argc, argv);
+    karma::cli::RequireTraceList(argc, argv);
 
     CLIOptions opts{};
-    karma::app::CliCommonState common{};
+    opts.app_name = karma::cli::ResolveExecutableName(
+        (argc > 0 && argv) ? argv[0] : nullptr,
+        "bz3-server");
+    karma::cli::CliCommonState common{};
     const auto game_options = BuildGameCliOptions(opts);
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
 
-        const auto common_result = karma::app::ConsumeCommonCliOption(arg, i, argc, argv, common);
+        const auto common_result = karma::cli::ConsumeCommonCliOption(arg, i, argc, argv, common);
         if (common_result.consumed) {
             if (!common_result.error.empty()) {
-                Fail(common_result.error, game_options);
+                Fail(common_result.error, opts.app_name, game_options);
             }
             if (common_result.help_requested) {
-                PrintHelp(game_options);
+                PrintHelp(opts.app_name, game_options);
                 std::exit(0);
             }
             continue;
         }
 
         const auto physics_result =
-            karma::app::ConsumePhysicsBackendCliOption(arg,
+            karma::cli::ConsumePhysicsBackendCliOption(arg,
                                                        i,
                                                        argc,
                                                        argv,
@@ -94,29 +74,47 @@ CLIOptions ParseCLIOptions(int argc, char** argv) {
                                                        opts.backend_physics_explicit);
         if (physics_result.consumed) {
             if (!physics_result.error.empty()) {
-                Fail(physics_result.error, game_options);
+                Fail(physics_result.error, opts.app_name, game_options);
             }
             continue;
         }
 
         const auto audio_result =
-            karma::app::ConsumeAudioBackendCliOption(arg, i, argc, argv, opts.backend_audio, opts.backend_audio_explicit);
+            karma::cli::ConsumeAudioBackendCliOption(arg, i, argc, argv, opts.backend_audio, opts.backend_audio_explicit);
         if (audio_result.consumed) {
             if (!audio_result.error.empty()) {
-                Fail(audio_result.error, game_options);
+                Fail(audio_result.error, opts.app_name, game_options);
             }
             continue;
         }
 
-        const auto game_result = karma::app::ConsumeRegisteredCliOption(arg, i, argc, argv, game_options);
+        const auto server_runtime_result = karma::cli::ConsumeServerRuntimeCliOption(
+            arg,
+            i,
+            argc,
+            argv,
+            opts.server_config_path,
+            opts.server_config_explicit,
+            opts.listen_port,
+            opts.listen_port_explicit,
+            opts.community,
+            opts.community_explicit);
+        if (server_runtime_result.consumed) {
+            if (!server_runtime_result.error.empty()) {
+                Fail(server_runtime_result.error, opts.app_name, game_options);
+            }
+            continue;
+        }
+
+        const auto game_result = karma::cli::ConsumeRegisteredCliOption(arg, i, argc, argv, game_options);
         if (game_result.consumed) {
             if (!game_result.error.empty()) {
-                Fail(game_result.error, game_options);
+                Fail(game_result.error, opts.app_name, game_options);
             }
             continue;
         }
 
-        Fail("Unknown option '" + arg + "'.", game_options);
+        Fail("Unknown option '" + arg + "'.", opts.app_name, game_options);
     }
 
     opts.trace_explicit = common.trace_explicit;

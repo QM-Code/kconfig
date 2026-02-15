@@ -130,6 +130,7 @@ class ServerEventSource {
     }
 };
 
-std::unique_ptr<ServerEventSource> CreateServerEventSource(const CLIOptions& options);
+std::unique_ptr<ServerEventSource> CreateServerEventSource(const CLIOptions& options,
+                                                           uint16_t listen_port);
 
 } // namespace bz3::server::net

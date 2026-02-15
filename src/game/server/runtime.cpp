@@ -8,6 +8,7 @@
 
 #include "karma/app/backend_resolution.hpp"
 #include "karma/app/bootstrap_scaffold.hpp"
+#include "karma/cli/server_runtime_options.hpp"
 #include "karma/app/engine_server_app.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
@@ -30,15 +31,17 @@ namespace bz3::server {
 namespace {
 
 std::atomic<bool> g_running{true};
+std::string g_app_name = "server";
 
 void OnSignal(int signum) {
-    KARMA_TRACE("engine.server", "bz3-server: received signal {}, requesting stop", signum);
+    KARMA_TRACE("engine.server", "{}: received signal {}, requesting stop", g_app_name, signum);
     g_running.store(false);
 }
 
 } // namespace
 
 int RunRuntime(const CLIOptions& options) {
+    g_app_name = options.app_name.empty() ? std::string("server") : options.app_name;
     const auto issues = karma::config::ValidateRequiredKeys(karma::config::ServerRequiredKeys());
     if (!karma::app::ReportRequiredConfigIssues(issues, options.strict_config)) {
         return 1;
@@ -91,9 +94,9 @@ int RunRuntime(const CLIOptions& options) {
         karma::app::ResolveAudioBackendFromOption(options.backend_audio, options.backend_audio_explicit);
     engineConfig.enable_audio = options.backend_audio_explicit
         || karma::config::ReadBoolConfig({"audio.serverEnabled"}, false);
-    const uint16_t listen_port = options.listen_port_explicit
-        ? options.listen_port
-        : karma::config::ReadUInt16Config({"network.ServerPort"}, static_cast<uint16_t>(11899));
+    const uint16_t listen_port = karma::cli::ResolveServerListenPort(options.listen_port,
+                                                                      options.listen_port_explicit,
+                                                                      static_cast<uint16_t>(11899));
 
     CommunityHeartbeat community_heartbeat{};
     const std::string community_override = options.community_explicit ? options.community : std::string{};
@@ -113,7 +116,7 @@ int RunRuntime(const CLIOptions& options) {
                      community_heartbeat.intervalSeconds());
     }
     ServerGame game{world_context->world_name};
-    std::unique_ptr<net::ServerEventSource> event_source = net::CreateServerEventSource(options);
+    std::unique_ptr<net::ServerEventSource> event_source = net::CreateServerEventSource(options, listen_port);
     domain::ShotSystem shot_system{};
     const float shot_lifetime_seconds =
         std::max(0.1f, karma::config::ReadFloatConfig({"gameplay.shotLifetimeSeconds"}, 5.0f));

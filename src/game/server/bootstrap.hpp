@@ -5,6 +5,6 @@
 namespace bz3::server {
 
 void ConfigureLogging(const CLIOptions& options);
-void ConfigureDataAndConfig(int argc, char** argv);
+void ConfigureDataAndConfig(const CLIOptions& options, int argc, char** argv);
 
 } // namespace bz3::server

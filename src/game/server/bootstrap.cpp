@@ -1,6 +1,7 @@
 #include "server/bootstrap.hpp"
 
 #include "karma/app/bootstrap_scaffold.hpp"
+#include "karma/cli/server_runtime_options.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -15,7 +16,7 @@ void ConfigureLogging(const CLIOptions& options) {
                                             options.trace_channels);
 }
 
-void ConfigureDataAndConfig(int argc, char** argv) {
+void ConfigureDataAndConfig(const CLIOptions& options, int argc, char** argv) {
     karma::app::BootstrapConfigSpec spec{};
     spec.app_name = "bz3";
     spec.data_dir_env_var = "BZ3_DATA_DIR";
@@ -26,6 +27,7 @@ void ConfigureDataAndConfig(int argc, char** argv) {
         {"server/config.json", "data/server/config.json", spdlog::level::err, true, true}
     };
     karma::app::ConfigureDataAndConfigFromSpec(spec, argc, argv);
+    (void)karma::cli::ApplyServerConfigOverlay(options.server_config_path, options.server_config_explicit);
 }
 
 } // namespace bz3::server

@@ -1,11 +1,11 @@
-#include "karma/app/cli_client_backend_options.hpp"
+#include "karma/cli/cli_client_backend_options.hpp"
 
 #include "karma/renderer/backend.hpp"
 
 #include <optional>
 #include <vector>
 
-namespace karma::app {
+namespace karma::cli {
 namespace {
 
 std::vector<std::string> RenderBackendChoices(bool include_auto) {
@@ -194,4 +194,4 @@ void AppendClientBackendCliHelp(std::ostream& out) {
     }
 }
 
-} // namespace karma::app
+} // namespace karma::cli

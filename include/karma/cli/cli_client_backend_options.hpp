@@ -1,11 +1,11 @@
 #pragma once
 
-#include "karma/app/cli_parse_scaffold.hpp"
+#include "karma/cli/cli_parse_scaffold.hpp"
 
 #include <ostream>
 #include <string>
 
-namespace karma::app {
+namespace karma::cli {
 
 CliConsumeResult ConsumeRenderBackendCliOption(const std::string& arg,
                                                int& index,
@@ -28,4 +28,4 @@ CliConsumeResult ConsumePlatformBackendCliOption(const std::string& arg,
 
 void AppendClientBackendCliHelp(std::ostream& out);
 
-} // namespace karma::app
+} // namespace karma::cli

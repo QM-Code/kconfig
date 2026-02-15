@@ -15,6 +15,7 @@ Strategic tracking:
 |---|---|---|---|---|
 | `content-mount.md` | `codex` | `in progress` | Add stronger chunk-transfer integrity controls and one targeted regression test. | `2026-02-12` |
 | `core-engine-infrastructure.md` | `overseer` | `in progress` | Keep implementation sequencing aligned to `docs/foundation/architecture/core-engine-contracts.md` as active tracks land. | `2026-02-12` |
+| `engine-bootstrap-handshake.md` | `specialist-engine-bootstrap` | `in progress` | Replace game-local client `--name` + `--addr` with engine-owned `--credentials` + `--server`. | `2026-02-15` |
 | `gameplay-migration.md` | `overseer` | `in progress (D1 hardening landed)` | Execute D2 movement replication slice: wire client `PlayerLocation` intent path to rewrite server authority for tank drive state. | `2026-02-14` |
 | `gameplay-netcode.md` | `unassigned` | `queued` | Prepare next predicted-shot reconciliation slice (`local_shot_id`) behind current P0 renderer priorities. | `2026-02-12` |
 | `physics-backend.md` | `codex` | `in progress` | Decide and implement runtime lock mutation/query contract or explicitly lock constraints to creation-time only with parity assertions. | `2026-02-12` |
@@ -28,7 +29,9 @@ Strategic tracking:
   - Build dirs:
     - `build-sdl3-bgfx-physx-imgui-sdl3audio`
     - `build-sdl3-diligent-physx-imgui-sdl3audio`
-- `open-specialist-slot` -> `unassigned`
+- `specialist-engine-bootstrap` -> `docs/projects/engine-bootstrap-handshake.md`
+  - Build dirs:
+    - `build-dev`
 
 ## Build Policy Lock
 - Use `./bzbuild.py <build-dir>` for configure/build/test workflows.

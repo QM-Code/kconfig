@@ -4,11 +4,11 @@
 #include <functional>
 #include <optional>
 #include <ostream>
-#include <string>
 #include <string_view>
+#include <string>
 #include <vector>
 
-namespace karma::app {
+namespace karma::cli {
 
 struct CliCommonState {
     bool trace_explicit = false;
@@ -64,6 +64,8 @@ CliRegisteredOption DefineUInt16Option(std::string short_name,
                                        std::function<void(uint16_t)> on_uint16,
                                        bool allow_equals_form = true);
 
+std::string ResolveExecutableName(const char* argv0, std::string_view fallback_name = "app");
+
 bool StartsWith(std::string_view value, std::string_view prefix);
 std::string ValueAfterEquals(const std::string& arg, std::string_view prefix);
 std::optional<std::string> RequireValue(const std::string& option,
@@ -108,4 +110,4 @@ CliConsumeResult ConsumeRegisteredCliOption(const std::string& arg,
                                             const std::vector<CliRegisteredOption>& options);
 void AppendRegisteredCliHelp(std::ostream& out, const std::vector<CliRegisteredOption>& options);
 
-} // namespace karma::app
+} // namespace karma::cli

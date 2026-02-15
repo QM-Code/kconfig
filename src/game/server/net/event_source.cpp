@@ -1,7 +1,6 @@
 #include "server/net/event_source.hpp"
 #include "server/net/transport_event_source.hpp"
 
-#include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
 #include "karma/common/logging.hpp"
 
@@ -235,32 +234,35 @@ std::vector<ScheduledEvent> LoadScriptedEventsFromConfig() {
 
 } // namespace
 
-std::unique_ptr<ServerEventSource> CreateServerEventSource(const CLIOptions& options) {
+std::unique_ptr<ServerEventSource> CreateServerEventSource(const CLIOptions& options,
+                                                           uint16_t listen_port) {
+    const std::string app_name = options.app_name.empty() ? std::string("server") : options.app_name;
     auto scripted_events = LoadScriptedEventsFromConfig();
     if (!scripted_events.empty()) {
         KARMA_TRACE("engine.server",
-                    "bz3-server: using scripted event source with {} events from server.startupEvents",
+                    "{}: using scripted event source with {} events from server.startupEvents",
+                    app_name,
                     scripted_events.size());
         return std::make_unique<ScriptedServerEventSource>(std::move(scripted_events));
     }
 
-    const uint16_t listen_port = options.listen_port_explicit
-        ? options.listen_port
-        : karma::config::ReadUInt16Config({"network.ServerPort"}, static_cast<uint16_t>(11899));
-    if (auto transport_source = CreateServerTransportEventSource(listen_port)) {
+    if (auto transport_source = CreateServerTransportEventSource(listen_port, app_name)) {
         KARMA_TRACE("engine.server",
-                    "bz3-server: using transport event source on port {}",
+                    "{}: using transport event source on port {}",
+                    app_name,
                     listen_port);
         return transport_source;
     }
 
     if (options.listen_port_explicit) {
         KARMA_TRACE("engine.server",
-                    "bz3-server: transport event source unavailable (port {}); using null event source",
+                    "{}: transport event source unavailable (port {}); using null event source",
+                    app_name,
                     options.listen_port);
     } else {
         KARMA_TRACE("engine.server",
-                    "bz3-server: transport event source unavailable; using null event source");
+                    "{}: transport event source unavailable; using null event source",
+                    app_name);
     }
     return std::make_unique<NullServerEventSource>();
 }

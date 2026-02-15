@@ -1,4 +1,4 @@
-#include "karma/app/cli_parse_scaffold.hpp"
+#include "karma/cli/cli_parse_scaffold.hpp"
 
 #include "karma/audio/backend.hpp"
 #include "karma/common/logging.hpp"
@@ -7,10 +7,11 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <utility>
 
-namespace karma::app {
+namespace karma::cli {
 namespace {
 
 std::string ToLower(std::string value) {
@@ -119,6 +120,21 @@ CliRegisteredOption DefineUInt16Option(std::string short_name,
     out.on_uint16 = std::move(on_uint16);
     out.allow_equals_form = allow_equals_form;
     return out;
+}
+
+std::string ResolveExecutableName(const char* argv0, std::string_view fallback_name) {
+    const std::string fallback =
+        fallback_name.empty() ? std::string("app") : std::string(fallback_name);
+    if (!argv0 || *argv0 == '\0') {
+        return fallback;
+    }
+
+    const std::filesystem::path executable_path(argv0);
+    const std::string executable_name = executable_path.filename().string();
+    if (executable_name.empty() || executable_name == "." || executable_name == "..") {
+        return fallback;
+    }
+    return executable_name;
 }
 
 bool StartsWith(std::string_view value, std::string_view prefix) {
@@ -520,4 +536,4 @@ void AppendRegisteredCliHelp(std::ostream& out, const std::vector<CliRegisteredO
     }
 }
 
-} // namespace karma::app
+} // namespace karma::cli

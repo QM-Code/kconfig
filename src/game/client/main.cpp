@@ -3,6 +3,8 @@
 #include "client/community_server_list.hpp"
 
 #include "karma/app/backend_resolution.hpp"
+#include "karma/app/bootstrap_scaffold.hpp"
+#include "karma/cli/cli_parse_scaffold.hpp"
 #include "karma/app/engine_app.hpp"
 #include "karma/common/config_helpers.hpp"
 
@@ -72,14 +74,17 @@ bz3::GameStartupOptions ResolveGameStartupOptions(const bz3::client::CLIOptions&
 } // namespace
 
 int main(int argc, char** argv) {
+    std::string app_name =
+        karma::cli::ResolveExecutableName((argc > 0 && argv) ? argv[0] : nullptr, "bz3");
     try {
         const bz3::client::CLIOptions options = bz3::client::ParseCLIOptions(argc, argv);
+        app_name = options.app_name;
         bz3::client::ConfigureLogging(options);
         if (options.community_list_active_explicit) {
             bz3::client::CommunityActiveList list{};
             std::string error{};
             if (!bz3::client::FetchCommunityActiveList(options.community_list_active, &list, &error)) {
-                spdlog::error("bz3: failed to fetch active community servers: {}", error);
+                spdlog::error("{}: failed to fetch active community servers: {}", app_name, error);
                 return 1;
             }
             bz3::client::PrintCommunityActiveList(list);
@@ -88,6 +93,7 @@ int main(int argc, char** argv) {
 
         bz3::client::ConfigureDataAndConfig(argc, argv);
         bz3::client::ApplyRuntimeOptionOverrides(options);
+        app_name = karma::app::ResolveConfiguredAppName(app_name);
 
         karma::app::EngineConfig config;
         config.window.title = karma::config::ReadRequiredStringConfig("platform.WindowTitle");
@@ -156,7 +162,8 @@ int main(int argc, char** argv) {
                 shadow_execution_mode_raw,
                 &shadow_execution_mode)) {
             spdlog::warn(
-                "bz3: invalid roamingMode.graphics.lighting.shadows.executionMode='{}'; using '{}'",
+                "{}: invalid roamingMode.graphics.lighting.shadows.executionMode='{}'; using '{}'",
+                app_name,
                 shadow_execution_mode_raw,
                 karma::renderer::DirectionalLightData::ShadowExecutionModeToken(
                     config.default_light.shadow.execution_mode));
@@ -188,7 +195,7 @@ int main(int argc, char** argv) {
         }
         return 0;
     } catch (const std::exception& ex) {
-        spdlog::error("bz3: {}", ex.what());
+        spdlog::error("{}: {}", app_name, ex.what());
         return 1;
     }
 }

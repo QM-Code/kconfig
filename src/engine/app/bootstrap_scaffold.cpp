@@ -1,6 +1,7 @@
 #include "karma/app/bootstrap_scaffold.hpp"
 
-#include "karma/app/cli_parse_scaffold.hpp"
+#include "karma/cli/cli_parse_scaffold.hpp"
+#include "karma/common/config_helpers.hpp"
 #include "karma/common/data_dir_override.hpp"
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/logging.hpp"
@@ -14,11 +15,11 @@ namespace karma::app {
 
 namespace {
 
-CliCommonState ParseCommonCliState(int argc, char** argv) {
-    CliCommonState state{};
+karma::cli::CliCommonState ParseCommonCliState(int argc, char** argv) {
+    karma::cli::CliCommonState state{};
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        const auto result = ConsumeCommonCliOption(arg, i, argc, argv, state);
+        const auto result = karma::cli::ConsumeCommonCliOption(arg, i, argc, argv, state);
         if (result.consumed && !result.error.empty()) {
             throw std::runtime_error(result.error);
         }
@@ -26,7 +27,7 @@ CliCommonState ParseCommonCliState(int argc, char** argv) {
     return state;
 }
 
-void ApplyCommonCliConfigOverrides(const CliCommonState& state) {
+void ApplyCommonCliConfigOverrides(const karma::cli::CliCommonState& state) {
     if (!state.language_explicit) {
         return;
     }
@@ -85,6 +86,12 @@ bool ReportRequiredConfigIssues(const std::vector<config::ValidationIssue>& issu
     }
 
     return !strict_config;
+}
+
+std::string ResolveConfiguredAppName(const std::string& fallback_name) {
+    const std::string fallback = fallback_name.empty() ? std::string("app") : fallback_name;
+    const std::string configured = config::ReadStringConfig("app.name", fallback);
+    return configured.empty() ? fallback : configured;
 }
 
 } // namespace karma::app

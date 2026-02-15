@@ -6,6 +6,7 @@
 namespace bz3::server {
 
 struct CLIOptions {
+    std::string app_name;
     bool trace_explicit = false;
     bool server_config_explicit = false;
     uint16_t listen_port = 0;

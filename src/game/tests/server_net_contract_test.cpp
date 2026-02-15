@@ -301,7 +301,7 @@ bool TestScriptedSourceParsesSpawnAndShot() {
     }
 
     bz3::server::CLIOptions options{};
-    const auto source = bz3::server::net::CreateServerEventSource(options);
+    const auto source = bz3::server::net::CreateServerEventSource(options, 0);
     if (!source) {
         return Fail("CreateServerEventSource returned null for scripted source test");
     }
@@ -348,7 +348,7 @@ bool TestScriptedSourceSortsOutOfOrderAndClampsNegativeTimes() {
     }
 
     bz3::server::CLIOptions options{};
-    const auto source = bz3::server::net::CreateServerEventSource(options);
+    const auto source = bz3::server::net::CreateServerEventSource(options, 0);
     if (!source) {
         return Fail("CreateServerEventSource returned null for ordering scripted source test");
     }
@@ -395,7 +395,7 @@ bool TestScriptedSourceSkipsInvalidShotData() {
     }
 
     bz3::server::CLIOptions options{};
-    const auto source = bz3::server::net::CreateServerEventSource(options);
+    const auto source = bz3::server::net::CreateServerEventSource(options, 0);
     if (!source) {
         return Fail("CreateServerEventSource returned null for invalid-shot scripted source test");
     }

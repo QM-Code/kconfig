@@ -26,5 +26,6 @@ void ConfigureLoggingFromOptions(bool timestamp_logging,
 void ConfigureDataAndConfigFromSpec(const BootstrapConfigSpec& spec, int argc, char** argv);
 
 bool ReportRequiredConfigIssues(const std::vector<config::ValidationIssue>& issues, bool strict_config);
+std::string ResolveConfiguredAppName(const std::string& fallback_name);
 
 } // namespace karma::app
