@@ -19,10 +19,16 @@ uniform vec4 u_localLightCount;
 uniform vec4 u_localLightParams; // distance_damping, range_exponent, ao_affects_local, directional_shadow_lift
 uniform vec4 u_localLightPosRange[4];
 uniform vec4 u_localLightColorIntensity[4];
+uniform vec4 u_localLightShadowSlot[4];
+uniform vec4 u_pointShadowParams; // enabled, face_texel_size, pcf_radius, active_slots
+uniform vec4 u_pointShadowAtlasTexel; // atlas_inv_width, atlas_inv_height
+uniform vec4 u_pointShadowTuning; // constant, slope_scale, normal_scale, receiver_scale
+uniform mat4 u_pointShadowUvProj[24];
 SAMPLER2D(s_tex, 0);
 SAMPLER2D(s_normal, 1);
 SAMPLER2D(s_occlusion, 2);
 SAMPLER2D(s_shadow, 3);
+SAMPLER2D(s_pointShadow, 4);
 
 float sampleShadowVisibility(vec3 worldPos, float ndotl) {
     if (u_shadowParams0.x < 0.5) {
@@ -112,6 +118,79 @@ float sampleShadowVisibility(vec3 worldPos, float ndotl) {
     return lit / count;
 }
 
+int selectPointShadowFace(vec3 dirWs) {
+    vec3 a = abs(dirWs);
+    if (a.x >= a.y && a.x >= a.z) {
+        return dirWs.x >= 0.0 ? 0 : 1;
+    }
+    if (a.y >= a.x && a.y >= a.z) {
+        return dirWs.y >= 0.0 ? 2 : 3;
+    }
+    return dirWs.z >= 0.0 ? 4 : 5;
+}
+
+float samplePointShadowVisibility(int localIndex, vec3 worldPos, vec3 geomNormal, vec3 localDir) {
+    if (u_pointShadowParams.x < 0.5 || localIndex < 0 || localIndex >= 4) {
+        return 1.0;
+    }
+
+    int shadowSlot = int(floor(u_localLightShadowSlot[localIndex].x + 0.5));
+    int activeSlots = int(clamp(floor(u_pointShadowParams.w + 0.5), 0.0, 4.0));
+    if (shadowSlot < 0 || shadowSlot >= activeSlots) {
+        return 1.0;
+    }
+
+    vec3 toSample = worldPos - u_localLightPosRange[localIndex].xyz;
+    int face = selectPointShadowFace(toSample);
+    int matrixIndex = (shadowSlot * 6) + face;
+    if (matrixIndex < 0 || matrixIndex >= 24) {
+        return 1.0;
+    }
+
+    float texelSize = max(u_pointShadowParams.y, 0.0);
+    float slope = 1.0 - clamp(dot(geomNormal, localDir), 0.0, 1.0);
+    float normalWs = texelSize * max(u_pointShadowTuning.z, 0.0) * (0.5 + slope);
+    vec3 shadowWorldPos = worldPos + (geomNormal * normalWs);
+
+    vec4 shadowUvDepth = mul(u_pointShadowUvProj[matrixIndex], vec4(shadowWorldPos, 1.0));
+    shadowUvDepth.xyz /= max(shadowUvDepth.w, 1e-7);
+    vec2 shadowUv = shadowUvDepth.xy;
+    float shadowDepth = max(shadowUvDepth.z, 1e-7);
+    if (shadowUv.x < 0.0 || shadowUv.x > 1.0 ||
+        shadowUv.y < 0.0 || shadowUv.y > 1.0 ||
+        shadowDepth < 0.0 || shadowDepth > 1.0) {
+        return 1.0;
+    }
+
+    float constBias = max(u_pointShadowTuning.x, 0.0);
+    float slopeBias = texelSize * max(u_pointShadowTuning.y, 0.0) * (0.4 + slope);
+    float receiverBias =
+        (abs(dFdx(shadowDepth)) + abs(dFdy(shadowDepth))) * max(u_pointShadowTuning.w, 0.0);
+    float bias = clamp(constBias + slopeBias + receiverBias, 0.0, 0.04);
+
+    int iradius = int(clamp(floor(u_pointShadowParams.z + 0.5), 0.0, 1.0));
+    if (iradius <= 0) {
+        float mapDepth = texture2D(s_pointShadow, shadowUv).r;
+        return step(shadowDepth - bias, mapDepth);
+    }
+
+    vec2 atlasTexel = max(u_pointShadowAtlasTexel.xy, vec2(0.0, 0.0));
+    float lit = 0.0;
+    float count = 0.0;
+    for (int oy = -1; oy <= 1; ++oy) {
+        for (int ox = -1; ox <= 1; ++ox) {
+            if (abs(ox) > iradius || abs(oy) > iradius) {
+                continue;
+            }
+            vec2 uv = shadowUv + vec2(float(ox), float(oy)) * atlasTexel;
+            float mapDepth = texture2D(s_pointShadow, uv).r;
+            lit += step(shadowDepth - bias, mapDepth);
+            count += 1.0;
+        }
+    }
+    return count > 0.5 ? (lit / count) : 1.0;
+}
+
 void main() {
     vec4 texColor = texture2D(s_tex, v_texcoord0);
     float normalModulation = 1.0;
@@ -166,7 +245,8 @@ void main() {
         float distanceAttenuation = 1.0 / (1.0 + (localDamping * lightDistance * lightDistance));
         float attenuation = rangeAttenuation * distanceAttenuation;
         float aoMod = aoAffectsLocal ? ao : 1.0;
-        float localScalar = u_localLightColorIntensity[i].a * attenuation * localNdotL * aoMod;
+        float pointShadow = samplePointShadowVisibility(i, v_worldPos, n, localDir);
+        float localScalar = u_localLightColorIntensity[i].a * attenuation * localNdotL * aoMod * pointShadow;
         localLightAccum += baseColor.rgb * u_localLightColorIntensity[i].rgb * localScalar;
         float localLuminance = dot(u_localLightColorIntensity[i].rgb, vec3(0.2126, 0.7152, 0.0722));
         localShadowLiftEnergy += localLuminance * localScalar;

@@ -45,6 +45,9 @@ namespace {
 constexpr bgfx::ViewId kBgfxShadowViewId = 0;
 constexpr bgfx::ViewId kBgfxMainViewId = 1;
 constexpr std::size_t kMaxLocalLights = 4u;
+constexpr std::size_t kMaxPointShadowLights = kMaxLocalLights;
+constexpr std::size_t kPointShadowFaceCount = static_cast<std::size_t>(detail::kPointShadowFaceCount);
+constexpr std::size_t kMaxPointShadowMatrices = kMaxPointShadowLights * kPointShadowFaceCount;
 
 struct PosNormalVertex {
     float x;
@@ -944,6 +947,21 @@ std::vector<float> BuildShadowDepthUploadData(const detail::DirectionalShadowMap
     return pixels;
 }
 
+std::vector<float> BuildPointShadowDepthUploadData(const detail::PointShadowMap& map) {
+    const std::size_t expected =
+        static_cast<std::size_t>(std::max(map.atlas_width, 0)) *
+        static_cast<std::size_t>(std::max(map.atlas_height, 0));
+    std::vector<float> pixels(expected, 1.0f);
+    if (map.depth.size() != expected) {
+        return pixels;
+    }
+    for (std::size_t i = 0; i < expected; ++i) {
+        const float value = map.depth[i];
+        pixels[i] = std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : 1.0f;
+    }
+    return pixels;
+}
+
 uint32_t PackColorRgba8(const glm::vec4& color) {
     const auto to_u8 = [](float value) -> uint32_t {
         const float scaled = std::clamp(value, 0.0f, 1.0f) * 255.0f;
@@ -1060,10 +1078,18 @@ class BgfxBackend final : public Backend {
             bgfx::createUniform("u_localLightPosRange", bgfx::UniformType::Vec4, static_cast<uint16_t>(kMaxLocalLights));
         u_local_light_color_intensity_ =
             bgfx::createUniform("u_localLightColorIntensity", bgfx::UniformType::Vec4, static_cast<uint16_t>(kMaxLocalLights));
+        u_local_light_shadow_slot_ =
+            bgfx::createUniform("u_localLightShadowSlot", bgfx::UniformType::Vec4, static_cast<uint16_t>(kMaxLocalLights));
+        u_point_shadow_params_ = bgfx::createUniform("u_pointShadowParams", bgfx::UniformType::Vec4);
+        u_point_shadow_atlas_texel_ = bgfx::createUniform("u_pointShadowAtlasTexel", bgfx::UniformType::Vec4);
+        u_point_shadow_tuning_ = bgfx::createUniform("u_pointShadowTuning", bgfx::UniformType::Vec4);
+        u_point_shadow_uv_proj_ =
+            bgfx::createUniform("u_pointShadowUvProj", bgfx::UniformType::Mat4, static_cast<uint16_t>(kMaxPointShadowMatrices));
         s_tex_ = bgfx::createUniform("s_tex", bgfx::UniformType::Sampler);
         s_normal_ = bgfx::createUniform("s_normal", bgfx::UniformType::Sampler);
         s_occlusion_ = bgfx::createUniform("s_occlusion", bgfx::UniformType::Sampler);
         s_shadow_ = bgfx::createUniform("s_shadow", bgfx::UniformType::Sampler);
+        s_point_shadow_ = bgfx::createUniform("s_pointShadow", bgfx::UniformType::Sampler);
         white_tex_ = createWhiteTexture();
         const bool uniform_contract_ready =
             bgfx::isValid(program_) &&
@@ -1137,12 +1163,19 @@ class BgfxBackend final : public Backend {
         if (bgfx::isValid(u_local_light_params_)) bgfx::destroy(u_local_light_params_);
         if (bgfx::isValid(u_local_light_pos_range_)) bgfx::destroy(u_local_light_pos_range_);
         if (bgfx::isValid(u_local_light_color_intensity_)) bgfx::destroy(u_local_light_color_intensity_);
+        if (bgfx::isValid(u_local_light_shadow_slot_)) bgfx::destroy(u_local_light_shadow_slot_);
+        if (bgfx::isValid(u_point_shadow_params_)) bgfx::destroy(u_point_shadow_params_);
+        if (bgfx::isValid(u_point_shadow_atlas_texel_)) bgfx::destroy(u_point_shadow_atlas_texel_);
+        if (bgfx::isValid(u_point_shadow_tuning_)) bgfx::destroy(u_point_shadow_tuning_);
+        if (bgfx::isValid(u_point_shadow_uv_proj_)) bgfx::destroy(u_point_shadow_uv_proj_);
         if (bgfx::isValid(s_tex_)) bgfx::destroy(s_tex_);
         if (bgfx::isValid(s_normal_)) bgfx::destroy(s_normal_);
         if (bgfx::isValid(s_occlusion_)) bgfx::destroy(s_occlusion_);
         if (bgfx::isValid(s_shadow_)) bgfx::destroy(s_shadow_);
+        if (bgfx::isValid(s_point_shadow_)) bgfx::destroy(s_point_shadow_);
         if (bgfx::isValid(shadow_fb_)) bgfx::destroy(shadow_fb_);
         if (bgfx::isValid(shadow_tex_)) bgfx::destroy(shadow_tex_);
+        if (bgfx::isValid(point_shadow_tex_)) bgfx::destroy(point_shadow_tex_);
         if (bgfx::isValid(white_tex_)) bgfx::destroy(white_tex_);
         bgfx::shutdown();
     }
@@ -1416,6 +1449,7 @@ class BgfxBackend final : public Backend {
         if (shadow_update_every_frames_ != requested_update_every_frames) {
             shadow_update_every_frames_ = requested_update_every_frames;
             shadow_frames_until_update_ = 0;
+            point_shadow_frames_until_update_ = 0;
             KARMA_TRACE_CHANGED(
                 "render.bgfx",
                 std::to_string(shadow_update_every_frames_),
@@ -1575,9 +1609,16 @@ class BgfxBackend final : public Backend {
         };
         std::array<float, kMaxLocalLights * 4u> local_light_pos_range{};
         std::array<float, kMaxLocalLights * 4u> local_light_color_intensity{};
+        std::array<float, kMaxLocalLights * 4u> local_light_shadow_slot{};
+        std::array<int, kMaxLocalLights> local_light_source_indices{};
+        local_light_source_indices.fill(-1);
+        for (std::size_t slot = 0; slot < kMaxLocalLights; ++slot) {
+            local_light_shadow_slot[slot * 4u] = -1.0f;
+        }
         int local_light_count = 0;
         int point_shadow_requested = 0;
-        for (const renderer::LightData& light : lights_) {
+        for (std::size_t light_idx = 0; light_idx < lights_.size(); ++light_idx) {
+            const renderer::LightData& light = lights_[light_idx];
             if (!light.enabled || light.type != renderer::LightType::Point) {
                 continue;
             }
@@ -1600,7 +1641,69 @@ class BgfxBackend final : public Backend {
             local_light_color_intensity[base + 1u] = light.color.g;
             local_light_color_intensity[base + 2u] = light.color.b;
             local_light_color_intensity[base + 3u] = clamped_intensity;
+            local_light_source_indices[static_cast<std::size_t>(local_light_count)] = static_cast<int>(light_idx);
             ++local_light_count;
+        }
+        const int point_shadow_selected =
+            std::min(point_shadow_requested, std::max(0, shadow_semantics.point_max_shadow_lights));
+        if (!shadow_semantics.enabled ||
+            shadow_semantics.point_max_shadow_lights <= 0 ||
+            point_shadow_selected <= 0 ||
+            shadow_casters.empty()) {
+            point_shadow_frames_until_update_ = 0;
+            cached_point_shadow_map_ = detail::PointShadowMap{};
+            point_shadow_tex_ready_ = false;
+        } else if (world_layer) {
+            const bool point_shadow_needs_update =
+                point_shadow_frames_until_update_ <= 0 ||
+                shadow_inputs_changed ||
+                !cached_point_shadow_map_.ready ||
+                cached_point_shadow_map_.size != shadow_semantics.point_map_size ||
+                cached_point_shadow_map_.light_count != point_shadow_selected;
+            if (point_shadow_needs_update) {
+                cached_point_shadow_map_ = detail::BuildPointShadowMap(
+                    shadow_semantics,
+                    lights_,
+                    shadow_casters);
+                updatePointShadowTexture(cached_point_shadow_map_);
+                point_shadow_frames_until_update_ = shadow_update_every_frames_ - 1;
+            } else {
+                --point_shadow_frames_until_update_;
+            }
+        }
+        int point_shadow_active = 0;
+        std::array<glm::mat4, kMaxPointShadowMatrices> point_shadow_uv_proj{};
+        for (glm::mat4& matrix : point_shadow_uv_proj) {
+            matrix = glm::mat4(1.0f);
+        }
+        if (point_shadow_tex_ready_ && cached_point_shadow_map_.ready) {
+            point_shadow_active = std::max(0, cached_point_shadow_map_.light_count);
+            const std::size_t matrix_count = std::min(
+                kMaxPointShadowMatrices,
+                cached_point_shadow_map_.uv_proj.size());
+            for (std::size_t i = 0; i < matrix_count; ++i) {
+                point_shadow_uv_proj[i] = cached_point_shadow_map_.uv_proj[i];
+            }
+            const std::size_t source_count = cached_point_shadow_map_.source_light_indices.size();
+            for (int local_slot = 0; local_slot < local_light_count; ++local_slot) {
+                const int source_idx = local_light_source_indices[static_cast<std::size_t>(local_slot)];
+                if (source_idx < 0) {
+                    continue;
+                }
+                int shadow_slot = -1;
+                for (int slot = 0; slot < point_shadow_active; ++slot) {
+                    const std::size_t source_slot = static_cast<std::size_t>(slot);
+                    if (source_slot >= source_count) {
+                        break;
+                    }
+                    if (cached_point_shadow_map_.source_light_indices[source_slot] == source_idx) {
+                        shadow_slot = slot;
+                        break;
+                    }
+                }
+                const std::size_t base = static_cast<std::size_t>(local_slot) * 4u;
+                local_light_shadow_slot[base + 0u] = static_cast<float>(shadow_slot);
+            }
         }
         const float local_light_count_uniform[4] = {
             static_cast<float>(local_light_count),
@@ -1614,25 +1717,59 @@ class BgfxBackend final : public Backend {
             shadow_semantics.ao_affects_local_lights ? 1.0f : 0.0f,
             shadow_semantics.local_light_directional_shadow_lift_strength,
         };
-        const int point_shadow_selected =
-            std::min(point_shadow_requested, std::max(0, shadow_semantics.point_max_shadow_lights));
-        const char* point_shadow_reason = "point_shadow_pass_unimplemented";
+        const bool point_shadow_enabled_uniform = world_layer && point_shadow_active > 0;
+        const float point_shadow_params_uniform[4] = {
+            point_shadow_enabled_uniform ? 1.0f : 0.0f,
+            (point_shadow_active > 0) ? cached_point_shadow_map_.texel_size : 0.0f,
+            static_cast<float>(std::clamp(shadow_semantics.pcf_radius, 0, 1)),
+            point_shadow_enabled_uniform ? static_cast<float>(point_shadow_active) : 0.0f,
+        };
+        const float point_shadow_atlas_texel_uniform[4] = {
+            (point_shadow_enabled_uniform && cached_point_shadow_map_.atlas_width > 0)
+                ? (1.0f / static_cast<float>(cached_point_shadow_map_.atlas_width))
+                : 0.0f,
+            (point_shadow_enabled_uniform && cached_point_shadow_map_.atlas_height > 0)
+                ? (1.0f / static_cast<float>(cached_point_shadow_map_.atlas_height))
+                : 0.0f,
+            0.0f,
+            0.0f,
+        };
+        const float point_shadow_tuning_uniform[4] = {
+            shadow_semantics.point_constant_bias,
+            shadow_semantics.point_slope_bias_scale,
+            shadow_semantics.point_normal_bias_scale,
+            shadow_semantics.point_receiver_bias_scale,
+        };
+        const char* point_shadow_reason = "point_shadow_active";
         if (shadow_semantics.point_max_shadow_lights <= 0) {
             point_shadow_reason = "point_shadows_disabled_by_cap";
+        } else if (!shadow_semantics.enabled) {
+            point_shadow_reason = "point_shadows_disabled";
+        } else if (!world_layer) {
+            point_shadow_reason = "point_shadow_non_world_layer";
         } else if (point_shadow_selected <= 0) {
             point_shadow_reason = "point_shadow_no_shadow_lights";
+        } else if (shadow_casters.empty()) {
+            point_shadow_reason = "point_shadow_no_casters";
+        } else if (!cached_point_shadow_map_.ready) {
+            point_shadow_reason = "point_shadow_map_build_failed";
+        } else if (!point_shadow_tex_ready_) {
+            point_shadow_reason = "point_shadow_upload_failed";
+        } else if (point_shadow_active <= 0) {
+            point_shadow_reason = "point_shadow_no_active_slots";
         }
         KARMA_TRACE_CHANGED(
             "render.bgfx",
             std::to_string(layer) + ":" +
                 std::to_string(point_shadow_requested) + ":" +
                 std::to_string(point_shadow_selected) + ":" +
+                std::to_string(point_shadow_active) + ":" +
                 point_shadow_reason,
             "point shadow status layer={} requested={} selected={} active={} reason={}",
             layer,
             point_shadow_requested,
             point_shadow_selected,
-            0,
+            point_shadow_active,
             point_shadow_reason);
         std::size_t direct_sampler_draws = 0u;
         std::size_t fallback_sampler_draws = 0u;
@@ -1702,6 +1839,27 @@ class BgfxBackend final : public Backend {
                     local_light_color_intensity.data(),
                     static_cast<uint16_t>(kMaxLocalLights));
             }
+            if (bgfx::isValid(u_local_light_shadow_slot_)) {
+                bgfx::setUniform(
+                    u_local_light_shadow_slot_,
+                    local_light_shadow_slot.data(),
+                    static_cast<uint16_t>(kMaxLocalLights));
+            }
+            if (bgfx::isValid(u_point_shadow_params_)) {
+                bgfx::setUniform(u_point_shadow_params_, point_shadow_params_uniform);
+            }
+            if (bgfx::isValid(u_point_shadow_atlas_texel_)) {
+                bgfx::setUniform(u_point_shadow_atlas_texel_, point_shadow_atlas_texel_uniform);
+            }
+            if (bgfx::isValid(u_point_shadow_tuning_)) {
+                bgfx::setUniform(u_point_shadow_tuning_, point_shadow_tuning_uniform);
+            }
+            if (bgfx::isValid(u_point_shadow_uv_proj_)) {
+                bgfx::setUniform(
+                    u_point_shadow_uv_proj_,
+                    point_shadow_uv_proj.data(),
+                    static_cast<uint16_t>(kMaxPointShadowMatrices));
+            }
 
             const bool use_direct_sampler_path =
                 supports_direct_multi_sampler_inputs_ &&
@@ -1759,6 +1917,13 @@ class BgfxBackend final : public Backend {
                     shadow_tex_ready_ ? shadow_tex_ : white_tex_;
                 if (bgfx::isValid(shadow_texture)) {
                     bgfx::setTexture(3, s_shadow_, shadow_texture);
+                }
+            }
+            if (bgfx::isValid(s_point_shadow_)) {
+                const bgfx::TextureHandle point_shadow_texture =
+                    point_shadow_tex_ready_ ? point_shadow_tex_ : white_tex_;
+                if (bgfx::isValid(point_shadow_texture)) {
+                    bgfx::setTexture(4, s_point_shadow_, point_shadow_texture);
                 }
             }
             if (bgfx::isValid(u_texture_mode_)) {
@@ -1924,6 +2089,35 @@ class BgfxBackend final : public Backend {
                     light_zero.data(),
                     static_cast<uint16_t>(kMaxLocalLights));
             }
+            if (bgfx::isValid(u_local_light_shadow_slot_)) {
+                std::array<float, kMaxLocalLights * 4u> shadow_slot_zero{};
+                for (std::size_t slot = 0; slot < kMaxLocalLights; ++slot) {
+                    shadow_slot_zero[slot * 4u] = -1.0f;
+                }
+                bgfx::setUniform(
+                    u_local_light_shadow_slot_,
+                    shadow_slot_zero.data(),
+                    static_cast<uint16_t>(kMaxLocalLights));
+            }
+            if (bgfx::isValid(u_point_shadow_params_)) {
+                bgfx::setUniform(u_point_shadow_params_, zeros);
+            }
+            if (bgfx::isValid(u_point_shadow_atlas_texel_)) {
+                bgfx::setUniform(u_point_shadow_atlas_texel_, zeros);
+            }
+            if (bgfx::isValid(u_point_shadow_tuning_)) {
+                bgfx::setUniform(u_point_shadow_tuning_, zeros);
+            }
+            if (bgfx::isValid(u_point_shadow_uv_proj_)) {
+                std::array<glm::mat4, kMaxPointShadowMatrices> point_shadow_mats{};
+                for (glm::mat4& matrix : point_shadow_mats) {
+                    matrix = glm::mat4(1.0f);
+                }
+                bgfx::setUniform(
+                    u_point_shadow_uv_proj_,
+                    point_shadow_mats.data(),
+                    static_cast<uint16_t>(kMaxPointShadowMatrices));
+            }
             if (bgfx::isValid(u_texture_mode_)) {
                 const float texture_mode[4] = {0.0f, 0.0f, 0.0f, 0.0f};
                 bgfx::setUniform(u_texture_mode_, texture_mode);
@@ -1938,6 +2132,9 @@ class BgfxBackend final : public Backend {
                 }
                 if (bgfx::isValid(s_shadow_)) {
                     bgfx::setTexture(3, s_shadow_, white_tex_);
+                }
+                if (bgfx::isValid(s_point_shadow_)) {
+                    bgfx::setTexture(4, s_point_shadow_, white_tex_);
                 }
             }
 
@@ -2056,6 +2253,41 @@ class BgfxBackend final : public Backend {
             return false;
         }
         return true;
+    }
+
+    bool ensurePointShadowTexture(uint16_t width, uint16_t height) {
+        if (width == 0u || height == 0u) {
+            return false;
+        }
+        const bool needs_recreate =
+            !bgfx::isValid(point_shadow_tex_) ||
+            point_shadow_tex_width_ != width ||
+            point_shadow_tex_height_ != height;
+        if (needs_recreate) {
+            if (bgfx::isValid(point_shadow_tex_)) {
+                bgfx::destroy(point_shadow_tex_);
+                point_shadow_tex_ = BGFX_INVALID_HANDLE;
+            }
+            const uint64_t flags =
+                BGFX_SAMPLER_U_CLAMP |
+                BGFX_SAMPLER_V_CLAMP;
+            point_shadow_tex_ = bgfx::createTexture2D(
+                width,
+                height,
+                false,
+                1,
+                bgfx::TextureFormat::R32F,
+                flags,
+                nullptr);
+            if (!bgfx::isValid(point_shadow_tex_)) {
+                point_shadow_tex_width_ = 0u;
+                point_shadow_tex_height_ = 0u;
+                return false;
+            }
+            point_shadow_tex_width_ = width;
+            point_shadow_tex_height_ = height;
+        }
+        return bgfx::isValid(point_shadow_tex_);
     }
 
     bool renderGpuShadowMap(const detail::DirectionalShadowMap& map, const std::vector<RenderableDraw>& renderables) {
@@ -2201,6 +2433,30 @@ class BgfxBackend final : public Backend {
         shadow_tex_ready_ = true;
     }
 
+    void updatePointShadowTexture(const detail::PointShadowMap& map) {
+        point_shadow_tex_ready_ = false;
+        if (!map.ready || map.atlas_width <= 0 || map.atlas_height <= 0 || map.depth.empty()) {
+            return;
+        }
+        if (map.atlas_width > static_cast<int>(std::numeric_limits<uint16_t>::max()) ||
+            map.atlas_height > static_cast<int>(std::numeric_limits<uint16_t>::max())) {
+            return;
+        }
+        const uint16_t width = static_cast<uint16_t>(map.atlas_width);
+        const uint16_t height = static_cast<uint16_t>(map.atlas_height);
+        if (!ensurePointShadowTexture(width, height)) {
+            return;
+        }
+        std::vector<float> upload = BuildPointShadowDepthUploadData(map);
+        if (upload.empty()) {
+            return;
+        }
+        const bgfx::Memory* mem =
+            bgfx::copy(upload.data(), static_cast<uint32_t>(upload.size() * sizeof(float)));
+        bgfx::updateTexture2D(point_shadow_tex_, 0, 0, 0, 0, width, height, mem);
+        point_shadow_tex_ready_ = true;
+    }
+
     BgfxCallback callback_{};
     bgfx::ProgramHandle program_ = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle shadow_depth_program_ = BGFX_INVALID_HANDLE;
@@ -2221,21 +2477,33 @@ class BgfxBackend final : public Backend {
     bgfx::UniformHandle u_local_light_params_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_local_light_pos_range_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_local_light_color_intensity_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_local_light_shadow_slot_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_point_shadow_params_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_point_shadow_atlas_texel_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_point_shadow_tuning_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_point_shadow_uv_proj_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle s_tex_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle s_normal_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle s_occlusion_ = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle s_shadow_ = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle s_point_shadow_ = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle white_tex_ = BGFX_INVALID_HANDLE;
     bgfx::TextureHandle shadow_tex_ = BGFX_INVALID_HANDLE;
+    bgfx::TextureHandle point_shadow_tex_ = BGFX_INVALID_HANDLE;
     bgfx::FrameBufferHandle shadow_fb_ = BGFX_INVALID_HANDLE;
     uint16_t shadow_tex_size_ = 0u;
+    uint16_t point_shadow_tex_width_ = 0u;
+    uint16_t point_shadow_tex_height_ = 0u;
     bool shadow_tex_is_rt_ = false;
     bool shadow_tex_rt_uses_depth_ = false;
     bool shadow_depth_attachment_supported_ = false;
     bool shadow_tex_ready_ = false;
+    bool point_shadow_tex_ready_ = false;
     detail::DirectionalShadowMap cached_shadow_map_{};
+    detail::PointShadowMap cached_point_shadow_map_{};
     int shadow_update_every_frames_ = 1;
     int shadow_frames_until_update_ = 0;
+    int point_shadow_frames_until_update_ = 0;
     std::vector<renderer::DrawItem> previous_shadow_items_{};
     bool shadow_cache_inputs_valid_ = false;
     glm::vec3 cached_shadow_camera_position_{0.0f, 0.0f, 0.0f};

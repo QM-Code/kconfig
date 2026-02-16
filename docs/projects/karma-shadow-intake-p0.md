@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `overseer`
-- Status: `priority/in progress (KS0 cache-invalidation + KS1 contract/config scaffolding + KS2.1 directional GPU shadow hardening + KS2.2 local-light source contract/shading bridge landed)`
-- Immediate next task: continue `KS2` by implementing bounded point-shadow map generation/sampling for selected shadow-casting local lights in both backends.
+- Status: `priority/in progress (KS0 cache-invalidation + KS1 contract/config scaffolding + KS2.1 directional GPU shadow hardening + KS2.2 local-light source contract/shading bridge + KS2.3 bounded point-shadow generation/sampling path landed)`
+- Immediate next task: execute `KS3` refresh invalidation: moving-caster/light dirty-face policy plus bounded `point_faces_per_frame_budget` updates.
 - Validation gate: renderer build gates in both assigned build dirs, sandbox/runtime trace evidence, and docs lint.
 
 ## Mission
@@ -93,8 +93,8 @@ From `m-rewrite/`:
 ./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
 ./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
 ./scripts/run-renderer-shadow-sandbox.sh 20 16 20
-timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx,render.mesh
-timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent,render.mesh
+timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx,render.mesh
+timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent,render.mesh
 ./docs/scripts/lint-project-docs.sh
 ```
 
@@ -138,9 +138,18 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --st
   - renderer contract now exposes rewrite-owned local light sources (`LightData`) through `GraphicsDevice`/`RenderSystem`, with scene-owned light ingestion via `scene::LightComponent`.
   - BGFX + Diligent forward shaders now consume bounded local light uniforms (max 4) and apply KARMA-aligned attenuation plus `localLightDirectionalShadowLiftStrength` modulation over directional shadowing.
   - both backends now emit `point shadow status ... reason=<token>` trace evidence (`point_shadow_pass_unimplemented`, `point_shadow_no_shadow_lights`, etc.) to keep KS2 point-shadow rollout observable while the generation/sampling pass is still in flight.
+- `2026-02-16`: `KS2.3` bounded point-shadow generation/sampling landed for selected local lights in both backends:
+  - BGFX + Diligent now build CPU point-shadow atlases from selected shadow-casting point lights via rewrite-owned `BuildPointShadowMap(...)`, upload atlas textures, and bind per-light shadow-slot/matrix contracts to forward shaders.
+  - local-light shading now applies point-shadow visibility per light (face selection, projected UV/depth compare, bounded 0/1 PCF) with rewrite-configured point shadow tuning (`point_*_bias*` fields).
+  - runtime trace token upgraded from unimplemented posture to active/fallback diagnostics (`point_shadow_active`, `point_shadow_no_shadow_lights`, `point_shadow_no_casters`, `point_shadow_map_build_failed`, `point_shadow_upload_failed`, etc.).
+  - `point_faces_per_frame_budget` refresh scheduling remains deferred to `KS3`; current rollout uses bounded light selection + update cadence (`update_every_frames`) to stay deterministic while parity hardening continues.
 - Validation evidence (`m-rewrite/`):
-  - `./scripts/test-engine-backends.sh build-sdl3-bgfx-physx-imgui-sdl3audio` ✅
-  - `./scripts/test-engine-backends.sh build-sdl3-diligent-physx-imgui-sdl3audio` ✅
+  - `./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` ✅
+  - `./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` ✅
+  - `./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` ✅
+  - `./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` ✅
+  - `timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx,render.mesh` (timeout expected; trace confirmed `point shadow status ... reason=point_shadow_no_shadow_lights`) ✅
+  - `timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent,render.mesh` (timeout expected; trace confirmed `point shadow status ... reason=point_shadow_no_shadow_lights`) ✅
 
 ## Open Questions
 - Should point-shadow rendering be default-on in rewrite or rollout behind explicit config until closeout evidence is complete?

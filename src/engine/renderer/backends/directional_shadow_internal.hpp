@@ -10,6 +10,8 @@
 #include <limits>
 #include <vector>
 
+#include <glm/gtc/matrix_transform.hpp>
+
 namespace karma::renderer_backend::detail {
 
 struct ResolvedDirectionalShadowSemantics {
@@ -59,6 +61,20 @@ struct DirectionalShadowMap {
     glm::vec3 axis_right{1.0f, 0.0f, 0.0f};
     glm::vec3 axis_up{0.0f, 1.0f, 0.0f};
     glm::vec3 axis_forward{0.0f, 0.0f, -1.0f};
+    std::vector<float> depth{};
+};
+
+constexpr int kPointShadowFaceCount = 6;
+
+struct PointShadowMap {
+    bool ready = false;
+    int size = 0;
+    int atlas_width = 0;
+    int atlas_height = 0;
+    int light_count = 0;
+    float texel_size = 0.0f;
+    std::vector<glm::mat4> uv_proj{};
+    std::vector<int> source_light_indices{};
     std::vector<float> depth{};
 };
 
@@ -361,6 +377,280 @@ inline void ProjectShadowPoint(const DirectionalShadowMap& map,
 
 inline float EdgeFunction(float ax, float ay, float bx, float by, float px, float py) {
     return ((px - ax) * (by - ay)) - ((py - ay) * (bx - ax));
+}
+
+inline bool ResolvePointShadowFaceBasis(int face, glm::vec3& out_dir, glm::vec3& out_up) {
+    static constexpr std::array<glm::vec3, kPointShadowFaceCount> kFaceDirs{{
+        {1.0f, 0.0f, 0.0f},
+        {-1.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f},
+        {0.0f, -1.0f, 0.0f},
+        {0.0f, 0.0f, 1.0f},
+        {0.0f, 0.0f, -1.0f},
+    }};
+    static constexpr std::array<glm::vec3, kPointShadowFaceCount> kFaceUps{{
+        {0.0f, -1.0f, 0.0f},
+        {0.0f, -1.0f, 0.0f},
+        {0.0f, 0.0f, 1.0f},
+        {0.0f, 0.0f, -1.0f},
+        {0.0f, -1.0f, 0.0f},
+        {0.0f, -1.0f, 0.0f},
+    }};
+    if (face < 0 || face >= kPointShadowFaceCount) {
+        return false;
+    }
+    out_dir = kFaceDirs[static_cast<std::size_t>(face)];
+    out_up = kFaceUps[static_cast<std::size_t>(face)];
+    return IsFiniteVec3(out_dir) && IsFiniteVec3(out_up);
+}
+
+inline bool ProjectPointShadowPoint(const glm::mat4& view_proj,
+                                    const glm::vec3& world_point,
+                                    float& out_u,
+                                    float& out_v,
+                                    float& out_depth) {
+    const glm::vec4 clip = view_proj * glm::vec4(world_point, 1.0f);
+    if (!std::isfinite(clip.x) || !std::isfinite(clip.y) ||
+        !std::isfinite(clip.z) || !std::isfinite(clip.w)) {
+        return false;
+    }
+    const float w = clip.w;
+    if (!std::isfinite(w) || std::fabs(w) <= 1e-6f) {
+        return false;
+    }
+    const glm::vec3 ndc = glm::vec3(clip) / w;
+    if (!IsFiniteVec3(ndc)) {
+        return false;
+    }
+    out_u = (ndc.x * 0.5f) + 0.5f;
+    out_v = (ndc.y * 0.5f) + 0.5f;
+    out_depth = (ndc.z * 0.5f) + 0.5f;
+    return std::isfinite(out_u) && std::isfinite(out_v) && std::isfinite(out_depth);
+}
+
+inline PointShadowMap BuildPointShadowMap(const ResolvedDirectionalShadowSemantics& semantics,
+                                          const std::vector<renderer::LightData>& lights,
+                                          const std::vector<DirectionalShadowCaster>& casters) {
+    PointShadowMap map{};
+    if (!semantics.enabled ||
+        !ValidateResolvedDirectionalShadowSemantics(semantics) ||
+        semantics.point_max_shadow_lights <= 0 ||
+        semantics.point_map_size <= 0 ||
+        casters.empty()) {
+        return map;
+    }
+
+    std::vector<int> selected_light_indices{};
+    selected_light_indices.reserve(static_cast<std::size_t>(semantics.point_max_shadow_lights));
+    for (std::size_t i = 0; i < lights.size(); ++i) {
+        const renderer::LightData& light = lights[i];
+        if (!light.enabled ||
+            light.type != renderer::LightType::Point ||
+            !light.casts_shadows) {
+            continue;
+        }
+        if (!IsFiniteVec3(light.position)) {
+            continue;
+        }
+        if (!std::isfinite(light.range) || !std::isfinite(light.intensity) ||
+            light.range <= 1e-3f || light.intensity <= 0.0f) {
+            continue;
+        }
+        selected_light_indices.push_back(static_cast<int>(i));
+        if (static_cast<int>(selected_light_indices.size()) >= semantics.point_max_shadow_lights) {
+            break;
+        }
+    }
+    if (selected_light_indices.empty()) {
+        return map;
+    }
+
+    map.ready = true;
+    map.size = semantics.point_map_size;
+    map.light_count = static_cast<int>(selected_light_indices.size());
+    map.atlas_width = map.size * 3 * map.light_count;
+    map.atlas_height = map.size * 2;
+    map.texel_size = map.size > 0 ? (1.0f / static_cast<float>(map.size)) : 0.0f;
+    map.source_light_indices = selected_light_indices;
+    map.uv_proj.assign(
+        static_cast<std::size_t>(map.light_count * kPointShadowFaceCount),
+        glm::mat4(1.0f));
+
+    if (map.atlas_width <= 0 || map.atlas_height <= 0) {
+        return PointShadowMap{};
+    }
+    const std::size_t atlas_pixels =
+        static_cast<std::size_t>(map.atlas_width) * static_cast<std::size_t>(map.atlas_height);
+    constexpr std::size_t kMaxPointShadowPixels = 33554432u; // 128MB at R32F
+    if (atlas_pixels == 0u || atlas_pixels > kMaxPointShadowPixels) {
+        return PointShadowMap{};
+    }
+    map.depth.assign(atlas_pixels, std::numeric_limits<float>::infinity());
+
+    glm::mat4 ndc_to_uv_depth(1.0f);
+    ndc_to_uv_depth[0][0] = 0.5f;
+    ndc_to_uv_depth[1][1] = 0.5f;
+    ndc_to_uv_depth[2][2] = 0.5f;
+    ndc_to_uv_depth[3][0] = 0.5f;
+    ndc_to_uv_depth[3][1] = 0.5f;
+    ndc_to_uv_depth[3][2] = 0.5f;
+
+    const float face_raster_scale = static_cast<float>(std::max(map.size - 1, 1));
+    const int face_triangle_budget = std::max(1, semantics.triangle_budget);
+    const float inv_atlas_cols = 1.0f / static_cast<float>(3 * map.light_count);
+    const float inv_atlas_rows = 0.5f;
+
+    for (int slot = 0; slot < map.light_count; ++slot) {
+        const int source_idx = map.source_light_indices[static_cast<std::size_t>(slot)];
+        if (source_idx < 0 || source_idx >= static_cast<int>(lights.size())) {
+            continue;
+        }
+        const renderer::LightData& light = lights[static_cast<std::size_t>(source_idx)];
+        const float range_ws = std::max(light.range, 0.1f);
+        const float near_plane = std::max(range_ws * 0.02f, 0.05f);
+        const float far_plane = std::max(range_ws, near_plane + 0.1f);
+        const glm::mat4 proj = glm::perspective(glm::radians(90.0f), 1.0f, near_plane, far_plane);
+
+        for (int face = 0; face < kPointShadowFaceCount; ++face) {
+            glm::vec3 face_dir{0.0f, 0.0f, 1.0f};
+            glm::vec3 face_up{0.0f, 1.0f, 0.0f};
+            if (!ResolvePointShadowFaceBasis(face, face_dir, face_up)) {
+                continue;
+            }
+            const glm::mat4 view = glm::lookAt(light.position, light.position + face_dir, face_up);
+            const glm::mat4 view_proj = proj * view;
+            const int face_grid_x = (slot * 3) + (face % 3);
+            const int face_grid_y = face / 3;
+            const int face_origin_x = face_grid_x * map.size;
+            const int face_origin_y = face_grid_y * map.size;
+            const int face_max_x = face_origin_x + map.size - 1;
+            const int face_max_y = face_origin_y + map.size - 1;
+
+            glm::mat4 atlas_tile(1.0f);
+            atlas_tile[0][0] = inv_atlas_cols;
+            atlas_tile[1][1] = inv_atlas_rows;
+            atlas_tile[3][0] = static_cast<float>(face_grid_x) * inv_atlas_cols;
+            atlas_tile[3][1] = static_cast<float>(face_grid_y) * inv_atlas_rows;
+
+            const std::size_t matrix_idx = static_cast<std::size_t>(slot * kPointShadowFaceCount + face);
+            map.uv_proj[matrix_idx] = atlas_tile * ndc_to_uv_depth * view_proj;
+
+            int triangles_rasterized = 0;
+            for (const DirectionalShadowCaster& caster : casters) {
+                if (!caster.casts_shadow || !caster.positions || !caster.indices) {
+                    continue;
+                }
+                const auto& positions = *caster.positions;
+                const auto& indices = *caster.indices;
+                if (positions.empty() || indices.size() < 3u) {
+                    continue;
+                }
+
+                for (std::size_t tri = 0; (tri + 2u) < indices.size(); tri += 3u) {
+                    if (triangles_rasterized >= face_triangle_budget) {
+                        break;
+                    }
+                    const uint32_t i0 = indices[tri + 0u];
+                    const uint32_t i1 = indices[tri + 1u];
+                    const uint32_t i2 = indices[tri + 2u];
+                    if (i0 >= positions.size() || i1 >= positions.size() || i2 >= positions.size()) {
+                        continue;
+                    }
+
+                    const glm::vec3 p0 = TransformPoint(caster.transform, positions[i0]);
+                    const glm::vec3 p1 = TransformPoint(caster.transform, positions[i1]);
+                    const glm::vec3 p2 = TransformPoint(caster.transform, positions[i2]);
+                    if (!IsFiniteVec3(p0) || !IsFiniteVec3(p1) || !IsFiniteVec3(p2)) {
+                        continue;
+                    }
+
+                    float u0 = 0.0f;
+                    float v0 = 0.0f;
+                    float d0 = 0.0f;
+                    float u1 = 0.0f;
+                    float v1 = 0.0f;
+                    float d1 = 0.0f;
+                    float u2 = 0.0f;
+                    float v2 = 0.0f;
+                    float d2 = 0.0f;
+                    if (!ProjectPointShadowPoint(view_proj, p0, u0, v0, d0) ||
+                        !ProjectPointShadowPoint(view_proj, p1, u1, v1, d1) ||
+                        !ProjectPointShadowPoint(view_proj, p2, u2, v2, d2)) {
+                        continue;
+                    }
+
+                    const float tx0 = static_cast<float>(face_origin_x) + (u0 * face_raster_scale);
+                    const float ty0 = static_cast<float>(face_origin_y) + (v0 * face_raster_scale);
+                    const float tx1 = static_cast<float>(face_origin_x) + (u1 * face_raster_scale);
+                    const float ty1 = static_cast<float>(face_origin_y) + (v1 * face_raster_scale);
+                    const float tx2 = static_cast<float>(face_origin_x) + (u2 * face_raster_scale);
+                    const float ty2 = static_cast<float>(face_origin_y) + (v2 * face_raster_scale);
+                    if (!std::isfinite(tx0) || !std::isfinite(ty0) ||
+                        !std::isfinite(tx1) || !std::isfinite(ty1) ||
+                        !std::isfinite(tx2) || !std::isfinite(ty2)) {
+                        continue;
+                    }
+
+                    const float tri_min_x = std::min(tx0, std::min(tx1, tx2));
+                    const float tri_max_x = std::max(tx0, std::max(tx1, tx2));
+                    const float tri_min_y = std::min(ty0, std::min(ty1, ty2));
+                    const float tri_max_y = std::max(ty0, std::max(ty1, ty2));
+                    if (tri_max_x < static_cast<float>(face_origin_x) ||
+                        tri_max_y < static_cast<float>(face_origin_y) ||
+                        tri_min_x > static_cast<float>(face_max_x) ||
+                        tri_min_y > static_cast<float>(face_max_y)) {
+                        continue;
+                    }
+
+                    const int min_tx =
+                        std::max(face_origin_x, static_cast<int>(std::floor(tri_min_x)));
+                    const int max_tx =
+                        std::min(face_max_x, static_cast<int>(std::ceil(tri_max_x)));
+                    const int min_ty =
+                        std::max(face_origin_y, static_cast<int>(std::floor(tri_min_y)));
+                    const int max_ty =
+                        std::min(face_max_y, static_cast<int>(std::ceil(tri_max_y)));
+                    if (min_tx > max_tx || min_ty > max_ty) {
+                        continue;
+                    }
+
+                    const float area = EdgeFunction(tx0, ty0, tx1, ty1, tx2, ty2);
+                    if (std::fabs(area) <= 1e-6f) {
+                        continue;
+                    }
+
+                    for (int y = min_ty; y <= max_ty; ++y) {
+                        for (int x = min_tx; x <= max_tx; ++x) {
+                            const float px = static_cast<float>(x) + 0.5f;
+                            const float py = static_cast<float>(y) + 0.5f;
+                            const float w0 = EdgeFunction(tx1, ty1, tx2, ty2, px, py) / area;
+                            const float w1 = EdgeFunction(tx2, ty2, tx0, ty0, px, py) / area;
+                            const float w2 = EdgeFunction(tx0, ty0, tx1, ty1, px, py) / area;
+                            if (w0 < 0.0f || w1 < 0.0f || w2 < 0.0f) {
+                                continue;
+                            }
+
+                            const float depth = (w0 * d0) + (w1 * d1) + (w2 * d2);
+                            if (!std::isfinite(depth)) {
+                                continue;
+                            }
+                            const std::size_t atlas_idx =
+                                static_cast<std::size_t>(y) * static_cast<std::size_t>(map.atlas_width) +
+                                static_cast<std::size_t>(x);
+                            map.depth[atlas_idx] = std::min(map.depth[atlas_idx], depth);
+                        }
+                    }
+
+                    ++triangles_rasterized;
+                }
+                if (triangles_rasterized >= face_triangle_budget) {
+                    break;
+                }
+            }
+        }
+    }
+
+    return map;
 }
 
 inline DirectionalShadowMap BuildDirectionalShadowProjection(const ResolvedDirectionalShadowSemantics& semantics,

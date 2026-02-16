@@ -46,6 +46,9 @@ namespace {
 
 constexpr uint32_t kDiligentMaterialMaxAnisotropy = 8u;
 constexpr std::size_t kMaxLocalLights = 4u;
+constexpr std::size_t kMaxPointShadowLights = kMaxLocalLights;
+constexpr std::size_t kPointShadowFaceCount = static_cast<std::size_t>(detail::kPointShadowFaceCount);
+constexpr std::size_t kPointShadowMatrixCount = kMaxPointShadowLights * kPointShadowFaceCount;
 
 struct Mesh {
     Diligent::RefCntAutoPtr<Diligent::IBuffer> vb;
@@ -89,6 +92,11 @@ struct Constants {
     glm::vec4 u_localLightParams;
     std::array<glm::vec4, kMaxLocalLights> u_localLightPosRange;
     std::array<glm::vec4, kMaxLocalLights> u_localLightColorIntensity;
+    std::array<glm::vec4, kMaxLocalLights> u_localLightShadowSlot;
+    glm::vec4 u_pointShadowParams;
+    glm::vec4 u_pointShadowAtlasTexel;
+    glm::vec4 u_pointShadowTuning;
+    std::array<glm::mat4, kPointShadowMatrixCount> u_pointShadowUvProj;
 };
 
 struct LineVertex {
@@ -630,6 +638,7 @@ class DiligentBackend final : public Backend {
         if (shadow_update_every_frames_ != requested_update_every_frames) {
             shadow_update_every_frames_ = requested_update_every_frames;
             shadow_frames_until_update_ = 0;
+            point_shadow_frames_until_update_ = 0;
             KARMA_TRACE_CHANGED(
                 "render.diligent",
                 std::to_string(shadow_update_every_frames_),
@@ -815,9 +824,16 @@ class DiligentBackend final : public Backend {
         };
         std::array<glm::vec4, kMaxLocalLights> local_light_pos_range{};
         std::array<glm::vec4, kMaxLocalLights> local_light_color_intensity{};
+        std::array<glm::vec4, kMaxLocalLights> local_light_shadow_slot{};
+        std::array<int, kMaxLocalLights> local_light_source_indices{};
+        local_light_source_indices.fill(-1);
+        for (glm::vec4& slot : local_light_shadow_slot) {
+            slot = glm::vec4(-1.0f, 0.0f, 0.0f, 0.0f);
+        }
         int local_light_count = 0;
         int point_shadow_requested = 0;
-        for (const renderer::LightData& light : lights_) {
+        for (std::size_t light_idx = 0; light_idx < lights_.size(); ++light_idx) {
+            const renderer::LightData& light = lights_[light_idx];
             if (!light.enabled || light.type != renderer::LightType::Point) {
                 continue;
             }
@@ -835,7 +851,68 @@ class DiligentBackend final : public Backend {
                 glm::vec4(light.position, clamped_range);
             local_light_color_intensity[static_cast<std::size_t>(local_light_count)] =
                 glm::vec4(light.color.r, light.color.g, light.color.b, clamped_intensity);
+            local_light_source_indices[static_cast<std::size_t>(local_light_count)] = static_cast<int>(light_idx);
             ++local_light_count;
+        }
+        const int point_shadow_selected =
+            std::min(point_shadow_requested, std::max(0, shadow_semantics.point_max_shadow_lights));
+        if (!shadow_semantics.enabled ||
+            shadow_semantics.point_max_shadow_lights <= 0 ||
+            point_shadow_selected <= 0 ||
+            shadow_casters.empty()) {
+            point_shadow_frames_until_update_ = 0;
+            cached_point_shadow_map_ = detail::PointShadowMap{};
+            point_shadow_tex_ready_ = false;
+        } else if (world_layer) {
+            const bool point_shadow_needs_update =
+                point_shadow_frames_until_update_ <= 0 ||
+                shadow_inputs_changed ||
+                !cached_point_shadow_map_.ready ||
+                cached_point_shadow_map_.size != shadow_semantics.point_map_size ||
+                cached_point_shadow_map_.light_count != point_shadow_selected;
+            if (point_shadow_needs_update) {
+                cached_point_shadow_map_ = detail::BuildPointShadowMap(
+                    shadow_semantics,
+                    lights_,
+                    shadow_casters);
+                updatePointShadowTexture(cached_point_shadow_map_);
+                point_shadow_frames_until_update_ = shadow_update_every_frames_ - 1;
+            } else {
+                --point_shadow_frames_until_update_;
+            }
+        }
+        int point_shadow_active = 0;
+        std::array<glm::mat4, kPointShadowMatrixCount> point_shadow_uv_proj{};
+        for (glm::mat4& matrix : point_shadow_uv_proj) {
+            matrix = glm::mat4(1.0f);
+        }
+        if (point_shadow_tex_ready_ && cached_point_shadow_map_.ready) {
+            point_shadow_active = std::max(0, cached_point_shadow_map_.light_count);
+            const std::size_t matrix_count =
+                std::min(kPointShadowMatrixCount, cached_point_shadow_map_.uv_proj.size());
+            for (std::size_t i = 0; i < matrix_count; ++i) {
+                point_shadow_uv_proj[i] = cached_point_shadow_map_.uv_proj[i];
+            }
+            const std::size_t source_count = cached_point_shadow_map_.source_light_indices.size();
+            for (int local_slot = 0; local_slot < local_light_count; ++local_slot) {
+                const int source_idx = local_light_source_indices[static_cast<std::size_t>(local_slot)];
+                if (source_idx < 0) {
+                    continue;
+                }
+                int shadow_slot = -1;
+                for (int slot = 0; slot < point_shadow_active; ++slot) {
+                    const std::size_t source_slot = static_cast<std::size_t>(slot);
+                    if (source_slot >= source_count) {
+                        break;
+                    }
+                    if (cached_point_shadow_map_.source_light_indices[source_slot] == source_idx) {
+                        shadow_slot = slot;
+                        break;
+                    }
+                }
+                local_light_shadow_slot[static_cast<std::size_t>(local_slot)] =
+                    glm::vec4(static_cast<float>(shadow_slot), 0.0f, 0.0f, 0.0f);
+            }
         }
         const glm::vec4 local_light_count_uniform{
             static_cast<float>(local_light_count),
@@ -849,25 +926,59 @@ class DiligentBackend final : public Backend {
             shadow_semantics.ao_affects_local_lights ? 1.0f : 0.0f,
             shadow_semantics.local_light_directional_shadow_lift_strength,
         };
-        const int point_shadow_selected =
-            std::min(point_shadow_requested, std::max(0, shadow_semantics.point_max_shadow_lights));
-        const char* point_shadow_reason = "point_shadow_pass_unimplemented";
+        const bool point_shadow_enabled_uniform = world_layer && point_shadow_active > 0;
+        const glm::vec4 point_shadow_params_uniform{
+            point_shadow_enabled_uniform ? 1.0f : 0.0f,
+            point_shadow_active > 0 ? cached_point_shadow_map_.texel_size : 0.0f,
+            static_cast<float>(std::clamp(shadow_semantics.pcf_radius, 0, 1)),
+            point_shadow_enabled_uniform ? static_cast<float>(point_shadow_active) : 0.0f,
+        };
+        const glm::vec4 point_shadow_atlas_texel_uniform{
+            (point_shadow_enabled_uniform && cached_point_shadow_map_.atlas_width > 0)
+                ? (1.0f / static_cast<float>(cached_point_shadow_map_.atlas_width))
+                : 0.0f,
+            (point_shadow_enabled_uniform && cached_point_shadow_map_.atlas_height > 0)
+                ? (1.0f / static_cast<float>(cached_point_shadow_map_.atlas_height))
+                : 0.0f,
+            0.0f,
+            0.0f,
+        };
+        const glm::vec4 point_shadow_tuning_uniform{
+            shadow_semantics.point_constant_bias,
+            shadow_semantics.point_slope_bias_scale,
+            shadow_semantics.point_normal_bias_scale,
+            shadow_semantics.point_receiver_bias_scale,
+        };
+        const char* point_shadow_reason = "point_shadow_active";
         if (shadow_semantics.point_max_shadow_lights <= 0) {
             point_shadow_reason = "point_shadows_disabled_by_cap";
+        } else if (!shadow_semantics.enabled) {
+            point_shadow_reason = "point_shadows_disabled";
+        } else if (!world_layer) {
+            point_shadow_reason = "point_shadow_non_world_layer";
         } else if (point_shadow_selected <= 0) {
             point_shadow_reason = "point_shadow_no_shadow_lights";
+        } else if (shadow_casters.empty()) {
+            point_shadow_reason = "point_shadow_no_casters";
+        } else if (!cached_point_shadow_map_.ready) {
+            point_shadow_reason = "point_shadow_map_build_failed";
+        } else if (!point_shadow_tex_ready_) {
+            point_shadow_reason = "point_shadow_upload_failed";
+        } else if (point_shadow_active <= 0) {
+            point_shadow_reason = "point_shadow_no_active_slots";
         }
         KARMA_TRACE_CHANGED(
             "render.diligent",
             std::to_string(layer) + ":" +
                 std::to_string(point_shadow_requested) + ":" +
                 std::to_string(point_shadow_selected) + ":" +
+                std::to_string(point_shadow_active) + ":" +
                 point_shadow_reason,
             "point shadow status layer={} requested={} selected={} active={} reason={}",
             layer,
             point_shadow_requested,
             point_shadow_selected,
-            0,
+            point_shadow_active,
             point_shadow_reason);
         int shadow_covered = -1;
         if (shadow_map.ready && !shadow_map.depth.empty()) {
@@ -925,8 +1036,15 @@ class DiligentBackend final : public Backend {
             constants.u_localLightParams = local_light_params_uniform;
             constants.u_localLightPosRange = local_light_pos_range;
             constants.u_localLightColorIntensity = local_light_color_intensity;
+            constants.u_localLightShadowSlot = local_light_shadow_slot;
+            constants.u_pointShadowParams = point_shadow_params_uniform;
+            constants.u_pointShadowAtlasTexel = point_shadow_atlas_texel_uniform;
+            constants.u_pointShadowTuning = point_shadow_tuning_uniform;
+            constants.u_pointShadowUvProj = point_shadow_uv_proj;
             if (semantics.alpha_blend) {
                 constants.u_shadowParams0.x = 0.0f;
+                constants.u_pointShadowParams.x = 0.0f;
+                constants.u_pointShadowParams.w = 0.0f;
             }
 
             const bool use_direct_sampler_path =
@@ -987,6 +1105,16 @@ class DiligentBackend final : public Backend {
                         shadow_view = white_srv_;
                     }
                     shadowVar->Set(shadow_view, Diligent::SET_SHADER_RESOURCE_FLAG_ALLOW_OVERWRITE);
+                }
+                if (auto* pointShadowVar =
+                        pipeline->srb->GetVariableByName(Diligent::SHADER_TYPE_PIXEL, "s_pointShadow")) {
+                    auto point_shadow_view = point_shadow_tex_ready_ ? point_shadow_srv_ : white_srv_;
+                    if (!point_shadow_view) {
+                        point_shadow_view = white_srv_;
+                    }
+                    pointShadowVar->Set(
+                        point_shadow_view,
+                        Diligent::SET_SHADER_RESOURCE_FLAG_ALLOW_OVERWRITE);
                 }
             }
             context_->CommitShaderResources(pipeline->srb, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
@@ -1252,6 +1380,11 @@ cbuffer Constants {
     float4 u_localLightParams;
     float4 u_localLightPosRange[4];
     float4 u_localLightColorIntensity[4];
+    float4 u_localLightShadowSlot[4];
+    float4 u_pointShadowParams;
+    float4 u_pointShadowAtlasTexel;
+    float4 u_pointShadowTuning;
+    float4x4 u_pointShadowUvProj[24];
 };
 PSInput main(VSInput input) {
     PSInput outp;
@@ -1291,6 +1424,11 @@ cbuffer Constants {
     float4 u_localLightParams;
     float4 u_localLightPosRange[4];
     float4 u_localLightColorIntensity[4];
+    float4 u_localLightShadowSlot[4];
+    float4 u_pointShadowParams;
+    float4 u_pointShadowAtlasTexel;
+    float4 u_pointShadowTuning;
+    float4x4 u_pointShadowUvProj[24];
 };
 Texture2D s_tex;
 SamplerState s_tex_sampler;
@@ -1300,6 +1438,8 @@ Texture2D s_occlusion;
 SamplerState s_occlusion_sampler;
 Texture2D s_shadow;
 SamplerState s_shadow_sampler;
+Texture2D s_pointShadow;
+SamplerState s_pointShadow_sampler;
 
 float sampleShadowVisibility(float3 worldPos, float ndotl) {
     if (u_shadowParams0.x < 0.5) {
@@ -1389,6 +1529,78 @@ float sampleShadowVisibility(float3 worldPos, float ndotl) {
     return lit / count;
 }
 
+int selectPointShadowFace(float3 dirWs) {
+    float3 a = abs(dirWs);
+    if (a.x >= a.y && a.x >= a.z) {
+        return dirWs.x >= 0.0 ? 0 : 1;
+    }
+    if (a.y >= a.x && a.y >= a.z) {
+        return dirWs.y >= 0.0 ? 2 : 3;
+    }
+    return dirWs.z >= 0.0 ? 4 : 5;
+}
+
+float samplePointShadowVisibility(int localIndex, float3 worldPos, float3 geomNormal, float3 localDir) {
+    if (u_pointShadowParams.x < 0.5 || localIndex < 0 || localIndex >= 4) {
+        return 1.0;
+    }
+    int shadowSlot = int(floor(u_localLightShadowSlot[localIndex].x + 0.5));
+    int activeSlots = int(clamp(floor(u_pointShadowParams.w + 0.5), 0.0, 4.0));
+    if (shadowSlot < 0 || shadowSlot >= activeSlots) {
+        return 1.0;
+    }
+
+    float3 toSample = worldPos - u_localLightPosRange[localIndex].xyz;
+    int face = selectPointShadowFace(toSample);
+    int matrixIndex = shadowSlot * 6 + face;
+    if (matrixIndex < 0 || matrixIndex >= 24) {
+        return 1.0;
+    }
+
+    float texelSize = max(u_pointShadowParams.y, 0.0);
+    float slope = 1.0 - saturate(dot(geomNormal, localDir));
+    float normalWs = texelSize * max(u_pointShadowTuning.z, 0.0) * (0.5 + slope);
+    float3 shadowWorldPos = worldPos + geomNormal * normalWs;
+
+    float4 shadowUvDepth = mul(u_pointShadowUvProj[matrixIndex], float4(shadowWorldPos, 1.0));
+    shadowUvDepth.xyz /= max(shadowUvDepth.w, 1e-7);
+    float2 shadowUv = shadowUvDepth.xy;
+    float shadowDepth = max(shadowUvDepth.z, 1e-7);
+    if (shadowUv.x < 0.0 || shadowUv.x > 1.0 ||
+        shadowUv.y < 0.0 || shadowUv.y > 1.0 ||
+        shadowDepth < 0.0 || shadowDepth > 1.0) {
+        return 1.0;
+    }
+
+    float constBias = max(u_pointShadowTuning.x, 0.0);
+    float slopeBias = texelSize * max(u_pointShadowTuning.y, 0.0) * (0.4 + slope);
+    float receiverBias =
+        (abs(ddx(shadowDepth)) + abs(ddy(shadowDepth))) * max(u_pointShadowTuning.w, 0.0);
+    float bias = min(constBias + slopeBias + receiverBias, 0.04);
+
+    int radius = int(clamp(floor(u_pointShadowParams.z + 0.5), 0.0, 1.0));
+    if (radius <= 0) {
+        float mapDepth = s_pointShadow.Sample(s_pointShadow_sampler, shadowUv).r;
+        return step(shadowDepth - bias, mapDepth);
+    }
+
+    float2 atlasTexel = max(u_pointShadowAtlasTexel.xy, float2(0.0, 0.0));
+    float sum = 0.0;
+    int count = 0;
+    for (int oy = -1; oy <= 1; ++oy) {
+        for (int ox = -1; ox <= 1; ++ox) {
+            if (abs(ox) > radius || abs(oy) > radius) {
+                continue;
+            }
+            float2 uv = shadowUv + float2(float(ox), float(oy)) * atlasTexel;
+            float mapDepth = s_pointShadow.Sample(s_pointShadow_sampler, uv).r;
+            sum += step(shadowDepth - bias, mapDepth);
+            count += 1;
+        }
+    }
+    return count > 0 ? (sum / float(count)) : 1.0;
+}
+
 float4 main(PSInput input) : SV_TARGET {
     float3 n = normalize(input.Nor);
     float4 texColor = s_tex.Sample(s_tex_sampler, input.UV);
@@ -1440,7 +1652,8 @@ float4 main(PSInput input) : SV_TARGET {
         float distanceAttenuation = 1.0 / (1.0 + (localDamping * lightDistance * lightDistance));
         float attenuation = rangeAttenuation * distanceAttenuation;
         float aoMod = aoAffectsLocal ? ao : 1.0;
-        float localScalar = u_localLightColorIntensity[i].a * attenuation * localNdotL * aoMod;
+        float pointShadow = samplePointShadowVisibility(i, input.WorldPos, n, localDir);
+        float localScalar = u_localLightColorIntensity[i].a * attenuation * localNdotL * aoMod * pointShadow;
         localLightAccum += baseColor.rgb * u_localLightColorIntensity[i].rgb * localScalar;
         float localLuminance = dot(u_localLightColorIntensity[i].rgb, float3(0.2126, 0.7152, 0.0722));
         localShadowLiftEnergy += localLuminance * localScalar;
@@ -1800,6 +2013,7 @@ float4 main(PSInput input) : SV_TARGET {
             {Diligent::SHADER_TYPE_PIXEL, "s_normal", Diligent::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE},
             {Diligent::SHADER_TYPE_PIXEL, "s_occlusion", Diligent::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE},
             {Diligent::SHADER_TYPE_PIXEL, "s_shadow", Diligent::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE},
+            {Diligent::SHADER_TYPE_PIXEL, "s_pointShadow", Diligent::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE},
         };
         Diligent::SamplerDesc sampler_desc{};
         sampler_desc.MinFilter = Diligent::FILTER_TYPE_ANISOTROPIC;
@@ -1820,12 +2034,19 @@ float4 main(PSInput input) : SV_TARGET {
                  Diligent::TEXTURE_ADDRESS_CLAMP,
                  Diligent::TEXTURE_ADDRESS_CLAMP,
                  Diligent::TEXTURE_ADDRESS_CLAMP}},
+            {Diligent::SHADER_TYPE_PIXEL, "s_pointShadow_sampler", {
+                 Diligent::FILTER_TYPE_LINEAR,
+                 Diligent::FILTER_TYPE_LINEAR,
+                 Diligent::FILTER_TYPE_LINEAR,
+                 Diligent::TEXTURE_ADDRESS_CLAMP,
+                 Diligent::TEXTURE_ADDRESS_CLAMP,
+                 Diligent::TEXTURE_ADDRESS_CLAMP}},
         };
         pso_ci.PSODesc.ResourceLayout.DefaultVariableType = Diligent::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
         pso_ci.PSODesc.ResourceLayout.Variables = vars;
-        pso_ci.PSODesc.ResourceLayout.NumVariables = 4;
+        pso_ci.PSODesc.ResourceLayout.NumVariables = 5;
         pso_ci.PSODesc.ResourceLayout.ImmutableSamplers = samplers;
-        pso_ci.PSODesc.ResourceLayout.NumImmutableSamplers = 4;
+        pso_ci.PSODesc.ResourceLayout.NumImmutableSamplers = 5;
 
         device_->CreateGraphicsPipelineState(pso_ci, &out_variant.pso);
         if (!out_variant.pso) {
@@ -1962,6 +2183,46 @@ float4 main(PSInput input) : SV_TARGET {
             return false;
         }
         return true;
+    }
+
+    bool ensurePointShadowTexture(uint32_t width, uint32_t height) {
+        if (!device_ || width == 0u || height == 0u) {
+            return false;
+        }
+        const bool needs_recreate =
+            !point_shadow_tex_ ||
+            point_shadow_tex_width_ != width ||
+            point_shadow_tex_height_ != height;
+        if (needs_recreate) {
+            point_shadow_tex_ = nullptr;
+            point_shadow_srv_ = nullptr;
+
+            Diligent::TextureDesc desc{};
+            desc.Name = "point_shadow_atlas_tex";
+            desc.Type = Diligent::RESOURCE_DIM_TEX_2D;
+            desc.Width = width;
+            desc.Height = height;
+            desc.MipLevels = 1;
+            desc.Format = Diligent::TEX_FORMAT_R32_FLOAT;
+            desc.BindFlags = Diligent::BIND_SHADER_RESOURCE;
+            desc.Usage = Diligent::USAGE_DEFAULT;
+            device_->CreateTexture(desc, nullptr, &point_shadow_tex_);
+            if (!point_shadow_tex_) {
+                point_shadow_tex_width_ = 0u;
+                point_shadow_tex_height_ = 0u;
+                return false;
+            }
+            point_shadow_srv_ = point_shadow_tex_->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE);
+            if (!point_shadow_srv_) {
+                point_shadow_tex_ = nullptr;
+                point_shadow_tex_width_ = 0u;
+                point_shadow_tex_height_ = 0u;
+                return false;
+            }
+            point_shadow_tex_width_ = width;
+            point_shadow_tex_height_ = height;
+        }
+        return point_shadow_tex_ && point_shadow_srv_;
     }
 
     bool renderGpuShadowMap(const detail::DirectionalShadowMap& map, const std::vector<RenderableDraw>& renderables) {
@@ -2163,6 +2424,45 @@ float4 main(PSInput input) : SV_TARGET {
         shadow_tex_ready_ = true;
     }
 
+    void updatePointShadowTexture(const detail::PointShadowMap& map) {
+        point_shadow_tex_ready_ = false;
+        if (!context_ || !map.ready || map.atlas_width <= 0 || map.atlas_height <= 0 || map.depth.empty()) {
+            return;
+        }
+        const uint32_t width = static_cast<uint32_t>(map.atlas_width);
+        const uint32_t height = static_cast<uint32_t>(map.atlas_height);
+        if (!ensurePointShadowTexture(width, height)) {
+            return;
+        }
+        const std::size_t expected =
+            static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+        std::vector<float> upload_data(expected, 1.0f);
+        for (std::size_t i = 0; i < std::min(expected, map.depth.size()); ++i) {
+            const float value = map.depth[i];
+            upload_data[i] = std::isfinite(value) ? std::clamp(value, 0.0f, 1.0f) : 1.0f;
+        }
+
+        Diligent::TextureSubResData subres{};
+        subres.pData = upload_data.data();
+        subres.Stride = static_cast<Diligent::Uint64>(width * sizeof(float));
+        Diligent::Box box{};
+        box.MinX = 0;
+        box.MinY = 0;
+        box.MinZ = 0;
+        box.MaxX = width;
+        box.MaxY = height;
+        box.MaxZ = 1;
+        context_->UpdateTexture(
+            point_shadow_tex_,
+            0,
+            0,
+            box,
+            subres,
+            Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
+            Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+        point_shadow_tex_ready_ = true;
+    }
+
     void resetShadowResources() {
         shadow_tex_ = nullptr;
         shadow_srv_ = nullptr;
@@ -2172,6 +2472,13 @@ float4 main(PSInput input) : SV_TARGET {
         shadow_tex_is_rt_ = false;
         shadow_tex_rt_uses_depth_ = false;
         shadow_tex_ready_ = false;
+        point_shadow_tex_ = nullptr;
+        point_shadow_srv_ = nullptr;
+        point_shadow_tex_width_ = 0u;
+        point_shadow_tex_height_ = 0u;
+        point_shadow_tex_ready_ = false;
+        cached_point_shadow_map_ = detail::PointShadowMap{};
+        point_shadow_frames_until_update_ = 0;
     }
 
     Diligent::RefCntAutoPtr<Diligent::ITextureView> createTextureView(const renderer::MeshData::TextureData& tex) {
@@ -2249,13 +2556,20 @@ float4 main(PSInput input) : SV_TARGET {
     Diligent::RefCntAutoPtr<Diligent::ITextureView> shadow_srv_;
     Diligent::RefCntAutoPtr<Diligent::ITextureView> shadow_rtv_;
     Diligent::RefCntAutoPtr<Diligent::ITextureView> shadow_dsv_;
+    Diligent::RefCntAutoPtr<Diligent::ITexture> point_shadow_tex_;
+    Diligent::RefCntAutoPtr<Diligent::ITextureView> point_shadow_srv_;
     uint32_t shadow_tex_size_ = 0u;
+    uint32_t point_shadow_tex_width_ = 0u;
+    uint32_t point_shadow_tex_height_ = 0u;
     bool shadow_tex_is_rt_ = false;
     bool shadow_tex_rt_uses_depth_ = false;
     bool shadow_tex_ready_ = false;
+    bool point_shadow_tex_ready_ = false;
     detail::DirectionalShadowMap cached_shadow_map_{};
+    detail::PointShadowMap cached_point_shadow_map_{};
     int shadow_update_every_frames_ = 1;
     int shadow_frames_until_update_ = 0;
+    int point_shadow_frames_until_update_ = 0;
     std::vector<renderer::DrawItem> previous_shadow_items_{};
     bool shadow_cache_inputs_valid_ = false;
     glm::vec3 cached_shadow_camera_position_{0.0f, 0.0f, 0.0f};
