@@ -21,7 +21,7 @@ std::optional<std::filesystem::path> ParsePathArg(int argc, char *argv[], const 
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg(argv[i]);
-        if (arg == shortOpt || arg == longOpt) {
+        if ((!shortOpt.empty() && arg == shortOpt) || arg == longOpt) {
             if (i + 1 < argc) {
                 return std::filesystem::path(argv[i + 1]);
             }
@@ -146,7 +146,11 @@ std::optional<std::filesystem::path> ExtractDataDirFromConfig(const std::filesys
         if (auto dataDirIt = configJson.find("DataDir"); dataDirIt != configJson.end() && dataDirIt->is_string()) {
             const auto value = dataDirIt->get<std::string>();
             if (!value.empty()) {
-                return std::filesystem::path(value);
+                std::filesystem::path dataDirPath(value);
+                if (dataDirPath.is_relative()) {
+                    dataDirPath = configPath.parent_path() / dataDirPath;
+                }
+                return CanonicalizePath(dataDirPath);
             }
         }
     } catch (const std::exception &ex) {
@@ -196,18 +200,22 @@ DataDirOverrideResult ApplyDataDirOverrideFromArgs(int argc,
                                                    bool enableUserConfig,
                                                    bool allowDataDirFromUserConfigWhenUserConfigDisabled) {
     try {
-        const auto cliConfigPath = ParsePathArg(argc, argv, "-c", "--config");
-        const auto cliDataDir = ParsePathArg(argc, argv, "-d", "--data-dir");
+        const auto cliConfigPath = ParsePathArg(argc, argv, "", "--user-config");
+        const auto cliDataDir = ParsePathArg(argc, argv, "", "--data-dir");
         std::filesystem::path configPath{};
         std::optional<std::filesystem::path> configDataDir{};
 
         if (enableUserConfig) {
             configPath = EnsureConfigFileAtPath(cliConfigPath ? *cliConfigPath : std::filesystem::path{},
                                                 defaultConfigRelative);
+            const auto configRoot = configPath.parent_path();
+            if (!configRoot.empty()) {
+                karma::data::SetUserConfigRootOverride(configRoot);
+            }
             configDataDir = cliDataDir ? std::optional<std::filesystem::path>{}
                                        : ExtractDataDirFromConfig(configPath);
         } else if (cliConfigPath) {
-            std::cerr << "The --config option is not supported for this executable.\n";
+            std::cerr << "The --user-config option is not supported for this executable.\n";
             std::exit(1);
         } else if (allowDataDirFromUserConfigWhenUserConfigDisabled) {
             const auto readOnlyConfigPath = CanonicalizePath(karma::data::UserConfigDirectory() / defaultConfigRelative);
@@ -217,7 +225,7 @@ DataDirOverrideResult ApplyDataDirOverrideFromArgs(int argc,
         }
 
         if (cliDataDir) {
-            ValidateDataDirOrExit(*cliDataDir, std::string("-d ") + cliDataDir->string());
+            ValidateDataDirOrExit(*cliDataDir, std::string("--data-dir ") + cliDataDir->string());
             karma::data::SetDataRootOverride(*cliDataDir);
             KARMA_TRACE("config", "Using data directory from CLI override: {}", cliDataDir->string());
             return {configPath, *cliDataDir};
@@ -252,7 +260,7 @@ DataDirOverrideResult ApplyDataDirOverrideFromArgs(int argc,
             std::cerr << " in two ways:\n";
         }
         std::cerr << "  1. Set the " << spec.dataDirEnvVar << " environment variable.\n";
-        std::cerr << "  2. Use the command-line option \"-d <datadir>\".\n";
+        std::cerr << "  2. Use the command-line option \"--data-dir <datadir>\".\n";
         if (enableUserConfig || allowDataDirFromUserConfigWhenUserConfigDisabled) {
             std::cerr << "  3. Add the following to your user config file:\n";
             std::cerr << "     " << configPath.string() << "\n";

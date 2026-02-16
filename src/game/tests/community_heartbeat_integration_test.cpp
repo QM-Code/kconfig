@@ -1,8 +1,7 @@
-#include "server/cli_options.hpp"
-#include "server/community_heartbeat.hpp"
-#include "server/heartbeat_client.hpp"
-
+#include "karma/cli/server_app_options.hpp"
 #include "karma/common/json.hpp"
+#include "karma/network/community_heartbeat.hpp"
+#include "karma/network/heartbeat_client.hpp"
 
 #include <iostream>
 #include <memory>
@@ -23,7 +22,7 @@ bool Expect(bool condition, const std::string& message) {
     return true;
 }
 
-class RecordingHeartbeatClient final : public bz3::server::IHeartbeatClient {
+class RecordingHeartbeatClient final : public karma::network::IHeartbeatClient {
  public:
     struct Call {
         std::string community_url{};
@@ -57,8 +56,8 @@ bool TestCommunityOverrideDispatchesHeartbeat() {
         argv.push_back(arg.data());
     }
 
-    const bz3::server::CLIOptions options =
-        bz3::server::ParseCLIOptions(static_cast<int>(argv.size()), argv.data());
+    const karma::cli::ServerAppOptions options =
+        karma::cli::ParseServerAppCliOptions(static_cast<int>(argv.size()), argv.data(), "bz3-server");
     if (!Expect(options.community_explicit, "expected --community to set community_explicit")) {
         return false;
     }
@@ -76,7 +75,7 @@ bool TestCommunityOverrideDispatchesHeartbeat() {
 
     auto recording_client = std::make_unique<RecordingHeartbeatClient>();
     auto* recorded = recording_client.get();
-    bz3::server::CommunityHeartbeat heartbeat(std::move(recording_client));
+    karma::network::CommunityHeartbeat heartbeat(std::move(recording_client));
     heartbeat.configureFromConfig(merged_config,
                                   11899,
                                   options.community_explicit ? options.community : std::string{});

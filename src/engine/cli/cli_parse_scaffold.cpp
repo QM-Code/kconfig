@@ -216,10 +216,10 @@ std::string JoinChoices(const std::vector<std::string>& values) {
 void RequireTraceList(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        if (arg == "-t" || arg == "--trace") {
+        if (arg == "--trace") {
             const bool has_value = (i + 1 < argc) && argv[i + 1][0] != '-';
             if (!has_value) {
-                std::cerr << "Error: --trace/-t requires a comma-separated channel list.\n";
+                std::cerr << "Error: --trace requires a comma-separated channel list.\n";
                 std::cerr << "\nAvailable trace channels:\n"
                           << karma::logging::GetDefaultTraceChannelsHelp();
                 std::exit(1);
@@ -240,12 +240,12 @@ CliConsumeResult ConsumeCommonCliOption(const std::string& arg,
         out.help_requested = true;
         return out;
     }
-    if (arg == "-T" || arg == "--timestamp-logging") {
+    if (arg == "--timestamp-logging") {
         state.timestamp_logging = true;
         out.consumed = true;
         return out;
     }
-    if (arg == "-t" || arg == "--trace") {
+    if (arg == "--trace") {
         std::string error{};
         auto value = RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
@@ -263,7 +263,7 @@ CliConsumeResult ConsumeCommonCliOption(const std::string& arg,
         out.consumed = true;
         return out;
     }
-    if (arg == "-d" || arg == "--data-dir") {
+    if (arg == "--data-dir") {
         std::string error{};
         auto value = RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
@@ -299,7 +299,7 @@ CliConsumeResult ConsumeCommonCliOption(const std::string& arg,
         out.consumed = true;
         return out;
     }
-    if (arg == "-c" || arg == "--config") {
+    if (arg == "--user-config") {
         std::string error{};
         auto value = RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
@@ -311,8 +311,8 @@ CliConsumeResult ConsumeCommonCliOption(const std::string& arg,
         state.user_config_explicit = true;
         return out;
     }
-    if (StartsWith(arg, "--config=")) {
-        state.user_config_path = ValueAfterEquals(arg, "--config=");
+    if (StartsWith(arg, "--user-config=")) {
+        state.user_config_path = ValueAfterEquals(arg, "--user-config=");
         state.user_config_explicit = true;
         out.consumed = true;
         return out;
@@ -426,13 +426,13 @@ bool ShouldExposeAudioBackendCliOption() {
 void AppendCommonCliHelp(std::ostream& out, bool include_user_config_option) {
     out
         << "  -h, --help                      Show this help message\n"
-        << "  -t, --trace <channels>          Enable comma-separated trace channels\n"
-        << "  -d, --data-dir <dir>            Data directory override\n"
+        << "      --trace <channels>          Enable comma-separated trace channels\n"
+        << "      --data-dir <dir>            Data directory override\n"
         << "      --language <code>           Language override (runtime only)\n"
         << "      --strict-config=<bool>      Required-config validation (default: true)\n"
-        << "  -T, --timestamp-logging         Enable timestamped log output\n";
+        << "      --timestamp-logging         Enable timestamped log output\n";
     if (include_user_config_option) {
-        out << "  -c, --config <path>             User config file path override\n";
+        out << "      --user-config <path>        User config file path override\n";
     }
 }
 

@@ -93,6 +93,7 @@ void Game::onStart() {
         startup_.connect_addr,
         startup_.connect_port,
         startup_.player_name,
+        startup_.auth_payload,
         [this](client::net::AudioEvent event) { onAudioEvent(event); });
     if (!connection_->start()) {
         KARMA_TRACE("net.client",

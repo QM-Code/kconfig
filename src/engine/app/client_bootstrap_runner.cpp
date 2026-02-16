@@ -1,0 +1,67 @@
+#include "karma/app/client_bootstrap_runner.hpp"
+
+#include "karma/app/backend_resolution.hpp"
+#include "karma/app/bootstrap_scaffold.hpp"
+#include "karma/common/config_validation.hpp"
+#include "karma/common/logging.hpp"
+
+#include <spdlog/spdlog.h>
+
+#include <filesystem>
+#include <string>
+#include <stdexcept>
+
+namespace karma::app {
+
+void RunClientBootstrap(const karma::cli::ClientAppOptions& options,
+                        int argc,
+                        char** argv,
+                        std::string_view app_name) {
+    ConfigureLoggingFromOptions(options.timestamp_logging,
+                                options.trace_explicit,
+                                options.trace_channels);
+
+    BootstrapConfigSpec spec{};
+    spec.app_name = app_name.empty() ? std::string("app") : std::string(app_name);
+    spec.data_dir_env_var = "BZ3_DATA_DIR";
+    spec.required_data_marker = "client/config.json";
+    spec.default_user_config_relative = std::filesystem::path("config.json");
+    spec.config_specs = {
+        {"client/config.json", "data/client/config.json", spdlog::level::debug, false, true}
+    };
+    ConfigureDataAndConfigFromSpec(spec, argc, argv);
+
+    if (options.backend_platform_explicit) {
+        ValidatePlatformBackendFromOption(options.backend_platform, options.backend_platform_explicit);
+        KARMA_TRACE("engine.app", "CLI option --backend-platform set: '{}'", options.backend_platform);
+    }
+    if (options.backend_render_explicit) {
+        KARMA_TRACE("engine.app", "CLI option --backend-render set: '{}'", options.backend_render);
+    }
+    if (options.backend_ui_explicit) {
+        KARMA_TRACE("engine.app", "CLI option --backend-ui set: '{}'", options.backend_ui);
+    }
+    if (options.backend_physics_explicit) {
+        KARMA_TRACE("engine.app", "CLI option --backend-physics set: '{}'", options.backend_physics);
+    }
+    if (options.backend_audio_explicit) {
+        KARMA_TRACE("engine.app", "CLI option --backend-audio set: '{}'", options.backend_audio);
+    }
+
+    const auto issues = config::ValidateRequiredKeys(config::ClientRequiredKeys());
+    if (!ReportRequiredConfigIssues(issues, options.strict_config)) {
+        throw std::runtime_error("Client required config validation failed.");
+    }
+
+    if (options.username_explicit) {
+        KARMA_TRACE("engine.app", "CLI option --username set: '{}'", options.username);
+    }
+    if (options.password_explicit) {
+        KARMA_TRACE("engine.app", "CLI option --password set: [redacted]");
+    }
+    if (options.server_explicit) {
+        KARMA_TRACE("engine.app", "CLI option --server set: '{}'", options.server);
+    }
+}
+
+} // namespace karma::app

@@ -46,9 +46,10 @@ class ScriptedServerEventSource final : public ServerEventSource {
             switch (scheduled.event.type) {
                 case ServerInputEvent::Type::ClientJoin:
                     KARMA_TRACE("engine.server",
-                                "ServerEventSource: scripted join client_id={} name='{}' at={:.2f}s",
+                                "ServerEventSource: scripted join client_id={} name='{}' auth_payload_present={} at={:.2f}s",
                                 scheduled.event.join.client_id,
                                 scheduled.event.join.player_name,
+                                scheduled.event.join.auth_payload.empty() ? 0 : 1,
                                 scheduled.at_seconds);
                     break;
                 case ServerInputEvent::Type::ClientLeave:
@@ -188,6 +189,10 @@ std::vector<ScheduledEvent> LoadScriptedEventsFromConfig() {
                 scheduled.event.join.player_name =
                     "player-" + std::to_string(scheduled.event.join.client_id);
             }
+            const auto auth_it = item.find("authPayload");
+            if (auth_it != item.end() && auth_it->is_string()) {
+                scheduled.event.join.auth_payload = auth_it->get<std::string>();
+            }
         } else if (type == "leave") {
             scheduled.event.type = ServerInputEvent::Type::ClientLeave;
             if (!ReadUint32(item, "clientId", &scheduled.event.leave.client_id)) {
@@ -234,7 +239,7 @@ std::vector<ScheduledEvent> LoadScriptedEventsFromConfig() {
 
 } // namespace
 
-std::unique_ptr<ServerEventSource> CreateServerEventSource(const CLIOptions& options,
+std::unique_ptr<ServerEventSource> CreateServerEventSource(const karma::cli::ServerAppOptions& options,
                                                            uint16_t listen_port) {
     const std::string app_name = options.app_name.empty() ? std::string("server") : options.app_name;
     auto scripted_events = LoadScriptedEventsFromConfig();

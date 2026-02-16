@@ -24,6 +24,7 @@ namespace bz3 {
 
 struct GameStartupOptions {
     std::string player_name{};
+    std::string auth_payload{};
     std::string connect_addr{};
     uint16_t connect_port = 0;
     bool connect_on_start = false;

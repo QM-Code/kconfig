@@ -38,6 +38,7 @@ struct ClientMessage {
     ClientMessageType type = ClientMessageType::Unknown;
     uint32_t client_id = 0;
     std::string player_name{};
+    std::string auth_payload{};
     uint32_t protocol_version = 0;
     std::string cached_world_hash{};
     std::string cached_world_id{};
@@ -115,7 +116,8 @@ std::vector<std::byte> EncodeClientJoinRequest(std::string_view player_name,
                                                std::string_view cached_world_content_hash,
                                                std::string_view cached_world_manifest_hash,
                                                uint32_t cached_world_manifest_file_count,
-                                               const std::vector<WorldManifestEntry>& cached_world_manifest = {});
+                                               const std::vector<WorldManifestEntry>& cached_world_manifest = {},
+                                               std::string_view auth_payload = {});
 std::vector<std::byte> EncodeClientRequestPlayerSpawn(uint32_t client_id);
 std::vector<std::byte> EncodeClientCreateShot(uint32_t client_id,
                                               uint32_t local_shot_id,

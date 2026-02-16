@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "server/cli_options.hpp"
+#include "karma/cli/server_app_options.hpp"
 
 namespace bz3::server::domain {
 
@@ -33,6 +33,7 @@ struct WorldSessionContext {
     std::string world_revision{};
 };
 
-std::optional<WorldSessionContext> LoadWorldSessionContext(const CLIOptions& options);
+std::optional<WorldSessionContext> LoadWorldSessionContext(
+    const karma::cli::ServerAppOptions& options);
 
 } // namespace bz3::server::domain

@@ -2,6 +2,9 @@
 
 This is the long-lived reference for regular community/webserver integration testing.
 
+For the canonical end-to-end auth validation workflow using demo virtual users/worlds/communities, use:
+- `docs/foundation/governance/community-auth-demo-testing.md`
+
 ## Scope
 Use this when touching:
 - `src/webserver/*`
@@ -41,7 +44,6 @@ Periodic posture while webserver work is active:
 From `m-rewrite/`:
 
 ```bash
-export VCPKG_ROOT=/home/karmak/dev/bz3-rewrite/m-rewrite/vcpkg
 ./bzbuild.py build-sdl3-bgfx-jolt-rmlui-sdl3audio
 ```
 
@@ -94,12 +96,12 @@ Target topology:
 
 Procedure:
 1. Ensure each community DB has registered host:port rows for planned servers.
-2. Start 3 `bz3-server` instances per community with explicit unique `--port` and correct `--community`.
-3. Query each community list from client CLI:
+2. Start 3 `bz3-server` instances per community with explicit unique `--listen-port` and correct community target (via world/server config `community.server` or explicit `--community` override).
+3. Query each community list from web API:
 
 ```bash
-./build-sdl3-bgfx-jolt-rmlui-sdl3audio/bz3 --community-list-active localhost:8080
-./build-sdl3-bgfx-jolt-rmlui-sdl3audio/bz3 --community-list-active localhost:8081
+curl -fsS http://localhost:8080/api/servers/active
+curl -fsS http://localhost:8081/api/servers/active
 ```
 
 Pass criteria:
@@ -111,9 +113,9 @@ Goal:
 - run 5-10 client sessions that poll community lists and attempt connect
 - ensure at least one server handles >=3 concurrent clients in comprehensive runs
 
-Current status (`2026-02-13`):
-- list polling is available in `m-rewrite` via `--community-list-active`
+Current status (`2026-02-16`):
 - fully scripted multi-client connect harness is not yet landed in `m-rewrite`
+- use repeatable CLI/curl loops for poll+connect evidence capture.
 
 Required posture until harness lands:
 - run list-poll fanout as automated
@@ -126,12 +128,10 @@ Goal:
   - registered username + invalid password -> reject
   - unregistered username (not currently in-session duplicate) -> allow
 
-Current status (`2026-02-13`):
-- community auth handshake parity from `m-dev` is not fully ported to `m-rewrite`
-
-Required posture until port lands:
-- keep this matrix documented as required acceptance criteria
-- treat auth-matrix automation as blocked by active project execution
+Current status (`2026-02-16`):
+- demo-backed community auth flow is available and documented for manual/agent validation.
+- canonical procedure, examples, and troubleshooting are in:
+  - `docs/foundation/governance/community-auth-demo-testing.md`
 
 ## Evidence Capture
 For each run, record:
@@ -142,5 +142,6 @@ For each run, record:
 
 ## Related Docs
 - `docs/foundation/governance/testing-ci-governance.md`
+- `docs/foundation/governance/community-auth-demo-testing.md`
 - `docs/foundation/policy/execution-policy.md`
 - `docs/projects/webserver-unit-tests.md`

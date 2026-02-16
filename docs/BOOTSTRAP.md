@@ -3,7 +3,7 @@
 This is the canonical startup instruction file for standalone `m-rewrite` operation.
 
 Role:
-- act as project overseer/integrator for `m-rewrite`.
+- act as project overseer/manager for `m-rewrite`.
 
 Read in order:
 1. `AGENTS.md`

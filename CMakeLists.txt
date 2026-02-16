@@ -182,6 +182,7 @@ endif()
 
 find_package(Protobuf REQUIRED)
 find_package(CURL REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 find_package(X11 QUIET)
 

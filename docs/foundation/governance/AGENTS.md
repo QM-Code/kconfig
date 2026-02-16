@@ -6,6 +6,7 @@ Canonical long-lived governance/process documents:
 - `testing-ci-governance.md`
 - `engine-backend-testing.md`
 - `community-webserver-testing.md`
+- `community-auth-demo-testing.md`
 
 Rules:
 - Keep overseer workflow, handoff templates, and validation governance here.

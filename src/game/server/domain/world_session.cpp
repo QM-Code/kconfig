@@ -125,7 +125,8 @@ WorldManifestSummary ComputeWorldManifestSummary(const std::filesystem::path& wo
 
 } // namespace
 
-std::optional<WorldSessionContext> LoadWorldSessionContext(const CLIOptions& options) {
+std::optional<WorldSessionContext> LoadWorldSessionContext(
+    const karma::cli::ServerAppOptions& options) {
     WorldSessionContext context{};
     const std::string app_name = options.app_name.empty() ? std::string("server") : options.app_name;
     context.world_package_enabled = options.server_config_explicit;

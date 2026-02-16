@@ -1423,10 +1423,12 @@ bool ApplyWorldPackageForServer(const std::string& host,
 ClientConnection::ClientConnection(std::string host,
                                    uint16_t port,
                                    std::string player_name,
+                                   std::string auth_payload,
                                    AudioEventCallback audio_event_callback)
     : host_(std::move(host)),
       port_(port),
       player_name_(std::move(player_name)),
+      auth_payload_(std::move(auth_payload)),
       audio_event_callback_(std::move(audio_event_callback)) {}
 
 ClientConnection::~ClientConnection() {
@@ -2126,7 +2128,8 @@ bool ClientConnection::sendJoinRequest() {
                                                            cached_world_content_hash,
                                                            cached_world_manifest_hash,
                                                            cached_world_manifest_file_count,
-                                                           cached_world_manifest);
+                                                           cached_world_manifest,
+                                                           auth_payload_);
     if (payload.empty()) {
         return false;
     }
@@ -2137,9 +2140,10 @@ bool ClientConnection::sendJoinRequest() {
     join_sent_ = true;
 
     KARMA_TRACE("net.client",
-                "ClientConnection: sent join request name='{}' protocol={} cached_world_hash='{}' cached_world_id='{}' cached_world_revision='{}' cached_world_content_hash='{}' cached_world_manifest_hash='{}' cached_world_manifest_files={} cached_world_manifest_entries={} to {}:{}",
+                "ClientConnection: sent join request name='{}' protocol={} auth_payload_present={} cached_world_hash='{}' cached_world_id='{}' cached_world_revision='{}' cached_world_content_hash='{}' cached_world_manifest_hash='{}' cached_world_manifest_files={} cached_world_manifest_entries={} to {}:{}",
                 player_name_,
                 bz3::net::kProtocolVersion,
+                auth_payload_.empty() ? 0 : 1,
                 cached_world_hash.empty() ? "-" : cached_world_hash,
                 cached_world_id.empty() ? "-" : cached_world_id,
                 cached_world_revision.empty() ? "-" : cached_world_revision,

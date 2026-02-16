@@ -1,9 +1,9 @@
 #pragma once
 
-#include "server/cli_options.hpp"
+#include "karma/cli/server_app_options.hpp"
 
 namespace bz3::server {
 
-int RunRuntime(const CLIOptions& options);
+int RunRuntime(const karma::cli::ServerAppOptions& options);
 
 } // namespace bz3::server

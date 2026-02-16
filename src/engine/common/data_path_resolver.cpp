@@ -108,6 +108,8 @@ std::optional<std::filesystem::path> g_dataRootOverride;
 bool g_dataRootInitialized = false;
 std::mutex g_dataSpecMutex;
 DataPathSpec g_dataSpec;
+std::mutex g_userConfigRootMutex;
+std::optional<std::filesystem::path> g_userConfigRootOverride;
 
 std::filesystem::path NormalizeMountPoint(const std::filesystem::path &mountPoint) {
     if (mountPoint.empty()) {
@@ -445,42 +447,55 @@ std::filesystem::path ResolveWithBase(const std::filesystem::path &baseDir, cons
     return TryCanonical(candidate);
 }
 
-std::filesystem::path UserConfigDirectory() {
-    static const std::filesystem::path dir = [] {
-        DataPathSpec spec;
-        {
-            std::lock_guard<std::mutex> lock(g_dataSpecMutex);
-            spec = g_dataSpec;
-        }
-        const std::string appName = spec.appName.empty() ? std::string("app") : spec.appName;
-        std::filesystem::path base;
+std::filesystem::path DetectDefaultUserConfigDirectory() {
+    DataPathSpec spec;
+    {
+        std::lock_guard<std::mutex> lock(g_dataSpecMutex);
+        spec = g_dataSpec;
+    }
+    const std::string appName = spec.appName.empty() ? std::string("app") : spec.appName;
+    std::filesystem::path base;
 
 #if defined(_WIN32)
-        if (const char *appData = std::getenv("APPDATA"); appData && *appData) {
-            base = appData;
-        } else if (const char *userProfile = std::getenv("USERPROFILE"); userProfile && *userProfile) {
-            base = std::filesystem::path(userProfile) / "AppData" / "Roaming";
-        }
+    if (const char *appData = std::getenv("APPDATA"); appData && *appData) {
+        base = appData;
+    } else if (const char *userProfile = std::getenv("USERPROFILE"); userProfile && *userProfile) {
+        base = std::filesystem::path(userProfile) / "AppData" / "Roaming";
+    }
 #elif defined(__APPLE__)
-        if (const char *home = std::getenv("HOME"); home && *home) {
-            base = std::filesystem::path(home) / "Library" / "Application Support";
-        }
+    if (const char *home = std::getenv("HOME"); home && *home) {
+        base = std::filesystem::path(home) / "Library" / "Application Support";
+    }
 #else
-        if (const char *xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
-            base = xdg;
-        } else if (const char *home = std::getenv("HOME"); home && *home) {
-            base = std::filesystem::path(home) / ".config";
-        }
+    if (const char *xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
+        base = xdg;
+    } else if (const char *home = std::getenv("HOME"); home && *home) {
+        base = std::filesystem::path(home) / ".config";
+    }
 #endif
 
-        if (base.empty()) {
-            throw std::runtime_error("Unable to determine user configuration directory: no home path detected");
+    if (base.empty()) {
+        throw std::runtime_error("Unable to determine user configuration directory: no home path detected");
+    }
+
+    return TryCanonical(base / appName);
+}
+
+std::filesystem::path UserConfigDirectory() {
+    {
+        std::lock_guard<std::mutex> lock(g_userConfigRootMutex);
+        if (g_userConfigRootOverride.has_value()) {
+            return *g_userConfigRootOverride;
         }
+    }
+    static const std::filesystem::path default_dir = DetectDefaultUserConfigDirectory();
+    return default_dir;
+}
 
-        return TryCanonical(base / appName);
-    }();
-
-    return dir;
+void SetUserConfigRootOverride(const std::filesystem::path &path) {
+    const auto canonical = TryCanonical(path);
+    std::lock_guard<std::mutex> lock(g_userConfigRootMutex);
+    g_userConfigRootOverride = canonical;
 }
 
 std::filesystem::path EnsureUserConfigFile(const std::string &fileName) {

@@ -429,6 +429,7 @@ class TransportServerEventSource final : public ServerEventSource {
                 return;
             }
 
+            state_it->second.joined = true;
             const ClientConnectionState& state = state_it->second;
             const bool cache_identity_match = !world_id.empty() &&
                                               !world_revision.empty() &&
@@ -647,11 +648,19 @@ class TransportServerEventSource final : public ServerEventSource {
     }
 
  private:
-    void emitJoinEvent(uint32_t client_id, const std::string& player_name, std::vector<ServerInputEvent>& out) {
+    void emitJoinEvent(uint32_t client_id,
+                       const std::string& player_name,
+                       const std::string& auth_payload,
+                       const std::string& peer_ip,
+                       uint16_t peer_port,
+                       std::vector<ServerInputEvent>& out) {
         ServerInputEvent input{};
         input.type = ServerInputEvent::Type::ClientJoin;
         input.join.client_id = client_id;
         input.join.player_name = player_name;
+        input.join.auth_payload = auth_payload;
+        input.join.peer_ip = peer_ip;
+        input.join.peer_port = peer_port;
         out.push_back(std::move(input));
     }
 
@@ -746,10 +755,11 @@ class TransportServerEventSource final : public ServerEventSource {
                         entry.hash});
                 }
                 KARMA_TRACE("net.server",
-                            "Handshake request client_id={} name='{}' protocol={} cached_world_hash='{}' cached_world_id='{}' cached_world_revision='{}' cached_world_content_hash='{}' cached_world_manifest_hash='{}' cached_world_manifest_files={} cached_world_manifest_entries={} ip={} port={}",
+                            "Handshake request client_id={} name='{}' protocol={} auth_payload_present={} cached_world_hash='{}' cached_world_id='{}' cached_world_revision='{}' cached_world_content_hash='{}' cached_world_manifest_hash='{}' cached_world_manifest_files={} cached_world_manifest_entries={} ip={} port={}",
                             state.client_id,
                             player_name,
                             protocol_version,
+                            decoded->auth_payload.empty() ? 0 : 1,
                             state.cached_world_hash.empty() ? "-" : state.cached_world_hash,
                             state.cached_world_id.empty() ? "-" : state.cached_world_id,
                             state.cached_world_revision.empty() ? "-" : state.cached_world_revision,
@@ -781,12 +791,18 @@ class TransportServerEventSource final : public ServerEventSource {
 
                 state.joined = true;
                 state.player_name = player_name;
-                emitJoinEvent(state.client_id, state.player_name, out);
+                emitJoinEvent(state.client_id,
+                              state.player_name,
+                              decoded->auth_payload,
+                              state.peer_ip,
+                              state.peer_port,
+                              out);
                 KARMA_TRACE("engine.server",
-                            "ServerEventSource: transport join client_id={} name='{}' protocol={} ip={} port={}",
+                            "ServerEventSource: transport join client_id={} name='{}' protocol={} auth_payload_present={} ip={} port={}",
                             state.client_id,
                             state.player_name,
                             protocol_version,
+                            decoded->auth_payload.empty() ? 0 : 1,
                             state.peer_ip,
                             state.peer_port);
                 return;

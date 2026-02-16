@@ -8,13 +8,16 @@
 #include <string_view>
 #include <vector>
 
-#include "server/cli_options.hpp"
+#include "karma/cli/server_app_options.hpp"
 
 namespace bz3::server::net {
 
 struct ClientJoinEvent {
     uint32_t client_id = 0;
     std::string player_name{};
+    std::string auth_payload{};
+    std::string peer_ip{};
+    uint16_t peer_port = 0;
 };
 
 struct ClientLeaveEvent {
@@ -130,7 +133,7 @@ class ServerEventSource {
     }
 };
 
-std::unique_ptr<ServerEventSource> CreateServerEventSource(const CLIOptions& options,
+std::unique_ptr<ServerEventSource> CreateServerEventSource(const karma::cli::ServerAppOptions& options,
                                                            uint16_t listen_port);
 
 } // namespace bz3::server::net

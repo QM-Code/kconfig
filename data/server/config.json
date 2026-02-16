@@ -3,11 +3,6 @@
         "ServerAdvertiseHost": "192.168.1.6",
         "ServerPort": 11899
     },
-    "community": {
-        "server" : "http://192.168.1.6:8080/",
-        "enabled" : true,
-        "heartbeatIntervalSeconds" : 10
-    },
     "maxPlayers": 20,
     "playerParameters" : {
         "speed": 5.0,
@@ -31,11 +26,6 @@
                 "enableAdminCommands" : true
             },
             "enabled" : true
-        },
-        {
-            "name" : "cheat",
-            "enabled" : true
         }
     ]
-
 }

@@ -70,7 +70,7 @@ run_backend_capture() {
     --backend-render "${backend}"
     --backend-ui imgui
     --strict-config=true
-    --config "${CONFIG_FILE}"
+    --user-config "${CONFIG_FILE}"
     -v
     -t "${trace_channels}"
   )

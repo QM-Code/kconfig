@@ -1,9 +1,10 @@
 #include "net/protocol.hpp"
 #include "net/protocol_codec.hpp"
-#include "server/cli_options.hpp"
 #include "server/net/transport_event_source.hpp"
 #include "server/net/event_source.hpp"
 
+#include "karma/cli/server_app_options.hpp"
+#include "karma/network/server_preauth.hpp"
 #include "karma/network/server_transport.hpp"
 #include "karma/common/config_store.hpp"
 #include "karma/common/json.hpp"
@@ -116,7 +117,8 @@ bool TestJoinRequestRoundTrip() {
         "content-hash-xyz",
         "manifest-hash-42",
         17,
-        cached_manifest);
+        cached_manifest,
+        "secret-token");
     if (payload.empty()) {
         return Fail("EncodeClientJoinRequest returned empty payload");
     }
@@ -139,6 +141,7 @@ bool TestJoinRequestRoundTrip() {
                      "join request cached_world_manifest_hash mismatch")
            && Expect(decoded->cached_world_manifest_file_count == 17,
                      "join request cached_world_manifest_file_count mismatch")
+           && Expect(decoded->auth_payload == "secret-token", "join request auth_payload mismatch")
            && Expect(decoded->cached_world_manifest.size() == cached_manifest.size(),
                      "join request cached_world_manifest entry count mismatch")
            && Expect(decoded->cached_world_manifest[0].path == "config.json",
@@ -300,7 +303,7 @@ bool TestScriptedSourceParsesSpawnAndShot() {
         return Fail("failed to initialize config for scripted source spawn/shot test");
     }
 
-    bz3::server::CLIOptions options{};
+    karma::cli::ServerAppOptions options{};
     const auto source = bz3::server::net::CreateServerEventSource(options, 0);
     if (!source) {
         return Fail("CreateServerEventSource returned null for scripted source test");
@@ -347,7 +350,7 @@ bool TestScriptedSourceSortsOutOfOrderAndClampsNegativeTimes() {
         return Fail("failed to initialize config for scripted source ordering test");
     }
 
-    bz3::server::CLIOptions options{};
+    karma::cli::ServerAppOptions options{};
     const auto source = bz3::server::net::CreateServerEventSource(options, 0);
     if (!source) {
         return Fail("CreateServerEventSource returned null for ordering scripted source test");
@@ -394,7 +397,7 @@ bool TestScriptedSourceSkipsInvalidShotData() {
         return Fail("failed to initialize config for scripted source invalid-shot test");
     }
 
-    bz3::server::CLIOptions options{};
+    karma::cli::ServerAppOptions options{};
     const auto source = bz3::server::net::CreateServerEventSource(options, 0);
     if (!source) {
         return Fail("CreateServerEventSource returned null for invalid-shot scripted source test");
@@ -406,6 +409,89 @@ bool TestScriptedSourceSkipsInvalidShotData() {
     }
     return Expect(received[0].type == bz3::server::net::ServerInputEvent::Type::ClientJoin,
                   "invalid-shot scripted source expected ClientJoin as sole valid event");
+}
+
+bool TestScriptedSourceJoinAuthPayload() {
+    const auto events = karma::json::Array(
+        {karma::json::Value{{"type", "join"},
+                            {"atSeconds", 0.0},
+                            {"clientId", 3},
+                            {"playerName", "alice"},
+                            {"authPayload", "auth-v1"}}});
+    if (!InitializeConfigForEvents(events, "join-auth")) {
+        return Fail("failed to initialize config for scripted source join-auth test");
+    }
+
+    karma::cli::ServerAppOptions options{};
+    const auto source = bz3::server::net::CreateServerEventSource(options, 0);
+    if (!source) {
+        return Fail("CreateServerEventSource returned null for join-auth scripted source test");
+    }
+
+    auto received = CollectScheduledEvents(*source, 1, std::chrono::milliseconds(200));
+    if (received.size() != 1) {
+        return Fail("join-auth scripted source expected exactly one event");
+    }
+    return Expect(received[0].type == bz3::server::net::ServerInputEvent::Type::ClientJoin,
+                  "join-auth scripted source expected ClientJoin event")
+           && Expect(received[0].join.client_id == 3, "join-auth scripted source client_id mismatch")
+           && Expect(received[0].join.player_name == "alice", "join-auth scripted source player_name mismatch")
+           && Expect(received[0].join.auth_payload == "auth-v1", "join-auth scripted source auth_payload mismatch");
+}
+
+bool TestServerPreAuthAcceptReject() {
+    const karma::network::ServerPreAuthConfig config{
+        "expected-secret",
+        "denied"};
+    const auto accepted = karma::network::EvaluateServerPreAuth(
+        config,
+        karma::network::ServerPreAuthRequest{
+            .client_id = 10,
+            .player_name = "alice",
+            .auth_payload = "expected-secret",
+            .peer_ip = "127.0.0.1",
+            .peer_port = 11899});
+    const auto rejected = karma::network::EvaluateServerPreAuth(
+        config,
+        karma::network::ServerPreAuthRequest{
+            .client_id = 11,
+            .player_name = "bob",
+            .auth_payload = "wrong-secret",
+            .peer_ip = "127.0.0.1",
+            .peer_port = 11899});
+    const auto structured_accepted = karma::network::EvaluateServerPreAuth(
+        config,
+        karma::network::ServerPreAuthRequest{
+            .client_id = 13,
+            .player_name = "dave",
+            .auth_payload = R"({"username":"dave","password":"expected-secret"})",
+            .peer_ip = "127.0.0.1",
+            .peer_port = 11899});
+    const auto structured_rejected = karma::network::EvaluateServerPreAuth(
+        config,
+        karma::network::ServerPreAuthRequest{
+            .client_id = 14,
+            .player_name = "erin",
+            .auth_payload = R"({"username":"erin","password":"wrong-secret"})",
+            .peer_ip = "127.0.0.1",
+            .peer_port = 11899});
+    const auto disabled = karma::network::EvaluateServerPreAuth(
+        karma::network::ServerPreAuthConfig{},
+        karma::network::ServerPreAuthRequest{
+            .client_id = 12,
+            .player_name = "carol",
+            .auth_payload = "",
+            .peer_ip = "127.0.0.1",
+            .peer_port = 11899});
+
+    return Expect(accepted.accepted, "server pre-auth should accept matching auth payload")
+           && Expect(!rejected.accepted, "server pre-auth should reject mismatched auth payload")
+           && Expect(structured_accepted.accepted,
+                     "server pre-auth should accept structured payload matching password")
+           && Expect(!structured_rejected.accepted,
+                     "server pre-auth should reject structured payload mismatched password")
+           && Expect(rejected.reject_reason == "denied", "server pre-auth reject reason mismatch")
+           && Expect(disabled.accepted, "server pre-auth should accept when disabled");
 }
 
 bool TestServerTransportBackendCustomIdPassThrough() {
@@ -480,6 +566,12 @@ int main() {
         return 1;
     }
     if (!TestScriptedSourceSkipsInvalidShotData()) {
+        return 1;
+    }
+    if (!TestScriptedSourceJoinAuthPayload()) {
+        return 1;
+    }
+    if (!TestServerPreAuthAcceptReject()) {
         return 1;
     }
     if (!TestServerTransportBackendCustomIdPassThrough()) {

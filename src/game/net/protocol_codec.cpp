@@ -93,6 +93,7 @@ std::optional<ClientMessage> DecodeClientMessage(const void* data, size_t size) 
         case karma::ClientMsg::kJoinRequest:
             out.type = ClientMessageType::JoinRequest;
             out.player_name = wire.join_request().name();
+            out.auth_payload = wire.join_request().auth_payload();
             out.protocol_version = wire.join_request().protocol_version();
             out.cached_world_hash = wire.join_request().cached_world_hash();
             out.cached_world_id = wire.join_request().cached_world_id();
@@ -258,7 +259,8 @@ std::vector<std::byte> EncodeClientJoinRequest(std::string_view player_name,
                                                std::string_view cached_world_content_hash,
                                                std::string_view cached_world_manifest_hash,
                                                uint32_t cached_world_manifest_file_count,
-                                               const std::vector<WorldManifestEntry>& cached_world_manifest) {
+                                               const std::vector<WorldManifestEntry>& cached_world_manifest,
+                                               std::string_view auth_payload) {
     karma::ClientMsg message{};
     message.set_type(karma::ClientMsg::JOIN_REQUEST);
     message.set_client_id(0);
@@ -288,6 +290,9 @@ std::vector<std::byte> EncodeClientJoinRequest(std::string_view player_name,
         wire_entry->set_path(entry.path);
         wire_entry->set_size(entry.size);
         wire_entry->set_hash(entry.hash);
+    }
+    if (!auth_payload.empty()) {
+        join->set_auth_payload(std::string(auth_payload));
     }
     return SerializeOrEmpty(message);
 }

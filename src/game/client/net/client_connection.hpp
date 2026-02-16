@@ -28,6 +28,7 @@ class ClientConnection {
     ClientConnection(std::string host,
                      uint16_t port,
                      std::string player_name,
+                     std::string auth_payload = {},
                      AudioEventCallback audio_event_callback = {});
     ~ClientConnection();
 
@@ -55,6 +56,7 @@ class ClientConnection {
     std::string host_;
     uint16_t port_ = 0;
     std::string player_name_;
+    std::string auth_payload_;
 
     bool started_ = false;
     bool connected_ = false;

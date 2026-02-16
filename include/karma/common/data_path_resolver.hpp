@@ -14,6 +14,7 @@ namespace karma::data {
 
 std::filesystem::path Resolve(const std::filesystem::path& relativePath);
 void SetDataRootOverride(const std::filesystem::path& path);
+void SetUserConfigRootOverride(const std::filesystem::path& path);
 
 std::optional<karma::json::Value> LoadJsonFile(const std::filesystem::path& path,
                                                const std::string& label,

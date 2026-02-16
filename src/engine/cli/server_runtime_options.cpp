@@ -60,7 +60,7 @@ CliConsumeResult ConsumeServerRuntimeCliOption(const std::string& arg,
         return out;
     }
 
-    if (arg == "-p" || arg == "--listen-port") {
+    if (arg == "--listen-port") {
         std::string error{};
         auto value = RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
@@ -91,7 +91,7 @@ CliConsumeResult ConsumeServerRuntimeCliOption(const std::string& arg,
         return out;
     }
 
-    if (arg == "-C" || arg == "--community") {
+    if (arg == "--community") {
         std::string error{};
         auto value = RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
@@ -115,8 +115,8 @@ CliConsumeResult ConsumeServerRuntimeCliOption(const std::string& arg,
 
 void AppendServerRuntimeCliHelp(std::ostream& out) {
     out << "      --server-config <path>      Server config overlay file\n"
-        << "  -p, --listen-port <port>        Server listen port\n"
-        << "  -C, --community <url>           Community endpoint (http://host:port or host:port)\n";
+        << "      --listen-port <port>        Server listen port\n"
+        << "      --community <url>           Community endpoint (http://host:port or host:port)\n";
 }
 
 std::optional<std::filesystem::path> ResolveServerConfigOverlayPath(const std::string& server_config_path,

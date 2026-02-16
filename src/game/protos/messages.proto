@@ -241,6 +241,7 @@ message ClientMsg_JoinRequest {
   string cached_world_manifest_hash = 7;
   uint32 cached_world_manifest_file_count = 8;
   repeated WorldManifestEntry cached_world_manifest = 9;
+  string auth_payload = 10;
 }
 
 message ClientMsg_PlayerLeave {

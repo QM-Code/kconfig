@@ -20,6 +20,7 @@ This document defines long-lived governance for validation wrappers, guard scrip
    - `python3 ./src/webserver/tests/validate_strings.py --all`
    - `python3 -m unittest discover -s src/webserver/tests/unit -p "test_*.py"`
    - trigger rules are defined in `docs/foundation/governance/community-webserver-testing.md`.
+   - end-to-end community auth demo validation method is defined in `docs/foundation/governance/community-auth-demo-testing.md`.
 
 ## Server/Network Gate Interpretation
 - Treat `server_*` test failures as actionable contract/runtime regressions.
@@ -51,4 +52,5 @@ When changing wrappers/guards/CI:
 ## Related Docs
 - `docs/foundation/governance/engine-backend-testing.md`
 - `docs/foundation/governance/community-webserver-testing.md`
+- `docs/foundation/governance/community-auth-demo-testing.md`
 - `docs/foundation/policy/execution-policy.md`
