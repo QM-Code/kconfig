@@ -48,6 +48,7 @@ struct SandboxOptions {
     float shadow_raster_depth_bias = 0.0f;
     float shadow_raster_slope_bias = 0.0f;
     int point_shadow_lights = 0;
+    int point_shadow_first_light_index = 0;
     int point_shadow_map_size = 1024;
     int point_shadow_max_lights = 2;
     int point_shadow_faces_per_frame_budget = 2;
@@ -108,6 +109,8 @@ void PrintUsage(const char* argv0) {
         << "  --shadow-execution-mode <cpu_reference|gpu_default>\n"
         << "                                Shadow execution policy (default cpu_reference)\n"
         << "  --point-shadow-lights <0..4>  Number of shadow-casting point lights in scene (default 0)\n"
+        << "  --point-shadow-first-light-index <0..3>\n"
+        << "                                Start index in predefined point-light set (default 0)\n"
         << "  --point-shadow-map-size <128..2048>\n"
         << "                                Point-shadow per-face map size (default 1024)\n"
         << "  --point-shadow-max-lights <0..4>\n"
@@ -131,7 +134,9 @@ void PrintUsage(const char* argv0) {
         << "  Arrow up/down: orbit camera pitch\n"
         << "  PageUp/PageDown: zoom camera\n"
         << "  A/D: rotate sun azimuth\n"
-        << "  W/S: adjust sun elevation\n";
+        << "  W/S: adjust sun elevation\n"
+        << "  Space: pause simulation and advance 10 frames\n"
+        << "  R: resume real-time simulation\n";
 }
 
 bool ParseVec3(std::string_view text, glm::vec3& out_vec) {
@@ -251,6 +256,9 @@ SandboxOptions ParseOptions(int argc, char** argv) {
         } else if (arg == "--point-shadow-lights") {
             options.point_shadow_lights =
                 std::clamp(std::stoi(require_value("--point-shadow-lights")), 0, 4);
+        } else if (arg == "--point-shadow-first-light-index") {
+            options.point_shadow_first_light_index =
+                std::clamp(std::stoi(require_value("--point-shadow-first-light-index")), 0, 3);
         } else if (arg == "--point-shadow-map-size") {
             options.point_shadow_map_size =
                 std::clamp(std::stoi(require_value("--point-shadow-map-size")), 128, 2048);
@@ -818,8 +826,12 @@ int main(int argc, char** argv) {
             }};
             point_light_entities.reserve(static_cast<std::size_t>(point_light_count));
             for (int i = 0; i < point_light_count; ++i) {
-                const glm::vec3 position = kPointLightSpawnPositions[static_cast<std::size_t>(i)];
-                const glm::vec4 color = kPointLightColors[static_cast<std::size_t>(i)];
+                const int source_light_index =
+                    (options.point_shadow_first_light_index + i) %
+                    static_cast<int>(kPointLightSpawnPositions.size());
+                const std::size_t source_light_slot = static_cast<std::size_t>(source_light_index);
+                const glm::vec3 position = kPointLightSpawnPositions[source_light_slot];
+                const glm::vec4 color = kPointLightColors[source_light_slot];
                 point_light_entities.push_back(AddPointLightEntity(
                     world,
                     position,
@@ -873,7 +885,7 @@ int main(int argc, char** argv) {
         float frame_dt_max_since_diag = 0.0f;
 
         spdlog::info(
-            "[sandbox] backend={} ground_tiles={} ground_extent={} shadow_map={} pcf={} tris={} strength={:.2f} bias={:.4f} recv={:.3f} norm={:.3f} rasterDepth={:.4f} rasterSlope={:.3f} mode={} pointLights={} pointMap={} pointMax={} pointFaceBudget={} pointRange={:.2f} pointIntensity={:.2f} motion={}",
+            "[sandbox] backend={} ground_tiles={} ground_extent={} shadow_map={} pcf={} tris={} strength={:.2f} bias={:.4f} recv={:.3f} norm={:.3f} rasterDepth={:.4f} rasterSlope={:.3f} mode={} pointLights={} pointFirst={} pointMap={} pointMax={} pointFaceBudget={} pointRange={:.2f} pointIntensity={:.2f} motion={}",
             graphics->backendName(),
             options.ground_tiles,
             options.ground_extent,
@@ -889,6 +901,7 @@ int main(int argc, char** argv) {
             karma::renderer::DirectionalLightData::ShadowExecutionModeToken(
                 light.shadow.execution_mode),
             point_light_count,
+            options.point_shadow_first_light_index,
             light.shadow.point_map_size,
             light.shadow.point_max_shadow_lights,
             light.shadow.point_faces_per_frame_budget,
@@ -899,14 +912,24 @@ int main(int argc, char** argv) {
             spdlog::info("[sandbox] preferred_video_driver={}", options.preferred_video_driver);
         }
         spdlog::info(
-            "[sandbox] controls: arrows orbit, pageup/pagedown zoom, a/d sun azimuth, w/s sun elevation, esc quit");
+            "[sandbox] controls: arrows orbit, pageup/pagedown zoom, a/d sun azimuth, w/s sun elevation, space step+10, r resume realtime, esc quit");
+
+        bool simulation_paused = options.point_shadow_scene_motion;
+        int step_frames_remaining = 0;
+        bool space_was_down = false;
+        bool resume_was_down = false;
+        float simulation_elapsed_seconds = 0.0f;
+        if (simulation_paused) {
+            spdlog::info(
+                "[sandbox] scene motion starts paused: press space to advance 10 frames, r to resume real-time");
+        }
 
         bool running = true;
         while (running && !window->shouldClose()) {
             const Clock::time_point now = Clock::now();
             const float dt = std::chrono::duration<float>(now - previous_tick).count();
             previous_tick = now;
-            const float elapsed_seconds = std::chrono::duration<float>(now - started_at).count();
+            const float wall_elapsed_seconds = std::chrono::duration<float>(now - started_at).count();
 
             window->pollEvents();
             if (ShouldQuitFromEvents(window->events())) {
@@ -916,10 +939,35 @@ int main(int argc, char** argv) {
             UpdateInteractiveControls(*window, dt, orbit, sun_azimuth, sun_elevation);
             light.direction = DirectionFromAngles(sun_azimuth, sun_elevation);
 
+            const bool space_down = window->isKeyDown(karma::platform::Key::Space);
+            if (space_down && !space_was_down) {
+                simulation_paused = true;
+                step_frames_remaining += 10;
+            }
+            space_was_down = space_down;
+
+            const bool resume_down = window->isKeyDown(karma::platform::Key::R);
+            if (resume_down && !resume_was_down) {
+                simulation_paused = false;
+                step_frames_remaining = 0;
+            }
+            resume_was_down = resume_down;
+
+            float simulation_dt = dt;
+            if (simulation_paused) {
+                if (step_frames_remaining > 0) {
+                    simulation_dt = 1.0f / 60.0f;
+                    --step_frames_remaining;
+                } else {
+                    simulation_dt = 0.0f;
+                }
+            }
+            simulation_elapsed_seconds += simulation_dt;
+
             if (options.point_shadow_scene_motion) {
                 if (auto* center_transform =
                         world.tryGet<karma::scene::TransformComponent>(center_cube_entity)) {
-                    const float motion_t = elapsed_seconds * options.point_shadow_motion_speed;
+                    const float motion_t = simulation_elapsed_seconds * options.point_shadow_motion_speed;
                     const glm::vec3 center_position{
                         std::sin(motion_t) * 2.4f,
                         1.25f + (0.22f * std::sin(motion_t * 1.7f)),
@@ -936,7 +984,8 @@ int main(int argc, char** argv) {
                             world.tryGet<karma::scene::TransformComponent>(point_light_entities[i])) {
                         const float phase = static_cast<float>(i) * 1.5707963f;
                         const float orbit_t =
-                            elapsed_seconds * options.point_shadow_motion_speed * (0.85f + (0.1f * static_cast<float>(i)));
+                            simulation_elapsed_seconds * options.point_shadow_motion_speed *
+                            (0.85f + (0.1f * static_cast<float>(i)));
                         const float radius = 6.6f - (0.6f * static_cast<float>(i));
                         const glm::vec3 orbit_pos{
                             std::cos(orbit_t + phase) * radius,
@@ -990,8 +1039,7 @@ int main(int argc, char** argv) {
             }
 
             if (options.duration_seconds > 0.0f) {
-                const float elapsed = std::chrono::duration<float>(now - started_at).count();
-                if (elapsed >= options.duration_seconds) {
+                if (wall_elapsed_seconds >= options.duration_seconds) {
                     running = false;
                 }
             }
