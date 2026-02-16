@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `overseer`
-- Status: `priority/in progress (KS0 cache-invalidation + KS1 contract/config scaffolding + KS2.1 directional GPU shadow hardening + KS2.2 local-light source contract/shading bridge + KS2.3 bounded point-shadow generation/sampling path landed)`
-- Immediate next task: execute `KS3` refresh invalidation: moving-caster/light dirty-face policy plus bounded `point_faces_per_frame_budget` updates.
+- Status: `priority/in progress (KS0 cache-invalidation + KS1 contract/config scaffolding + KS2.1 directional GPU shadow hardening + KS2.2 local-light source contract/shading bridge + KS2.3 bounded point-shadow generation/sampling + KS3 moving-caster/light dirty-face invalidation + KS4.1 point-shadow budget/map-size sweep + defaults lock + KS4.2 closeout run captured; operator visual verdict pending)`
+- Immediate next task: operator visual verdict on the latest locked-default closeout run (`/tmp/point-shadow-visual-closeout-20260216T142607Z`) for BGFX + Diligent.
 - Validation gate: renderer build gates in both assigned build dirs, sandbox/runtime trace evidence, and docs lint.
 
 ## Mission
@@ -93,6 +93,8 @@ From `m-rewrite/`:
 ./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
 ./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
 ./scripts/run-renderer-shadow-sandbox.sh 20 16 20
+./scripts/run-point-shadow-visual-closeout.sh all 20 1 20 0.9
+./scripts/run-point-shadow-budget-sweep.sh 8 1024 1,2,4 2 1 20 0.9
 timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx,render.mesh
 timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent,render.mesh
 ./docs/scripts/lint-project-docs.sh
@@ -142,19 +144,47 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./d
   - BGFX + Diligent now build CPU point-shadow atlases from selected shadow-casting point lights via rewrite-owned `BuildPointShadowMap(...)`, upload atlas textures, and bind per-light shadow-slot/matrix contracts to forward shaders.
   - local-light shading now applies point-shadow visibility per light (face selection, projected UV/depth compare, bounded 0/1 PCF) with rewrite-configured point shadow tuning (`point_*_bias*` fields).
   - runtime trace token upgraded from unimplemented posture to active/fallback diagnostics (`point_shadow_active`, `point_shadow_no_shadow_lights`, `point_shadow_no_casters`, `point_shadow_map_build_failed`, `point_shadow_upload_failed`, etc.).
-  - `point_faces_per_frame_budget` refresh scheduling remains deferred to `KS3`; current rollout uses bounded light selection + update cadence (`update_every_frames`) to stay deterministic while parity hardening continues.
+  - bounded light selection + update cadence (`update_every_frames`) are active and now feed KS3 incremental refresh policy.
+- `2026-02-16`: `KS3` moving-caster/light dirty-face invalidation + bounded face-budget scheduling landed in both backends:
+  - shared point-shadow helper now supports incremental updates (`BuildPointShadowMap(..., previous_map, face_update_mask)`), light selection reuse (`SelectPointShadowLightIndices`), and layout-compatibility checks (`IsPointShadowMapLayoutCompatible`).
+  - BGFX + Diligent now track point-shadow slot/source/light state plus moving-caster influence and only refresh dirty faces per frame under `point_faces_per_frame_budget`.
+  - both backends emit deterministic trace evidence for refresh causality and budget pressure (`point shadow refresh ... dirtyFaces/updatedFaces/budget/fullRefresh/structural/movedCasters`) with status reasons (`point_shadow_faces_updated`, `point_shadow_waiting_budget`, `point_shadow_cache_hit_clean`, etc.).
+  - contract-test coverage now includes incremental point-shadow behavior checks (`RunPointShadowIncrementalUpdateChecks`) to verify layout compatibility and selected-face-only updates against a cached atlas.
+- `2026-02-16`: `KS4.1` tuning harness + bounded budget sweep landed:
+  - `renderer_shadow_sandbox` now supports explicit point-shadow scene controls (`--point-shadow-lights`, `--point-shadow-map-size`, `--point-shadow-face-budget`, `--point-shadow-scene-motion`, etc.) and can animate a caster + point lights to exercise moving-caster/light invalidation in real runtime.
+  - added `scripts/run-point-shadow-budget-sweep.sh` to run repeatable BGFX + Diligent budget sweeps with trace capture and summary CSV output.
+  - bounded sweep evidence (`/tmp/point-shadow-budget-sweep-20260216T140724Z/summary.csv`, `duration=8s`, `pointMapSize=1024`, `pointLights=2`, `budgets=1/2/4`) produced:
+    - BGFX: `budget=1 -> 4.25 FPS`, `budget=2 -> 3.49 FPS`, `budget=4 -> 3.90 FPS`
+    - Diligent: `budget=1 -> 3.82 FPS`, `budget=2 -> 3.56 FPS`, `budget=4 -> 3.56 FPS`
+  - policy lock for P0 defaults: keep `point_faces_per_frame_budget=2` (retains higher per-frame refresh cadence than `budget=1` without introducing clear cross-backend perf wins from `budget=4` in the bounded sweep window).
+  - bounded map-size checkpoint landed:
+    - `pointMapSize=2048` with `pointLights=2` fails deterministically in both backends with `reason=point_shadow_map_build_failed` (`/tmp/point-shadow-budget-sweep-20260216T141704Z/summary.csv`), matching the atlas-size guard in `directional_shadow_internal.hpp` (`kMaxPointShadowPixels`).
+    - `pointMapSize=2048` with `pointLights=1` is functional (`reason=point_shadow_faces_updated`) but substantially slower (`BGFX 2.20 FPS`, `Diligent 1.92 FPS`) in this bounded stress window (`/tmp/point-shadow-budget-sweep-20260216T141732Z/summary.csv`).
+  - policy lock for P0 defaults: keep `point_map_size=1024` and `point_max_shadow_lights=2` as the viable bounded default pair.
+- `2026-02-16`: `KS4.2` operator-closeout runner landed (visual-signoff assist):
+  - added `scripts/run-point-shadow-visual-closeout.sh` to run locked-default checkpoint windows (`bgfx` then `diligent`) with trace/log capture and automatic Diligent X11->Wayland fallback retry.
+  - dry-run evidence (`./scripts/run-point-shadow-visual-closeout.sh all 6 1 20 0.9`) produced active status in both backends (`reason=point_shadow_faces_updated`) with logs under `/tmp/point-shadow-visual-closeout-20260216T142516Z/`.
+  - operator-closeout run executed with review-grade duration (`./scripts/run-point-shadow-visual-closeout.sh all 20 1 20 0.9`):
+    - BGFX: `status=point_shadow_faces_updated`, log `/tmp/point-shadow-visual-closeout-20260216T142607Z/visual-bgfx.log`
+    - Diligent: `status=point_shadow_faces_updated` via Wayland fallback, log `/tmp/point-shadow-visual-closeout-20260216T142607Z/visual-diligent-wayland-retry.log`
+    - closeout bundle root: `/tmp/point-shadow-visual-closeout-20260216T142607Z/`
 - Validation evidence (`m-rewrite/`):
   - `./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` ✅
   - `./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` ✅
   - `./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` ✅
   - `./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` ✅
-  - `timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx,render.mesh` (timeout expected; trace confirmed `point shadow status ... reason=point_shadow_no_shadow_lights`) ✅
-  - `timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent,render.mesh` (timeout expected; trace confirmed `point shadow status ... reason=point_shadow_no_shadow_lights`) ✅
+  - `./scripts/run-point-shadow-budget-sweep.sh 8 1024 1,2,4 2 1 20 0.9` (summary at `/tmp/point-shadow-budget-sweep-20260216T140724Z/summary.csv`; trace confirms active point-shadow updates under animated point-light scene) ✅
+  - `./scripts/run-point-shadow-budget-sweep.sh 8 1024 2 2 1 20 0.9` (summary at `/tmp/point-shadow-budget-sweep-20260216T141641Z/summary.csv`; locked-budget replay) ✅
+  - `./scripts/run-point-shadow-budget-sweep.sh 8 2048 2 2 1 20 0.9` (summary at `/tmp/point-shadow-budget-sweep-20260216T141704Z/summary.csv`; confirms `point_shadow_map_build_failed` at `2048 x 2 lights`) ✅
+  - `./scripts/run-point-shadow-budget-sweep.sh 8 2048 2 1 1 20 0.9` (summary at `/tmp/point-shadow-budget-sweep-20260216T141732Z/summary.csv`; confirms `2048` viability only with `1` shadow light and high frame cost) ✅
+  - `./scripts/run-point-shadow-visual-closeout.sh all 6 1 20 0.9` (logs at `/tmp/point-shadow-visual-closeout-20260216T142516Z/`; both backends reached `point_shadow_faces_updated`) ✅
+  - `./scripts/run-point-shadow-visual-closeout.sh all 20 1 20 0.9` (logs at `/tmp/point-shadow-visual-closeout-20260216T142607Z/`; both backends reached `point_shadow_faces_updated`) ✅
+  - `timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx,render.mesh` (timeout expected; traces confirmed `point shadow status ... reason=point_shadow_no_shadow_lights` and `point shadow refresh ... dirtyFaces=0 updatedFaces=0 budget=2`) ✅
+  - `timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent,render.mesh` (timeout expected; traces confirmed `point shadow status ... reason=point_shadow_no_shadow_lights` and `point shadow refresh ... dirtyFaces=0 updatedFaces=0 budget=2`) ✅
 
 ## Open Questions
 - Should point-shadow rendering be default-on in rewrite or rollout behind explicit config until closeout evidence is complete?
 - Keep hard cap at 2 shadow-casting point lights for P0, or expose bounded config now?
-- Should local-light directional-shadow lift be in KS2 or deferred to KS4 tuning once baseline parity is confirmed?
 
 ## Handoff Checklist
 - [ ] Slice boundary respected (`KS1`..`KS4`)

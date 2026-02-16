@@ -428,19 +428,12 @@ inline bool ProjectPointShadowPoint(const glm::mat4& view_proj,
     return std::isfinite(out_u) && std::isfinite(out_v) && std::isfinite(out_depth);
 }
 
-inline PointShadowMap BuildPointShadowMap(const ResolvedDirectionalShadowSemantics& semantics,
-                                          const std::vector<renderer::LightData>& lights,
-                                          const std::vector<DirectionalShadowCaster>& casters) {
-    PointShadowMap map{};
-    if (!semantics.enabled ||
-        !ValidateResolvedDirectionalShadowSemantics(semantics) ||
-        semantics.point_max_shadow_lights <= 0 ||
-        semantics.point_map_size <= 0 ||
-        casters.empty()) {
-        return map;
-    }
-
+inline std::vector<int> SelectPointShadowLightIndices(const ResolvedDirectionalShadowSemantics& semantics,
+                                                       const std::vector<renderer::LightData>& lights) {
     std::vector<int> selected_light_indices{};
+    if (!semantics.enabled || semantics.point_max_shadow_lights <= 0) {
+        return selected_light_indices;
+    }
     selected_light_indices.reserve(static_cast<std::size_t>(semantics.point_max_shadow_lights));
     for (std::size_t i = 0; i < lights.size(); ++i) {
         const renderer::LightData& light = lights[i];
@@ -452,8 +445,10 @@ inline PointShadowMap BuildPointShadowMap(const ResolvedDirectionalShadowSemanti
         if (!IsFiniteVec3(light.position)) {
             continue;
         }
-        if (!std::isfinite(light.range) || !std::isfinite(light.intensity) ||
-            light.range <= 1e-3f || light.intensity <= 0.0f) {
+        if (!std::isfinite(light.range) ||
+            !std::isfinite(light.intensity) ||
+            light.range <= 1e-3f ||
+            light.intensity <= 0.0f) {
             continue;
         }
         selected_light_indices.push_back(static_cast<int>(i));
@@ -461,6 +456,54 @@ inline PointShadowMap BuildPointShadowMap(const ResolvedDirectionalShadowSemanti
             break;
         }
     }
+    return selected_light_indices;
+}
+
+inline bool IsPointShadowMapLayoutCompatible(const PointShadowMap& map,
+                                             int map_size,
+                                             const std::vector<int>& selected_light_indices) {
+    if (!map.ready || map.size != map_size) {
+        return false;
+    }
+    const int expected_light_count = static_cast<int>(selected_light_indices.size());
+    if (map.light_count != expected_light_count) {
+        return false;
+    }
+    if (map.atlas_width != map_size * 3 * expected_light_count ||
+        map.atlas_height != map_size * 2) {
+        return false;
+    }
+    if (map.source_light_indices != selected_light_indices) {
+        return false;
+    }
+    const std::size_t expected_face_count =
+        static_cast<std::size_t>(expected_light_count) * static_cast<std::size_t>(kPointShadowFaceCount);
+    if (map.uv_proj.size() < expected_face_count) {
+        return false;
+    }
+    const std::size_t expected_pixels =
+        static_cast<std::size_t>(map.atlas_width) * static_cast<std::size_t>(map.atlas_height);
+    if (map.depth.size() != expected_pixels) {
+        return false;
+    }
+    return true;
+}
+
+inline PointShadowMap BuildPointShadowMap(const ResolvedDirectionalShadowSemantics& semantics,
+                                          const std::vector<renderer::LightData>& lights,
+                                          const std::vector<DirectionalShadowCaster>& casters,
+                                          const PointShadowMap* previous_map = nullptr,
+                                          const std::vector<uint8_t>* face_update_mask = nullptr) {
+    PointShadowMap map{};
+    if (!semantics.enabled ||
+        !ValidateResolvedDirectionalShadowSemantics(semantics) ||
+        semantics.point_max_shadow_lights <= 0 ||
+        semantics.point_map_size <= 0 ||
+        casters.empty()) {
+        return map;
+    }
+
+    std::vector<int> selected_light_indices = SelectPointShadowLightIndices(semantics, lights);
     if (selected_light_indices.empty()) {
         return map;
     }
@@ -472,9 +515,9 @@ inline PointShadowMap BuildPointShadowMap(const ResolvedDirectionalShadowSemanti
     map.atlas_height = map.size * 2;
     map.texel_size = map.size > 0 ? (1.0f / static_cast<float>(map.size)) : 0.0f;
     map.source_light_indices = selected_light_indices;
-    map.uv_proj.assign(
-        static_cast<std::size_t>(map.light_count * kPointShadowFaceCount),
-        glm::mat4(1.0f));
+    const std::size_t active_face_count =
+        static_cast<std::size_t>(map.light_count) * static_cast<std::size_t>(kPointShadowFaceCount);
+    map.uv_proj.assign(active_face_count, glm::mat4(1.0f));
 
     if (map.atlas_width <= 0 || map.atlas_height <= 0) {
         return PointShadowMap{};
@@ -485,7 +528,32 @@ inline PointShadowMap BuildPointShadowMap(const ResolvedDirectionalShadowSemanti
     if (atlas_pixels == 0u || atlas_pixels > kMaxPointShadowPixels) {
         return PointShadowMap{};
     }
-    map.depth.assign(atlas_pixels, std::numeric_limits<float>::infinity());
+
+    const bool previous_compatible =
+        previous_map &&
+        IsPointShadowMapLayoutCompatible(*previous_map, map.size, selected_light_indices);
+    if (previous_compatible) {
+        map.depth = previous_map->depth;
+        map.uv_proj = previous_map->uv_proj;
+    } else {
+        map.depth.assign(atlas_pixels, std::numeric_limits<float>::infinity());
+    }
+
+    std::vector<uint8_t> resolved_face_update_mask(active_face_count, 1u);
+    if (face_update_mask && face_update_mask->size() == active_face_count) {
+        bool any_face_selected = false;
+        for (std::size_t i = 0; i < active_face_count; ++i) {
+            const uint8_t selected = ((*face_update_mask)[i] != 0u) ? 1u : 0u;
+            resolved_face_update_mask[i] = selected;
+            any_face_selected = any_face_selected || (selected != 0u);
+        }
+        if (!any_face_selected) {
+            if (previous_compatible) {
+                return map;
+            }
+            std::fill(resolved_face_update_mask.begin(), resolved_face_update_mask.end(), 1u);
+        }
+    }
 
     glm::mat4 ndc_to_uv_depth(1.0f);
     ndc_to_uv_depth[0][0] = 0.5f;
@@ -526,14 +594,27 @@ inline PointShadowMap BuildPointShadowMap(const ResolvedDirectionalShadowSemanti
             const int face_max_x = face_origin_x + map.size - 1;
             const int face_max_y = face_origin_y + map.size - 1;
 
+            const std::size_t matrix_idx = static_cast<std::size_t>(slot * kPointShadowFaceCount + face);
+            if (matrix_idx >= resolved_face_update_mask.size() ||
+                resolved_face_update_mask[matrix_idx] == 0u) {
+                continue;
+            }
+
             glm::mat4 atlas_tile(1.0f);
             atlas_tile[0][0] = inv_atlas_cols;
             atlas_tile[1][1] = inv_atlas_rows;
             atlas_tile[3][0] = static_cast<float>(face_grid_x) * inv_atlas_cols;
             atlas_tile[3][1] = static_cast<float>(face_grid_y) * inv_atlas_rows;
-
-            const std::size_t matrix_idx = static_cast<std::size_t>(slot * kPointShadowFaceCount + face);
             map.uv_proj[matrix_idx] = atlas_tile * ndc_to_uv_depth * view_proj;
+
+            for (int y = face_origin_y; y <= face_max_y; ++y) {
+                const std::size_t row_offset =
+                    static_cast<std::size_t>(y) * static_cast<std::size_t>(map.atlas_width);
+                for (int x = face_origin_x; x <= face_max_x; ++x) {
+                    map.depth[row_offset + static_cast<std::size_t>(x)] =
+                        std::numeric_limits<float>::infinity();
+                }
+            }
 
             int triangles_rasterized = 0;
             for (const DirectionalShadowCaster& caster : casters) {

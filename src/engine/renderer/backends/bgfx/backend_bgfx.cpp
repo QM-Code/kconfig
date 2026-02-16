@@ -1460,9 +1460,12 @@ class BgfxBackend final : public Backend {
         const glm::vec3 current_light_direction =
             normalizeDirectionOrFallback(light_.direction, cached_shadow_light_direction_);
         bool shadow_inputs_changed = false;
+        bool point_shadow_structural_change = false;
+        std::vector<glm::vec4> moved_point_shadow_caster_bounds{};
         if (world_layer) {
             if (!shadow_cache_inputs_valid_) {
                 shadow_inputs_changed = true;
+                point_shadow_structural_change = true;
             } else if (glm::length(camera_.position - cached_shadow_camera_position_) >
                        directional_shadow_position_threshold_) {
                 shadow_inputs_changed = true;
@@ -1486,6 +1489,7 @@ class BgfxBackend final : public Backend {
                 shadow_inputs_changed = true;
             } else if (current_shadow_items.size() != previous_shadow_items_.size()) {
                 shadow_inputs_changed = true;
+                point_shadow_structural_change = true;
             } else {
                 for (std::size_t i = 0; i < current_shadow_items.size(); ++i) {
                     const renderer::DrawItem& curr = current_shadow_items[i];
@@ -1493,13 +1497,81 @@ class BgfxBackend final : public Backend {
                     if (curr.mesh != prev.mesh ||
                         curr.material != prev.material ||
                         curr.layer != prev.layer ||
-                        curr.casts_shadow != prev.casts_shadow ||
-                        matrixChangedBeyondEpsilon(curr.transform, prev.transform)) {
+                        curr.casts_shadow != prev.casts_shadow) {
                         shadow_inputs_changed = true;
+                        point_shadow_structural_change = true;
                         break;
+                    }
+                    if (matrixChangedBeyondEpsilon(curr.transform, prev.transform)) {
+                        shadow_inputs_changed = true;
+                        if (!curr.casts_shadow) {
+                            continue;
+                        }
+                        auto mesh_it = meshes_.find(curr.mesh);
+                        auto mat_it = materials_.find(curr.material);
+                        if (mesh_it == meshes_.end() ||
+                            mat_it == materials_.end() ||
+                            mat_it->second.semantics.alpha_blend ||
+                            mesh_it->second.shadow_radius <= 0.0f) {
+                            point_shadow_structural_change = true;
+                            continue;
+                        }
+                        glm::vec3 world_center{0.0f, 0.0f, 0.0f};
+                        float world_radius = 0.0f;
+                        computeWorldShadowSphere(
+                            curr.transform,
+                            mesh_it->second.shadow_center,
+                            mesh_it->second.shadow_radius,
+                            world_center,
+                            world_radius);
+                        moved_point_shadow_caster_bounds.emplace_back(world_center, world_radius);
                     }
                 }
             }
+        }
+        if (world_layer &&
+            shadow_cache_inputs_valid_ &&
+            current_shadow_items.size() == previous_shadow_items_.size() &&
+            moved_point_shadow_caster_bounds.empty() &&
+            !point_shadow_structural_change) {
+            for (std::size_t i = 0; i < current_shadow_items.size(); ++i) {
+                const renderer::DrawItem& curr = current_shadow_items[i];
+                const renderer::DrawItem& prev = previous_shadow_items_[i];
+                if (curr.mesh != prev.mesh ||
+                    curr.material != prev.material ||
+                    curr.layer != prev.layer ||
+                    curr.casts_shadow != prev.casts_shadow) {
+                    point_shadow_structural_change = true;
+                    break;
+                }
+                if (!matrixChangedBeyondEpsilon(curr.transform, prev.transform) ||
+                    !curr.casts_shadow) {
+                    continue;
+                }
+                auto mesh_it = meshes_.find(curr.mesh);
+                auto mat_it = materials_.find(curr.material);
+                if (mesh_it == meshes_.end() ||
+                    mat_it == materials_.end() ||
+                    mat_it->second.semantics.alpha_blend ||
+                    mesh_it->second.shadow_radius <= 0.0f) {
+                    point_shadow_structural_change = true;
+                    continue;
+                }
+                glm::vec3 world_center{0.0f, 0.0f, 0.0f};
+                float world_radius = 0.0f;
+                computeWorldShadowSphere(
+                    curr.transform,
+                    mesh_it->second.shadow_center,
+                    mesh_it->second.shadow_radius,
+                    world_center,
+                    world_radius);
+                moved_point_shadow_caster_bounds.emplace_back(world_center, world_radius);
+            }
+        }
+        if (world_layer &&
+            (!shadow_cache_inputs_valid_ ||
+             current_shadow_items.size() != previous_shadow_items_.size())) {
+            point_shadow_structural_change = true;
         }
         const bool gpu_shadow_capable =
             bgfx::isValid(shadow_depth_program_) && world_layer && !shadow_casters.empty();
@@ -1644,31 +1716,169 @@ class BgfxBackend final : public Backend {
             local_light_source_indices[static_cast<std::size_t>(local_light_count)] = static_cast<int>(light_idx);
             ++local_light_count;
         }
-        const int point_shadow_selected =
-            std::min(point_shadow_requested, std::max(0, shadow_semantics.point_max_shadow_lights));
+        const std::vector<int> point_shadow_selected_indices =
+            detail::SelectPointShadowLightIndices(shadow_semantics, lights_);
+        const int point_shadow_selected = static_cast<int>(point_shadow_selected_indices.size());
+        std::array<uint8_t, kMaxPointShadowMatrices> point_shadow_faces_to_update{};
+        point_shadow_faces_to_update.fill(0u);
+        int point_shadow_dirty_faces = 0;
+        int point_shadow_updated_faces = 0;
+        const int point_shadow_budget = std::clamp(shadow_semantics.point_faces_per_frame_budget, 1, 12);
+        bool point_shadow_full_refresh = false;
         if (!shadow_semantics.enabled ||
             shadow_semantics.point_max_shadow_lights <= 0 ||
             point_shadow_selected <= 0 ||
-            shadow_casters.empty()) {
-            point_shadow_frames_until_update_ = 0;
-            cached_point_shadow_map_ = detail::PointShadowMap{};
-            point_shadow_tex_ready_ = false;
+            (world_layer && shadow_casters.empty())) {
+            resetPointShadowCacheState();
         } else if (world_layer) {
-            const bool point_shadow_needs_update =
-                point_shadow_frames_until_update_ <= 0 ||
-                shadow_inputs_changed ||
-                !cached_point_shadow_map_.ready ||
-                cached_point_shadow_map_.size != shadow_semantics.point_map_size ||
-                cached_point_shadow_map_.light_count != point_shadow_selected;
-            if (point_shadow_needs_update) {
+            const int active_face_count = point_shadow_selected * detail::kPointShadowFaceCount;
+            const bool layout_compatible = detail::IsPointShadowMapLayoutCompatible(
+                cached_point_shadow_map_,
+                shadow_semantics.point_map_size,
+                point_shadow_selected_indices);
+            if (!layout_compatible) {
+                point_shadow_cache_initialized_ = false;
+                point_shadow_face_dirty_.fill(1u);
+                point_shadow_full_refresh = true;
+            }
+
+            auto mark_point_shadow_slot_dirty = [&](int slot) {
+                if (slot < 0 || slot >= static_cast<int>(kMaxPointShadowLights)) {
+                    return;
+                }
+                const int face_base = slot * detail::kPointShadowFaceCount;
+                for (int face = 0; face < detail::kPointShadowFaceCount; ++face) {
+                    const int matrix_idx = face_base + face;
+                    if (matrix_idx < 0 ||
+                        matrix_idx >= static_cast<int>(kMaxPointShadowMatrices)) {
+                        continue;
+                    }
+                    point_shadow_face_dirty_[static_cast<std::size_t>(matrix_idx)] = 1u;
+                }
+            };
+
+            for (int slot = 0; slot < point_shadow_selected; ++slot) {
+                const int source_idx = point_shadow_selected_indices[static_cast<std::size_t>(slot)];
+                if (source_idx < 0 || source_idx >= static_cast<int>(lights_.size())) {
+                    continue;
+                }
+                const renderer::LightData& light = lights_[static_cast<std::size_t>(source_idx)];
+                const bool slot_identity_changed =
+                    point_shadow_slot_source_index_[static_cast<std::size_t>(slot)] != source_idx;
+                const bool slot_position_changed =
+                    glm::length(light.position - point_shadow_slot_position_[static_cast<std::size_t>(slot)]) >
+                    point_shadow_position_threshold_;
+                const bool slot_range_changed =
+                    std::fabs(light.range - point_shadow_slot_range_[static_cast<std::size_t>(slot)]) >
+                    point_shadow_range_threshold_;
+                if (!point_shadow_cache_initialized_ || slot_identity_changed) {
+                    mark_point_shadow_slot_dirty(slot);
+                    point_shadow_full_refresh = true;
+                } else if (slot_position_changed || slot_range_changed) {
+                    mark_point_shadow_slot_dirty(slot);
+                }
+                point_shadow_slot_source_index_[static_cast<std::size_t>(slot)] = source_idx;
+                point_shadow_slot_position_[static_cast<std::size_t>(slot)] = light.position;
+                point_shadow_slot_range_[static_cast<std::size_t>(slot)] = light.range;
+            }
+            for (int slot = point_shadow_selected;
+                 slot < static_cast<int>(kMaxPointShadowLights);
+                 ++slot) {
+                point_shadow_slot_source_index_[static_cast<std::size_t>(slot)] = -1;
+                point_shadow_slot_position_[static_cast<std::size_t>(slot)] = glm::vec3(0.0f, 0.0f, 0.0f);
+                point_shadow_slot_range_[static_cast<std::size_t>(slot)] = 0.0f;
+            }
+
+            if (point_shadow_structural_change) {
+                point_shadow_full_refresh = true;
+                for (int slot = 0; slot < point_shadow_selected; ++slot) {
+                    mark_point_shadow_slot_dirty(slot);
+                }
+            } else if (!moved_point_shadow_caster_bounds.empty()) {
+                for (int slot = 0; slot < point_shadow_selected; ++slot) {
+                    const int source_idx =
+                        point_shadow_selected_indices[static_cast<std::size_t>(slot)];
+                    if (source_idx < 0 || source_idx >= static_cast<int>(lights_.size())) {
+                        continue;
+                    }
+                    const renderer::LightData& point_light =
+                        lights_[static_cast<std::size_t>(source_idx)];
+                    const float light_range = std::max(point_light.range, 0.0f);
+                    bool affects_slot = false;
+                    for (const glm::vec4& caster_sphere : moved_point_shadow_caster_bounds) {
+                        const glm::vec3 delta = glm::vec3(caster_sphere) - point_light.position;
+                        const float influence_radius = light_range + std::max(caster_sphere.w, 0.0f);
+                        if (influence_radius <= 0.0f) {
+                            continue;
+                        }
+                        if (glm::dot(delta, delta) <= influence_radius * influence_radius) {
+                            affects_slot = true;
+                            break;
+                        }
+                    }
+                    if (affects_slot) {
+                        mark_point_shadow_slot_dirty(slot);
+                    }
+                }
+            }
+
+            for (int idx = 0; idx < active_face_count; ++idx) {
+                point_shadow_dirty_faces +=
+                    point_shadow_face_dirty_[static_cast<std::size_t>(idx)] != 0u ? 1 : 0;
+            }
+
+            if (point_shadow_full_refresh) {
+                for (int idx = 0; idx < active_face_count; ++idx) {
+                    if (point_shadow_face_dirty_[static_cast<std::size_t>(idx)] == 0u) {
+                        continue;
+                    }
+                    point_shadow_faces_to_update[static_cast<std::size_t>(idx)] = 1u;
+                    ++point_shadow_updated_faces;
+                }
+            } else {
+                int visited = 0;
+                const uint32_t cursor_mod =
+                    static_cast<uint32_t>(std::max(active_face_count, 1));
+                while (point_shadow_updated_faces < point_shadow_budget &&
+                       visited < active_face_count) {
+                    const int matrix_idx =
+                        static_cast<int>(point_shadow_face_cursor_ % cursor_mod);
+                    point_shadow_face_cursor_ = (point_shadow_face_cursor_ + 1u) % cursor_mod;
+                    ++visited;
+                    if (point_shadow_face_dirty_[static_cast<std::size_t>(matrix_idx)] == 0u) {
+                        continue;
+                    }
+                    point_shadow_faces_to_update[static_cast<std::size_t>(matrix_idx)] = 1u;
+                    ++point_shadow_updated_faces;
+                }
+            }
+
+            if (!layout_compatible ||
+                point_shadow_updated_faces > 0 ||
+                !point_shadow_cache_initialized_) {
+                std::vector<uint8_t> face_update_mask(
+                    static_cast<std::size_t>(active_face_count), 0u);
+                for (int idx = 0; idx < active_face_count; ++idx) {
+                    face_update_mask[static_cast<std::size_t>(idx)] =
+                        point_shadow_faces_to_update[static_cast<std::size_t>(idx)];
+                }
                 cached_point_shadow_map_ = detail::BuildPointShadowMap(
                     shadow_semantics,
                     lights_,
-                    shadow_casters);
+                    shadow_casters,
+                    layout_compatible ? &cached_point_shadow_map_ : nullptr,
+                    &face_update_mask);
                 updatePointShadowTexture(cached_point_shadow_map_);
-                point_shadow_frames_until_update_ = shadow_update_every_frames_ - 1;
-            } else {
-                --point_shadow_frames_until_update_;
+                if (cached_point_shadow_map_.ready && point_shadow_tex_ready_) {
+                    for (int idx = 0; idx < active_face_count; ++idx) {
+                        if (face_update_mask[static_cast<std::size_t>(idx)] != 0u) {
+                            point_shadow_face_dirty_[static_cast<std::size_t>(idx)] = 0u;
+                        }
+                    }
+                    point_shadow_cache_initialized_ = true;
+                } else {
+                    point_shadow_cache_initialized_ = false;
+                }
             }
         }
         int point_shadow_active = 0;
@@ -1740,7 +1950,7 @@ class BgfxBackend final : public Backend {
             shadow_semantics.point_normal_bias_scale,
             shadow_semantics.point_receiver_bias_scale,
         };
-        const char* point_shadow_reason = "point_shadow_active";
+        const char* point_shadow_reason = "point_shadow_cache_hit_clean";
         if (shadow_semantics.point_max_shadow_lights <= 0) {
             point_shadow_reason = "point_shadows_disabled_by_cap";
         } else if (!shadow_semantics.enabled) {
@@ -1757,6 +1967,10 @@ class BgfxBackend final : public Backend {
             point_shadow_reason = "point_shadow_upload_failed";
         } else if (point_shadow_active <= 0) {
             point_shadow_reason = "point_shadow_no_active_slots";
+        } else if (point_shadow_updated_faces > 0) {
+            point_shadow_reason = "point_shadow_faces_updated";
+        } else if (point_shadow_dirty_faces > 0) {
+            point_shadow_reason = "point_shadow_waiting_budget";
         }
         KARMA_TRACE_CHANGED(
             "render.bgfx",
@@ -1771,6 +1985,25 @@ class BgfxBackend final : public Backend {
             point_shadow_selected,
             point_shadow_active,
             point_shadow_reason);
+        KARMA_TRACE_CHANGED(
+            "render.bgfx",
+            std::to_string(layer) + ":" +
+                std::to_string(point_shadow_selected) + ":" +
+                std::to_string(point_shadow_dirty_faces) + ":" +
+                std::to_string(point_shadow_updated_faces) + ":" +
+                std::to_string(point_shadow_budget) + ":" +
+                std::to_string(point_shadow_full_refresh ? 1 : 0) + ":" +
+                std::to_string(point_shadow_structural_change ? 1 : 0) + ":" +
+                std::to_string(moved_point_shadow_caster_bounds.size()),
+            "point shadow refresh layer={} selected={} dirtyFaces={} updatedFaces={} budget={} fullRefresh={} structural={} movedCasters={}",
+            layer,
+            point_shadow_selected,
+            point_shadow_dirty_faces,
+            point_shadow_updated_faces,
+            point_shadow_budget,
+            point_shadow_full_refresh ? 1 : 0,
+            point_shadow_structural_change ? 1 : 0,
+            moved_point_shadow_caster_bounds.size());
         std::size_t direct_sampler_draws = 0u;
         std::size_t fallback_sampler_draws = 0u;
         std::size_t direct_contract_draws = 0u;
@@ -2174,6 +2407,18 @@ class BgfxBackend final : public Backend {
     }
 
  private:
+    void resetPointShadowCacheState() {
+        cached_point_shadow_map_ = detail::PointShadowMap{};
+        point_shadow_tex_ready_ = false;
+        point_shadow_frames_until_update_ = 0;
+        point_shadow_cache_initialized_ = false;
+        point_shadow_face_cursor_ = 0u;
+        point_shadow_face_dirty_.fill(1u);
+        point_shadow_slot_source_index_.fill(-1);
+        point_shadow_slot_position_.fill(glm::vec3(0.0f, 0.0f, 0.0f));
+        point_shadow_slot_range_.fill(0.0f);
+    }
+
     bool ensureShadowTexture(uint16_t size, bool render_target) {
         if (size == 0u) {
             return false;
@@ -2504,6 +2749,14 @@ class BgfxBackend final : public Backend {
     int shadow_update_every_frames_ = 1;
     int shadow_frames_until_update_ = 0;
     int point_shadow_frames_until_update_ = 0;
+    std::array<int, kMaxPointShadowLights> point_shadow_slot_source_index_{{-1, -1, -1, -1}};
+    std::array<glm::vec3, kMaxPointShadowLights> point_shadow_slot_position_{};
+    std::array<float, kMaxPointShadowLights> point_shadow_slot_range_{};
+    std::array<uint8_t, kMaxPointShadowMatrices> point_shadow_face_dirty_{};
+    uint32_t point_shadow_face_cursor_ = 0u;
+    bool point_shadow_cache_initialized_ = false;
+    float point_shadow_position_threshold_ = 0.12f;
+    float point_shadow_range_threshold_ = 0.05f;
     std::vector<renderer::DrawItem> previous_shadow_items_{};
     bool shadow_cache_inputs_valid_ = false;
     glm::vec3 cached_shadow_camera_position_{0.0f, 0.0f, 0.0f};

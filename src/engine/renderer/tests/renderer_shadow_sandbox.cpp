@@ -47,6 +47,14 @@ struct SandboxOptions {
     float shadow_normal_bias_scale = 0.35f;
     float shadow_raster_depth_bias = 0.0f;
     float shadow_raster_slope_bias = 0.0f;
+    int point_shadow_lights = 0;
+    int point_shadow_map_size = 1024;
+    int point_shadow_max_lights = 2;
+    int point_shadow_faces_per_frame_budget = 2;
+    float point_shadow_light_range = 14.0f;
+    float point_shadow_light_intensity = 2.0f;
+    bool point_shadow_scene_motion = false;
+    float point_shadow_motion_speed = 0.9f;
     karma::renderer::DirectionalLightData::ShadowExecutionMode shadow_execution_mode =
         karma::renderer::DirectionalLightData::ShadowExecutionMode::CpuReference;
     bool verbose = false;
@@ -99,6 +107,20 @@ void PrintUsage(const char* argv0) {
         << "                                CPU reference shadow triangle budget (default 4096)\n"
         << "  --shadow-execution-mode <cpu_reference|gpu_default>\n"
         << "                                Shadow execution policy (default cpu_reference)\n"
+        << "  --point-shadow-lights <0..4>  Number of shadow-casting point lights in scene (default 0)\n"
+        << "  --point-shadow-map-size <128..2048>\n"
+        << "                                Point-shadow per-face map size (default 1024)\n"
+        << "  --point-shadow-max-lights <0..4>\n"
+        << "                                Max shadow-casting point lights selected per frame (default 2)\n"
+        << "  --point-shadow-face-budget <1..12>\n"
+        << "                                Max point-shadow faces refreshed per frame (default 2)\n"
+        << "  --point-shadow-light-range <1..80>\n"
+        << "                                Point-light influence range in world units (default 14)\n"
+        << "  --point-shadow-light-intensity <0..20>\n"
+        << "                                Point-light intensity scalar (default 2)\n"
+        << "  --point-shadow-scene-motion   Animate one caster + point lights to exercise dirty-face updates\n"
+        << "  --point-shadow-motion-speed <0.1..5>\n"
+        << "                                Motion speed multiplier when scene motion is enabled (default 0.9)\n"
         << "  --video-driver <name>         SDL video driver override (e.g. wayland, x11)\n"
         << "  -v, --verbose                 Enable debug logging\n"
         << "  -t, --trace <channels>        Enable KARMA trace channels\n"
@@ -226,6 +248,29 @@ SandboxOptions ParseOptions(int argc, char** argv) {
                     "' (expected cpu_reference|gpu_default)");
             }
             options.shadow_execution_mode = parsed_mode;
+        } else if (arg == "--point-shadow-lights") {
+            options.point_shadow_lights =
+                std::clamp(std::stoi(require_value("--point-shadow-lights")), 0, 4);
+        } else if (arg == "--point-shadow-map-size") {
+            options.point_shadow_map_size =
+                std::clamp(std::stoi(require_value("--point-shadow-map-size")), 128, 2048);
+        } else if (arg == "--point-shadow-max-lights") {
+            options.point_shadow_max_lights =
+                std::clamp(std::stoi(require_value("--point-shadow-max-lights")), 0, 4);
+        } else if (arg == "--point-shadow-face-budget") {
+            options.point_shadow_faces_per_frame_budget =
+                std::clamp(std::stoi(require_value("--point-shadow-face-budget")), 1, 12);
+        } else if (arg == "--point-shadow-light-range") {
+            options.point_shadow_light_range =
+                std::clamp(std::stof(require_value("--point-shadow-light-range")), 1.0f, 80.0f);
+        } else if (arg == "--point-shadow-light-intensity") {
+            options.point_shadow_light_intensity =
+                std::clamp(std::stof(require_value("--point-shadow-light-intensity")), 0.0f, 20.0f);
+        } else if (arg == "--point-shadow-scene-motion") {
+            options.point_shadow_scene_motion = true;
+        } else if (arg == "--point-shadow-motion-speed") {
+            options.point_shadow_motion_speed =
+                std::clamp(std::stof(require_value("--point-shadow-motion-speed")), 0.1f, 5.0f);
         } else if (arg == "--video-driver") {
             options.preferred_video_driver = require_value("--video-driver");
         } else if (arg == "-v" || arg == "--verbose") {
@@ -354,14 +399,14 @@ karma::renderer::MaterialDesc MakeMaterial(const glm::vec4& color,
     return material;
 }
 
-void AddRenderableEntity(karma::ecs::World& world,
-                         std::vector<ShadowEntity>& shadow_entities,
-                         const karma::renderer::MeshData& mesh_data,
-                         karma::renderer::MeshId mesh_id,
-                         karma::renderer::MaterialId material_id,
-                         const glm::mat4& transform,
-                         bool is_ground,
-                         bool casts_shadow) {
+karma::ecs::Entity AddRenderableEntity(karma::ecs::World& world,
+                                       std::vector<ShadowEntity>& shadow_entities,
+                                       const karma::renderer::MeshData& mesh_data,
+                                       karma::renderer::MeshId mesh_id,
+                                       karma::renderer::MaterialId material_id,
+                                       const glm::mat4& transform,
+                                       bool is_ground,
+                                       bool casts_shadow) {
     const karma::ecs::Entity entity = world.createEntity();
     world.add(entity, karma::scene::TransformComponent{transform, transform});
     world.add(entity, karma::scene::RenderComponent{mesh_id, material_id, 0u, true, casts_shadow});
@@ -371,6 +416,30 @@ void AddRenderableEntity(karma::ecs::World& world,
         ComputeMeshSampleCenter(mesh_data),
         is_ground,
     });
+    return entity;
+}
+
+karma::ecs::Entity AddPointLightEntity(karma::ecs::World& world,
+                                       const glm::vec3& position,
+                                       const glm::vec4& color,
+                                       float range,
+                                       float intensity) {
+    const karma::ecs::Entity entity = world.createEntity();
+    const glm::mat4 transform = BuildTransform(position, glm::vec3(1.0f, 1.0f, 1.0f));
+    world.add(entity, karma::scene::TransformComponent{transform, transform});
+
+    karma::scene::LightComponent light_component{};
+    light_component.visible = true;
+    light_component.light.type = karma::renderer::LightType::Point;
+    light_component.light.position = position;
+    light_component.light.direction = glm::vec3(0.0f, -1.0f, 0.0f);
+    light_component.light.color = color;
+    light_component.light.intensity = std::max(intensity, 0.0f);
+    light_component.light.range = std::max(range, 1.0f);
+    light_component.light.casts_shadows = true;
+    light_component.light.enabled = true;
+    world.add(entity, light_component);
+    return entity;
 }
 
 glm::vec3 DirectionFromAngles(float azimuth_degrees, float elevation_degrees) {
@@ -713,7 +782,7 @@ int main(int argc, char** argv) {
             BuildTransform(glm::vec3(-4.0f, 1.0f, -2.5f), glm::vec3(2.0f, 2.0f, 2.0f)),
             false,
             true);
-        AddRenderableEntity(
+        const karma::ecs::Entity center_cube_entity = AddRenderableEntity(
             world,
             shadow_entities,
             cube_mesh,
@@ -731,6 +800,34 @@ int main(int argc, char** argv) {
             BuildTransform(glm::vec3(4.0f, 1.0f, 3.0f), glm::vec3(2.0f, 2.0f, 2.0f)),
             false,
             true);
+
+        std::vector<karma::ecs::Entity> point_light_entities{};
+        const int point_light_count = std::clamp(options.point_shadow_lights, 0, 4);
+        if (point_light_count > 0) {
+            static constexpr std::array<glm::vec3, 4> kPointLightSpawnPositions{{
+                {-5.5f, 3.4f, -3.5f},
+                {5.5f, 3.2f, 3.8f},
+                {-3.8f, 3.0f, 5.2f},
+                {4.6f, 3.6f, -5.1f},
+            }};
+            static constexpr std::array<glm::vec4, 4> kPointLightColors{{
+                {1.0f, 0.78f, 0.58f, 1.0f},
+                {0.62f, 0.82f, 1.0f, 1.0f},
+                {0.78f, 1.0f, 0.72f, 1.0f},
+                {1.0f, 0.64f, 0.86f, 1.0f},
+            }};
+            point_light_entities.reserve(static_cast<std::size_t>(point_light_count));
+            for (int i = 0; i < point_light_count; ++i) {
+                const glm::vec3 position = kPointLightSpawnPositions[static_cast<std::size_t>(i)];
+                const glm::vec4 color = kPointLightColors[static_cast<std::size_t>(i)];
+                point_light_entities.push_back(AddPointLightEntity(
+                    world,
+                    position,
+                    color,
+                    options.point_shadow_light_range,
+                    options.point_shadow_light_intensity));
+            }
+        }
         scene.updateWorldTransforms();
 
         karma::renderer::DirectionalLightData light{};
@@ -749,6 +846,9 @@ int main(int argc, char** argv) {
         light.shadow.normal_bias_scale = options.shadow_normal_bias_scale;
         light.shadow.raster_depth_bias = options.shadow_raster_depth_bias;
         light.shadow.raster_slope_bias = options.shadow_raster_slope_bias;
+        light.shadow.point_map_size = options.point_shadow_map_size;
+        light.shadow.point_max_shadow_lights = options.point_shadow_max_lights;
+        light.shadow.point_faces_per_frame_budget = options.point_shadow_faces_per_frame_budget;
         light.shadow.execution_mode = options.shadow_execution_mode;
 
         karma::renderer::EnvironmentLightingData environment{};
@@ -773,7 +873,7 @@ int main(int argc, char** argv) {
         float frame_dt_max_since_diag = 0.0f;
 
         spdlog::info(
-            "[sandbox] backend={} ground_tiles={} ground_extent={} shadow_map={} pcf={} tris={} strength={:.2f} bias={:.4f} recv={:.3f} norm={:.3f} rasterDepth={:.4f} rasterSlope={:.3f} mode={}",
+            "[sandbox] backend={} ground_tiles={} ground_extent={} shadow_map={} pcf={} tris={} strength={:.2f} bias={:.4f} recv={:.3f} norm={:.3f} rasterDepth={:.4f} rasterSlope={:.3f} mode={} pointLights={} pointMap={} pointMax={} pointFaceBudget={} pointRange={:.2f} pointIntensity={:.2f} motion={}",
             graphics->backendName(),
             options.ground_tiles,
             options.ground_extent,
@@ -787,7 +887,14 @@ int main(int argc, char** argv) {
             light.shadow.raster_depth_bias,
             light.shadow.raster_slope_bias,
             karma::renderer::DirectionalLightData::ShadowExecutionModeToken(
-                light.shadow.execution_mode));
+                light.shadow.execution_mode),
+            point_light_count,
+            light.shadow.point_map_size,
+            light.shadow.point_max_shadow_lights,
+            light.shadow.point_faces_per_frame_budget,
+            options.point_shadow_light_range,
+            options.point_shadow_light_intensity,
+            options.point_shadow_scene_motion ? 1 : 0);
         if (!options.preferred_video_driver.empty()) {
             spdlog::info("[sandbox] preferred_video_driver={}", options.preferred_video_driver);
         }
@@ -799,6 +906,7 @@ int main(int argc, char** argv) {
             const Clock::time_point now = Clock::now();
             const float dt = std::chrono::duration<float>(now - previous_tick).count();
             previous_tick = now;
+            const float elapsed_seconds = std::chrono::duration<float>(now - started_at).count();
 
             window->pollEvents();
             if (ShouldQuitFromEvents(window->events())) {
@@ -807,6 +915,42 @@ int main(int argc, char** argv) {
 
             UpdateInteractiveControls(*window, dt, orbit, sun_azimuth, sun_elevation);
             light.direction = DirectionFromAngles(sun_azimuth, sun_elevation);
+
+            if (options.point_shadow_scene_motion) {
+                if (auto* center_transform =
+                        world.tryGet<karma::scene::TransformComponent>(center_cube_entity)) {
+                    const float motion_t = elapsed_seconds * options.point_shadow_motion_speed;
+                    const glm::vec3 center_position{
+                        std::sin(motion_t) * 2.4f,
+                        1.25f + (0.22f * std::sin(motion_t * 1.7f)),
+                        std::cos(motion_t * 0.73f) * 1.8f,
+                    };
+                    const glm::mat4 center_world = BuildTransform(
+                        center_position,
+                        glm::vec3(2.2f, 2.5f, 2.2f));
+                    center_transform->local = center_world;
+                    center_transform->world = center_world;
+                }
+                for (std::size_t i = 0; i < point_light_entities.size(); ++i) {
+                    if (auto* point_transform =
+                            world.tryGet<karma::scene::TransformComponent>(point_light_entities[i])) {
+                        const float phase = static_cast<float>(i) * 1.5707963f;
+                        const float orbit_t =
+                            elapsed_seconds * options.point_shadow_motion_speed * (0.85f + (0.1f * static_cast<float>(i)));
+                        const float radius = 6.6f - (0.6f * static_cast<float>(i));
+                        const glm::vec3 orbit_pos{
+                            std::cos(orbit_t + phase) * radius,
+                            3.2f + (0.55f * std::sin((orbit_t * 1.3f) + phase)),
+                            std::sin((orbit_t * 0.9f) + phase) * radius,
+                        };
+                        const glm::mat4 point_world = BuildTransform(
+                            orbit_pos,
+                            glm::vec3(1.0f, 1.0f, 1.0f));
+                        point_transform->local = point_world;
+                        point_transform->world = point_world;
+                    }
+                }
+            }
 
             const karma::renderer::CameraData camera = BuildCamera(orbit);
             render->setCamera(camera);

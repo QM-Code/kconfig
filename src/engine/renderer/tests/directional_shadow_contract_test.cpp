@@ -42,6 +42,7 @@ using karma::renderer_backend::detail::MaterialTextureSemantic;
 using karma::renderer_backend::detail::ResolveDebugLineSemantics;
 using karma::renderer_backend::detail::DirectionalShadowCaster;
 using karma::renderer_backend::detail::DirectionalShadowMap;
+using karma::renderer_backend::detail::PointShadowMap;
 using karma::renderer_backend::detail::ResolveEnvironmentLightingSemantics;
 using karma::renderer_backend::detail::ResolveMaterialLighting;
 using karma::renderer_backend::detail::ResolveMaterialShaderInputContract;
@@ -65,6 +66,9 @@ using karma::renderer_backend::detail::ValidateResolvedMaterialLighting;
 using karma::renderer_backend::detail::ValidateResolvedMaterialSemantics;
 using karma::renderer_backend::detail::ValidateResolvedDirectionalShadowSemantics;
 using karma::renderer_backend::detail::BuildDirectionalShadowMap;
+using karma::renderer_backend::detail::BuildPointShadowMap;
+using karma::renderer_backend::detail::IsPointShadowMapLayoutCompatible;
+using karma::renderer_backend::detail::SelectPointShadowLightIndices;
 
 bool NearlyEqual(float lhs, float rhs, float epsilon = 1e-4f) {
     return std::fabs(lhs - rhs) <= epsilon;
@@ -371,6 +375,163 @@ bool RunShadowMapBuildAndSampleChecks() {
     const float shadow_factor = ComputeDirectionalShadowFactor(shadow_map, sampled_visibility);
     if (!std::isfinite(shadow_factor) || shadow_factor < 0.0f || shadow_factor > 1.0f) {
         std::cerr << "shadow factor out of expected range, got " << shadow_factor << "\n";
+        return false;
+    }
+
+    return true;
+}
+
+bool RunPointShadowIncrementalUpdateChecks() {
+    karma::renderer::DirectionalLightData directional{};
+    directional.shadow.enabled = true;
+    directional.shadow.triangle_budget = 4096;
+    directional.shadow.point_map_size = 128;
+    directional.shadow.point_max_shadow_lights = 1;
+    directional.shadow.point_faces_per_frame_budget = 1;
+    const ResolvedDirectionalShadowSemantics semantics = ResolveDirectionalShadowSemantics(directional);
+    if (!ValidateResolvedDirectionalShadowSemantics(semantics)) {
+        std::cerr << "point-shadow semantics unexpectedly invalid\n";
+        return false;
+    }
+
+    karma::renderer::LightData point_light{};
+    point_light.type = karma::renderer::LightType::Point;
+    point_light.position = glm::vec3(0.0f, 0.0f, 0.0f);
+    point_light.intensity = 1.0f;
+    point_light.range = 12.0f;
+    point_light.casts_shadows = true;
+    point_light.enabled = true;
+    const std::vector<karma::renderer::LightData> lights{point_light};
+
+    const std::vector<int> selected = SelectPointShadowLightIndices(semantics, lights);
+    if (selected.size() != 1u || selected[0] != 0) {
+        std::cerr << "point-shadow light selection mismatch\n";
+        return false;
+    }
+
+    std::vector<glm::vec3> quad_positions{
+        {-0.5f, -0.5f, 0.0f},
+        {0.5f, -0.5f, 0.0f},
+        {0.5f, 0.5f, 0.0f},
+        {-0.5f, 0.5f, 0.0f},
+    };
+    std::vector<uint32_t> quad_indices{0, 1, 2, 0, 2, 3};
+
+    DirectionalShadowCaster caster_base{};
+    caster_base.transform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 3.0f));
+    caster_base.positions = &quad_positions;
+    caster_base.indices = &quad_indices;
+    caster_base.sample_center = glm::vec3(0.0f, 0.0f, 0.0f);
+    caster_base.casts_shadow = true;
+
+    DirectionalShadowCaster caster_shifted = caster_base;
+    caster_shifted.transform = glm::translate(glm::mat4(1.0f), glm::vec3(1.4f, 0.0f, 7.0f));
+
+    const std::vector<DirectionalShadowCaster> casters_base{caster_base};
+    const std::vector<DirectionalShadowCaster> casters_shifted{caster_shifted};
+
+    const PointShadowMap base_map = BuildPointShadowMap(semantics, lights, casters_base);
+    if (!base_map.ready || base_map.light_count != 1 || base_map.depth.empty()) {
+        std::cerr << "point shadow map build failed for base map\n";
+        return false;
+    }
+    if (!IsPointShadowMapLayoutCompatible(base_map, semantics.point_map_size, selected)) {
+        std::cerr << "base point shadow map layout compatibility unexpectedly false\n";
+        return false;
+    }
+    if (IsPointShadowMapLayoutCompatible(base_map, semantics.point_map_size / 2, selected)) {
+        std::cerr << "point shadow map layout should reject mismatched map size\n";
+        return false;
+    }
+    if (IsPointShadowMapLayoutCompatible(base_map, semantics.point_map_size, std::vector<int>{1})) {
+        std::cerr << "point shadow map layout should reject mismatched source-light indices\n";
+        return false;
+    }
+
+    auto tile_origin = [&](const PointShadowMap& map, int slot, int face) {
+        const int tile_x = (slot * 3) + (face % 3);
+        const int tile_y = face / 3;
+        const int origin_x = tile_x * map.size;
+        const int origin_y = tile_y * map.size;
+        return std::pair<int, int>(origin_x, origin_y);
+    };
+
+    auto tile_equal = [&](const PointShadowMap& lhs, const PointShadowMap& rhs, int slot, int face) {
+        if (lhs.size != rhs.size || lhs.atlas_width != rhs.atlas_width || lhs.atlas_height != rhs.atlas_height) {
+            return false;
+        }
+        const auto [origin_x, origin_y] = tile_origin(lhs, slot, face);
+        for (int y = 0; y < lhs.size; ++y) {
+            const std::size_t row =
+                static_cast<std::size_t>(origin_y + y) * static_cast<std::size_t>(lhs.atlas_width);
+            for (int x = 0; x < lhs.size; ++x) {
+                const std::size_t idx = row + static_cast<std::size_t>(origin_x + x);
+                if (lhs.depth[idx] != rhs.depth[idx]) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    auto tile_finite_count = [&](const PointShadowMap& map, int slot, int face) {
+        const auto [origin_x, origin_y] = tile_origin(map, slot, face);
+        int count = 0;
+        for (int y = 0; y < map.size; ++y) {
+            const std::size_t row =
+                static_cast<std::size_t>(origin_y + y) * static_cast<std::size_t>(map.atlas_width);
+            for (int x = 0; x < map.size; ++x) {
+                const std::size_t idx = row + static_cast<std::size_t>(origin_x + x);
+                if (std::isfinite(map.depth[idx])) {
+                    ++count;
+                }
+            }
+        }
+        return count;
+    };
+
+    const int kTestFace = 4; // +Z face expected to contain the test caster.
+    if (tile_finite_count(base_map, 0, kTestFace) <= 0) {
+        std::cerr << "expected base point-shadow face to contain finite depth samples\n";
+        return false;
+    }
+
+    const std::vector<uint8_t> no_update_mask(6u, 0u);
+    const PointShadowMap no_update_map =
+        BuildPointShadowMap(semantics, lights, casters_shifted, &base_map, &no_update_mask);
+    if (!no_update_map.ready) {
+        std::cerr << "point shadow map should remain ready when face update mask is empty\n";
+        return false;
+    }
+    if (no_update_map.depth != base_map.depth) {
+        std::cerr << "empty face-update mask should keep previous point-shadow depth atlas unchanged\n";
+        return false;
+    }
+
+    std::vector<uint8_t> update_mask(6u, 0u);
+    update_mask[static_cast<std::size_t>(kTestFace)] = 1u;
+    const PointShadowMap incremental_map =
+        BuildPointShadowMap(semantics, lights, casters_shifted, &base_map, &update_mask);
+    if (!incremental_map.ready) {
+        std::cerr << "incremental point shadow map build failed\n";
+        return false;
+    }
+    if (!IsPointShadowMapLayoutCompatible(incremental_map, semantics.point_map_size, selected)) {
+        std::cerr << "incremental point shadow map layout compatibility unexpectedly false\n";
+        return false;
+    }
+
+    for (int face = 0; face < 6; ++face) {
+        if (face == kTestFace) {
+            continue;
+        }
+        if (!tile_equal(base_map, incremental_map, 0, face)) {
+            std::cerr << "non-selected point-shadow face was modified by incremental update\n";
+            return false;
+        }
+    }
+    if (tile_equal(base_map, incremental_map, 0, kTestFace)) {
+        std::cerr << "selected point-shadow face should update when caster motion changes inputs\n";
         return false;
     }
 
@@ -2789,6 +2950,9 @@ int main() {
         return 1;
     }
     if (!RunShadowMapBuildAndSampleChecks()) {
+        return 1;
+    }
+    if (!RunPointShadowIncrementalUpdateChecks()) {
         return 1;
     }
     if (!RunShadowReceiverVisibilityChecks()) {
