@@ -263,7 +263,7 @@ inline ResolvedDirectionalShadowSemantics ResolveDirectionalShadowSemantics(cons
     semantics.triangle_budget = ClampRange(light.shadow.triangle_budget, 4096, 1, 65536);
     semantics.point_map_size = ClampRange(light.shadow.point_map_size, 1024, 128, 2048);
     semantics.point_max_shadow_lights = ClampRange(light.shadow.point_max_shadow_lights, 2, 0, 4);
-    semantics.point_faces_per_frame_budget = ClampRange(light.shadow.point_faces_per_frame_budget, 2, 1, 12);
+    semantics.point_faces_per_frame_budget = ClampRange(light.shadow.point_faces_per_frame_budget, 2, 1, 24);
     semantics.point_constant_bias = ClampFinite(light.shadow.point_constant_bias, 0.0012f, 0.0f, 0.02f);
     semantics.point_slope_bias_scale = ClampFinite(light.shadow.point_slope_bias_scale, 2.0f, 0.0f, 8.0f);
     semantics.point_normal_bias_scale = ClampFinite(light.shadow.point_normal_bias_scale, 1.5f, 0.0f, 8.0f);
@@ -332,7 +332,7 @@ inline bool ValidateResolvedDirectionalShadowSemantics(const ResolvedDirectional
     if (semantics.point_max_shadow_lights < 0 || semantics.point_max_shadow_lights > 4) {
         return false;
     }
-    if (semantics.point_faces_per_frame_budget < 1 || semantics.point_faces_per_frame_budget > 12) {
+    if (semantics.point_faces_per_frame_budget < 1 || semantics.point_faces_per_frame_budget > 24) {
         return false;
     }
     if (semantics.point_constant_bias < 0.0f || semantics.point_constant_bias > 0.02f) {
@@ -415,7 +415,9 @@ inline bool ProjectPointShadowPoint(const glm::mat4& view_proj,
         return false;
     }
     const float w = clip.w;
-    if (!std::isfinite(w) || std::fabs(w) <= 1e-6f) {
+    // Point-shadow faces are perspective projections; reject points behind the
+    // face camera to avoid folding invalid geometry into the atlas.
+    if (!std::isfinite(w) || w <= 1e-6f) {
         return false;
     }
     const glm::vec3 ndc = glm::vec3(clip) / w;

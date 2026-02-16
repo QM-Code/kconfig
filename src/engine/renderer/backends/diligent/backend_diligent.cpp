@@ -933,7 +933,7 @@ class DiligentBackend final : public Backend {
         point_shadow_faces_to_update.fill(0u);
         int point_shadow_dirty_faces = 0;
         int point_shadow_updated_faces = 0;
-        const int point_shadow_budget = std::clamp(shadow_semantics.point_faces_per_frame_budget, 1, 12);
+        const int point_shadow_budget = std::clamp(shadow_semantics.point_faces_per_frame_budget, 1, 24);
         bool point_shadow_full_refresh = false;
         if (!shadow_semantics.enabled ||
             shadow_semantics.point_max_shadow_lights <= 0 ||

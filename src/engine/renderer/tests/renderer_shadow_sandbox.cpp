@@ -47,17 +47,25 @@ struct SandboxOptions {
     float shadow_normal_bias_scale = 0.35f;
     float shadow_raster_depth_bias = 0.0f;
     float shadow_raster_slope_bias = 0.0f;
+    // Point-shadow tuning notes:
+    // - map size is per-face resolution and cost scales roughly quadratically.
+    // - each active shadowed point light uses 6 cubemap faces.
+    // - face budget is how many faces may refresh each frame; use
+    //   budget >= 6 * active_shadowed_point_lights for fully coherent motion
+    //   (for example: 2 lights -> 12 faces, 3 lights -> 18 faces).
     int point_shadow_lights = 0;
     int point_shadow_first_light_index = 0;
-    int point_shadow_map_size = 1024;
+    int point_shadow_map_size = 256;
     int point_shadow_max_lights = 2;
-    int point_shadow_faces_per_frame_budget = 2;
+    bool point_shadow_face_budget_auto = true;
+    int point_shadow_faces_per_frame_budget = 12;
     float point_shadow_light_range = 14.0f;
     float point_shadow_light_intensity = 2.0f;
     bool point_shadow_scene_motion = false;
     float point_shadow_motion_speed = 0.9f;
+    // GPU path is the sandbox default for interactive point-shadow iteration.
     karma::renderer::DirectionalLightData::ShadowExecutionMode shadow_execution_mode =
-        karma::renderer::DirectionalLightData::ShadowExecutionMode::CpuReference;
+        karma::renderer::DirectionalLightData::ShadowExecutionMode::GpuDefault;
     bool verbose = false;
     std::string trace_channels{};
     std::string preferred_video_driver{};
@@ -107,16 +115,18 @@ void PrintUsage(const char* argv0) {
         << "  --shadow-triangle-budget <1..65536>\n"
         << "                                CPU reference shadow triangle budget (default 4096)\n"
         << "  --shadow-execution-mode <cpu_reference|gpu_default>\n"
-        << "                                Shadow execution policy (default cpu_reference)\n"
+        << "                                Shadow execution policy (default gpu_default)\n"
         << "  --point-shadow-lights <0..4>  Number of shadow-casting point lights in scene (default 0)\n"
         << "  --point-shadow-first-light-index <0..3>\n"
         << "                                Start index in predefined point-light set (default 0)\n"
         << "  --point-shadow-map-size <128..2048>\n"
-        << "                                Point-shadow per-face map size (default 1024)\n"
+        << "                                Point-shadow per-face map size (default 256)\n"
         << "  --point-shadow-max-lights <0..4>\n"
         << "                                Max shadow-casting point lights selected per frame (default 2)\n"
-        << "  --point-shadow-face-budget <1..12>\n"
-        << "                                Max point-shadow faces refreshed per frame (default 2)\n"
+        << "  --point-shadow-face-budget <1..24>\n"
+        << "                                Max point-shadow faces refreshed per frame\n"
+        << "                                Default is auto: 6 * active shadowed point lights\n"
+        << "                                (2 lights -> 12 faces, 3 lights -> 18 faces)\n"
         << "  --point-shadow-light-range <1..80>\n"
         << "                                Point-light influence range in world units (default 14)\n"
         << "  --point-shadow-light-intensity <0..20>\n"
@@ -135,8 +145,7 @@ void PrintUsage(const char* argv0) {
         << "  PageUp/PageDown: zoom camera\n"
         << "  A/D: rotate sun azimuth\n"
         << "  W/S: adjust sun elevation\n"
-        << "  Space: pause simulation and advance 10 frames\n"
-        << "  R: resume real-time simulation\n";
+        << "  Space: pause/resume scene animation\n";
 }
 
 bool ParseVec3(std::string_view text, glm::vec3& out_vec) {
@@ -266,8 +275,9 @@ SandboxOptions ParseOptions(int argc, char** argv) {
             options.point_shadow_max_lights =
                 std::clamp(std::stoi(require_value("--point-shadow-max-lights")), 0, 4);
         } else if (arg == "--point-shadow-face-budget") {
+            options.point_shadow_face_budget_auto = false;
             options.point_shadow_faces_per_frame_budget =
-                std::clamp(std::stoi(require_value("--point-shadow-face-budget")), 1, 12);
+                std::clamp(std::stoi(require_value("--point-shadow-face-budget")), 1, 24);
         } else if (arg == "--point-shadow-light-range") {
             options.point_shadow_light_range =
                 std::clamp(std::stof(require_value("--point-shadow-light-range")), 1.0f, 80.0f);
@@ -842,6 +852,14 @@ int main(int argc, char** argv) {
         }
         scene.updateWorldTransforms();
 
+        const int active_shadowed_point_lights = std::clamp(
+            std::min(point_light_count, options.point_shadow_max_lights), 0, 4);
+        const int recommended_point_face_budget =
+            active_shadowed_point_lights * karma::renderer_backend::detail::kPointShadowFaceCount;
+        const int point_shadow_face_budget = options.point_shadow_face_budget_auto
+            ? std::clamp(recommended_point_face_budget, 1, 24)
+            : std::clamp(options.point_shadow_faces_per_frame_budget, 1, 24);
+
         karma::renderer::DirectionalLightData light{};
         light.direction = glm::normalize(options.sun_direction);
         light.color = glm::vec4(1.0f, 0.97f, 0.92f, 1.0f);
@@ -860,8 +878,18 @@ int main(int argc, char** argv) {
         light.shadow.raster_slope_bias = options.shadow_raster_slope_bias;
         light.shadow.point_map_size = options.point_shadow_map_size;
         light.shadow.point_max_shadow_lights = options.point_shadow_max_lights;
-        light.shadow.point_faces_per_frame_budget = options.point_shadow_faces_per_frame_budget;
+        light.shadow.point_faces_per_frame_budget = point_shadow_face_budget;
         light.shadow.execution_mode = options.shadow_execution_mode;
+        if (active_shadowed_point_lights > 0 &&
+            !options.point_shadow_face_budget_auto &&
+            light.shadow.point_faces_per_frame_budget < recommended_point_face_budget) {
+            spdlog::warn(
+                "[sandbox] point-shadow face budget {} is below recommended {} ({} active light slots * {} faces); moving shadows may appear stale/detached",
+                light.shadow.point_faces_per_frame_budget,
+                recommended_point_face_budget,
+                active_shadowed_point_lights,
+                karma::renderer_backend::detail::kPointShadowFaceCount);
+        }
 
         karma::renderer::EnvironmentLightingData environment{};
         environment.enabled = true;
@@ -912,17 +940,11 @@ int main(int argc, char** argv) {
             spdlog::info("[sandbox] preferred_video_driver={}", options.preferred_video_driver);
         }
         spdlog::info(
-            "[sandbox] controls: arrows orbit, pageup/pagedown zoom, a/d sun azimuth, w/s sun elevation, space step+10, r resume realtime, esc quit");
+            "[sandbox] controls: arrows orbit, pageup/pagedown zoom, a/d sun azimuth, w/s sun elevation, space pause/resume animation, esc quit");
 
-        bool simulation_paused = options.point_shadow_scene_motion;
-        int step_frames_remaining = 0;
+        bool simulation_paused = false;
         bool space_was_down = false;
-        bool resume_was_down = false;
         float simulation_elapsed_seconds = 0.0f;
-        if (simulation_paused) {
-            spdlog::info(
-                "[sandbox] scene motion starts paused: press space to advance 10 frames, r to resume real-time");
-        }
 
         bool running = true;
         while (running && !window->shouldClose()) {
@@ -941,26 +963,13 @@ int main(int argc, char** argv) {
 
             const bool space_down = window->isKeyDown(karma::platform::Key::Space);
             if (space_down && !space_was_down) {
-                simulation_paused = true;
-                step_frames_remaining += 10;
+                simulation_paused = !simulation_paused;
             }
             space_was_down = space_down;
 
-            const bool resume_down = window->isKeyDown(karma::platform::Key::R);
-            if (resume_down && !resume_was_down) {
-                simulation_paused = false;
-                step_frames_remaining = 0;
-            }
-            resume_was_down = resume_down;
-
             float simulation_dt = dt;
             if (simulation_paused) {
-                if (step_frames_remaining > 0) {
-                    simulation_dt = 1.0f / 60.0f;
-                    --step_frames_remaining;
-                } else {
-                    simulation_dt = 0.0f;
-                }
+                simulation_dt = 0.0f;
             }
             simulation_elapsed_seconds += simulation_dt;
 

@@ -110,8 +110,12 @@ struct DirectionalLightData {
         int pcf_radius = 1;
         int triangle_budget = 4096;
         int update_every_frames = 1;
+        // Point-shadow map size is per cubemap face; cost scales roughly with map_size^2.
         int point_map_size = 1024;
         int point_max_shadow_lights = 2;
+        // Incremental refresh budget in cubemap faces per frame.
+        // Each active shadowed point light uses 6 faces
+        // (for example: 2 lights -> 12 faces, 3 lights -> 18 faces).
         int point_faces_per_frame_budget = 2;
         float point_constant_bias = 0.0012f;
         float point_slope_bias_scale = 2.0f;
