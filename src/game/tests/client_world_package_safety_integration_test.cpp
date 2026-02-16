@@ -677,6 +677,404 @@ TestResult TestInterruptedChunkTransferResumeRecovery() {
     return TestResult::Pass;
 }
 
+TestResult TestInitProtocolMismatchIsRejected() {
+    const std::filesystem::path temp_root = MakeTempPath("protocol-mismatch-root");
+    const std::filesystem::path xdg_root = temp_root / "xdg";
+    const std::filesystem::path config_path = MakeConfigPath("protocol-mismatch-config");
+
+    std::error_code ec;
+    std::filesystem::remove_all(temp_root, ec);
+    ec.clear();
+    std::filesystem::create_directories(xdg_root, ec);
+    if (ec) {
+        return FailTest("failed to create temp directories for protocol-mismatch test");
+    }
+
+    ScopedEnvVar scoped_xdg("XDG_CONFIG_HOME", xdg_root.string());
+    karma::data::SetDataPathSpec(karma::data::DataPathSpec{
+        .appName = "bz3",
+        .dataDirEnvVar = "BZ3_DATA_DIR",
+        .requiredDataMarker = {},
+        .fallbackAssetLayers = {}});
+    karma::config::ConfigStore::Initialize({}, config_path);
+    (void)karma::config::ConfigStore::Set("config.SaveIntervalSeconds", 5.0);
+    (void)karma::config::ConfigStore::Set("config.MergeIntervalSeconds", 5.0);
+
+    ScopedRawTransport raw_transport{};
+    if (!raw_transport.initialized()) {
+        PrintSkip("transport init failed for protocol-mismatch test");
+        return TestResult::Skip;
+    }
+
+    auto raw_server_opt = CreateRawServerFixture();
+    if (!raw_server_opt.has_value()) {
+        PrintSkip("unable to create raw transport server fixture");
+        return TestResult::Skip;
+    }
+    RawServerFixture raw_server = std::move(*raw_server_opt);
+
+    bz3::client::net::ClientConnection client("127.0.0.1", raw_server.port, "protocol-client");
+
+    std::optional<bool> started{};
+    std::optional<bz3::net::ClientMessage> join_request{};
+    bool disconnected = false;
+    std::thread starter([&]() { started = client.start(); });
+    const bool start_done = WaitUntil(std::chrono::milliseconds(2500), [&]() {
+        PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+    }, [&]() { return started.has_value(); });
+    starter.join();
+    if (!start_done || !started.value_or(false)) {
+        return FailTest("client failed to start against raw transport server");
+    }
+    if (!karma::network::tests::LoopbackTransportEndpointHasPeer(&raw_server.endpoint) || disconnected) {
+        client.shutdown();
+        return FailTest("raw transport server did not observe connected peer");
+    }
+    if (!WaitUntil(std::chrono::milliseconds(2500), [&]() {
+            PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+            client.poll();
+        }, [&]() { return join_request.has_value(); })) {
+        client.shutdown();
+        return FailTest("raw transport server did not receive join request");
+    }
+    if (disconnected || !karma::network::tests::LoopbackTransportEndpointHasPeer(&raw_server.endpoint)) {
+        client.shutdown();
+        return FailTest("client disconnected before protocol-mismatch test could begin");
+    }
+
+    if (!SendRawServerPayload(&raw_server.endpoint, bz3::net::EncodeServerJoinResponse(true, ""))) {
+        client.shutdown();
+        return FailTest("failed to send raw join response");
+    }
+    if (!SendRawServerPayload(&raw_server.endpoint, bz3::net::EncodeServerInit(
+                                                      2,
+                                                      "raw-server",
+                                                      "protocol-mismatch-world",
+                                                      bz3::net::kProtocolVersion + 1,
+                                                      {},
+                                                      0,
+                                                      "protocol-mismatch-world",
+                                                      "rev-1",
+                                                      {},
+                                                      {},
+                                                      0,
+                                                      {},
+                                                      {}))) {
+        client.shutdown();
+        return FailTest("failed to send protocol-mismatch init payload");
+    }
+
+    const bool rejected = WaitUntil(std::chrono::milliseconds(3000), [&]() {
+        PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+        client.poll();
+    }, [&]() { return disconnected || client.shouldExit(); });
+
+    if (!rejected) {
+        client.shutdown();
+        return FailTest("client did not reject init protocol mismatch");
+    }
+
+    client.shutdown();
+    return TestResult::Pass;
+}
+
+TestResult TestInitWorldMetadataMissingIdentityIsRejected() {
+    const std::filesystem::path temp_root = MakeTempPath("metadata-identity-root");
+    const std::filesystem::path xdg_root = temp_root / "xdg";
+    const std::filesystem::path config_path = MakeConfigPath("metadata-identity-config");
+
+    std::error_code ec;
+    std::filesystem::remove_all(temp_root, ec);
+    ec.clear();
+    std::filesystem::create_directories(xdg_root, ec);
+    if (ec) {
+        return FailTest("failed to create temp directories for metadata-identity test");
+    }
+
+    ScopedEnvVar scoped_xdg("XDG_CONFIG_HOME", xdg_root.string());
+    karma::data::SetDataPathSpec(karma::data::DataPathSpec{
+        .appName = "bz3",
+        .dataDirEnvVar = "BZ3_DATA_DIR",
+        .requiredDataMarker = {},
+        .fallbackAssetLayers = {}});
+    karma::config::ConfigStore::Initialize({}, config_path);
+    (void)karma::config::ConfigStore::Set("config.SaveIntervalSeconds", 5.0);
+    (void)karma::config::ConfigStore::Set("config.MergeIntervalSeconds", 5.0);
+
+    ScopedRawTransport raw_transport{};
+    if (!raw_transport.initialized()) {
+        PrintSkip("transport init failed for metadata-identity test");
+        return TestResult::Skip;
+    }
+
+    auto raw_server_opt = CreateRawServerFixture();
+    if (!raw_server_opt.has_value()) {
+        PrintSkip("unable to create raw transport server fixture");
+        return TestResult::Skip;
+    }
+    RawServerFixture raw_server = std::move(*raw_server_opt);
+
+    bz3::client::net::ClientConnection client("127.0.0.1", raw_server.port, "metadata-client");
+
+    std::optional<bool> started{};
+    std::optional<bz3::net::ClientMessage> join_request{};
+    bool disconnected = false;
+    std::thread starter([&]() { started = client.start(); });
+    const bool start_done = WaitUntil(std::chrono::milliseconds(2500), [&]() {
+        PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+    }, [&]() { return started.has_value(); });
+    starter.join();
+    if (!start_done || !started.value_or(false)) {
+        return FailTest("client failed to start against raw transport server");
+    }
+    if (!karma::network::tests::LoopbackTransportEndpointHasPeer(&raw_server.endpoint) || disconnected) {
+        client.shutdown();
+        return FailTest("raw transport server did not observe connected peer");
+    }
+    if (!WaitUntil(std::chrono::milliseconds(2500), [&]() {
+            PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+            client.poll();
+        }, [&]() { return join_request.has_value(); })) {
+        client.shutdown();
+        return FailTest("raw transport server did not receive join request");
+    }
+    if (disconnected || !karma::network::tests::LoopbackTransportEndpointHasPeer(&raw_server.endpoint)) {
+        client.shutdown();
+        return FailTest("client disconnected before metadata-identity test could begin");
+    }
+
+    if (!SendRawServerPayload(&raw_server.endpoint, bz3::net::EncodeServerJoinResponse(true, ""))) {
+        client.shutdown();
+        return FailTest("failed to send raw join response");
+    }
+    if (!SendRawServerPayload(&raw_server.endpoint, bz3::net::EncodeServerInit(
+                                                      2,
+                                                      "raw-server",
+                                                      "metadata-missing-id-world",
+                                                      bz3::net::kProtocolVersion,
+                                                      "0123456789abcdef",
+                                                      256,
+                                                      {},
+                                                      {},
+                                                      "fedcba9876543210",
+                                                      {},
+                                                      0,
+                                                      {},
+                                                      {}))) {
+        client.shutdown();
+        return FailTest("failed to send metadata-missing-identity init payload");
+    }
+
+    const bool rejected = WaitUntil(std::chrono::milliseconds(3000), [&]() {
+        PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+        client.poll();
+    }, [&]() { return disconnected || client.shouldExit(); });
+
+    if (!rejected) {
+        client.shutdown();
+        return FailTest("client did not reject world metadata init missing id/revision");
+    }
+
+    client.shutdown();
+    return TestResult::Pass;
+}
+
+TestResult TestChunkTransferEndHashMismatchIsRejected() {
+    const std::filesystem::path temp_root = MakeTempPath("integrity-root");
+    const std::filesystem::path xdg_root = temp_root / "xdg";
+    const std::filesystem::path world_dir = temp_root / "world";
+    const std::filesystem::path config_path = MakeConfigPath("integrity-config");
+
+    std::error_code ec;
+    std::filesystem::remove_all(temp_root, ec);
+    ec.clear();
+    std::filesystem::create_directories(xdg_root, ec);
+    std::filesystem::create_directories(world_dir, ec);
+    if (ec) {
+        return FailTest("failed to create temp directories for transfer-integrity test");
+    }
+
+    if (!WriteTextFile(world_dir / "config.json",
+                       "{\n  \"worldName\": \"integrity-world\",\n  \"integrityVersion\": 1\n}\n")) {
+        return FailTest("failed to write transfer-integrity world config.json");
+    }
+    if (!WriteDeterministicBinaryFile(world_dir / "world.glb", 192 * 1024, 0x10293847U)) {
+        return FailTest("failed to write transfer-integrity world.glb");
+    }
+
+    const std::string unique_world_id =
+        "integrity-world-" +
+        std::to_string(static_cast<unsigned long long>(
+            std::chrono::steady_clock::now().time_since_epoch().count()));
+    const auto world_opt = BuildWorldFixture(world_dir, "integrity-world", unique_world_id);
+    if (!world_opt.has_value()) {
+        return FailTest("failed to build transfer-integrity world fixture");
+    }
+    const WorldFixture world = *world_opt;
+
+    ScopedEnvVar scoped_xdg("XDG_CONFIG_HOME", xdg_root.string());
+    karma::data::SetDataPathSpec(karma::data::DataPathSpec{
+        .appName = "bz3",
+        .dataDirEnvVar = "BZ3_DATA_DIR",
+        .requiredDataMarker = {},
+        .fallbackAssetLayers = {}});
+    karma::config::ConfigStore::Initialize({}, config_path);
+    (void)karma::config::ConfigStore::Set("config.SaveIntervalSeconds", 5.0);
+    (void)karma::config::ConfigStore::Set("config.MergeIntervalSeconds", 5.0);
+
+    ScopedRawTransport raw_transport{};
+    if (!raw_transport.initialized()) {
+        PrintSkip("transport init failed for transfer-integrity test");
+        return TestResult::Skip;
+    }
+
+    auto raw_server_opt = CreateRawServerFixture();
+    if (!raw_server_opt.has_value()) {
+        PrintSkip("unable to create raw transport server fixture");
+        return TestResult::Skip;
+    }
+    RawServerFixture raw_server = std::move(*raw_server_opt);
+
+    bz3::client::net::ClientConnection client("127.0.0.1", raw_server.port, "integrity-client");
+
+    std::optional<bool> started{};
+    std::optional<bz3::net::ClientMessage> join_request{};
+    bool disconnected = false;
+    std::thread starter([&]() { started = client.start(); });
+    const bool start_done = WaitUntil(std::chrono::milliseconds(2500), [&]() {
+        PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+    }, [&]() { return started.has_value(); });
+    starter.join();
+    if (!start_done || !started.value_or(false)) {
+        return FailTest("client failed to start against raw transport server");
+    }
+    if (!karma::network::tests::LoopbackTransportEndpointHasPeer(&raw_server.endpoint) || disconnected) {
+        client.shutdown();
+        return FailTest("raw transport server did not observe connected peer");
+    }
+    if (!WaitUntil(std::chrono::milliseconds(2500), [&]() {
+            PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+            client.poll();
+        }, [&]() { return join_request.has_value(); })) {
+        client.shutdown();
+        return FailTest("raw transport server did not receive join request");
+    }
+    if (disconnected || !karma::network::tests::LoopbackTransportEndpointHasPeer(&raw_server.endpoint)) {
+        client.shutdown();
+        return FailTest("client disconnected before integrity transfer test could begin");
+    }
+
+    std::vector<bz3::net::WorldManifestEntry> wire_manifest{};
+    wire_manifest.reserve(world.world_manifest.size());
+    for (const auto& entry : world.world_manifest) {
+        wire_manifest.push_back(bz3::net::WorldManifestEntry{
+            .path = entry.path,
+            .size = entry.size,
+            .hash = entry.hash});
+    }
+
+    if (!SendRawServerPayload(&raw_server.endpoint, bz3::net::EncodeServerJoinResponse(true, ""))) {
+        client.shutdown();
+        return FailTest("failed to send raw join response");
+    }
+    if (!SendRawServerPayload(&raw_server.endpoint, bz3::net::EncodeServerInit(2,
+                                                         "raw-server",
+                                                         world.world_name,
+                                                         bz3::net::kProtocolVersion,
+                                                         world.world_package_hash,
+                                                         world.world_package_size,
+                                                         world.world_id,
+                                                         world.world_revision,
+                                                         world.world_content_hash,
+                                                         world.world_manifest_hash,
+                                                         world.world_manifest_file_count,
+                                                         wire_manifest,
+                                                         {}))) {
+        client.shutdown();
+        return FailTest("failed to send raw init payload");
+    }
+
+    constexpr uint32_t kChunkSize = 16 * 1024;
+    const uint32_t total_chunk_count =
+        static_cast<uint32_t>((world.world_package.size() + kChunkSize - 1) / kChunkSize);
+    const std::string transfer_id = "integrity-transfer-1";
+    if (!SendRawServerPayload(&raw_server.endpoint, bz3::net::EncodeServerWorldTransferBegin(transfer_id,
+                                                                       world.world_id,
+                                                                       world.world_revision,
+                                                                       world.world_package.size(),
+                                                                       kChunkSize,
+                                                                       world.world_package_hash,
+                                                                       world.world_content_hash))) {
+        client.shutdown();
+        return FailTest("failed to send raw transfer begin");
+    }
+    for (uint32_t chunk_index = 0; chunk_index < total_chunk_count; ++chunk_index) {
+        if (!SendRawServerPayload(&raw_server.endpoint, bz3::net::EncodeServerWorldTransferChunk(
+                                      transfer_id,
+                                      chunk_index,
+                                      BuildChunk(world.world_package, chunk_index, kChunkSize)))) {
+            client.shutdown();
+            return FailTest("failed to send transfer chunk for integrity mismatch test");
+        }
+    }
+
+    std::string tampered_transfer_hash = world.world_package_hash;
+    if (!tampered_transfer_hash.empty()) {
+        tampered_transfer_hash[0] = tampered_transfer_hash[0] == '0' ? '1' : '0';
+    } else {
+        tampered_transfer_hash = "1";
+    }
+    if (!SendRawServerPayload(&raw_server.endpoint, bz3::net::EncodeServerWorldTransferEnd(transfer_id,
+                                                                     total_chunk_count,
+                                                                     world.world_package.size(),
+                                                                     tampered_transfer_hash,
+                                                                     world.world_content_hash))) {
+        client.shutdown();
+        return FailTest("failed to send tampered transfer end");
+    }
+    if (!SendRawServerPayload(
+            &raw_server.endpoint,
+            bz3::net::EncodeServerSessionSnapshot(
+                std::vector<bz3::net::SessionSnapshotEntry>{{2, "integrity-client"}}))) {
+        client.shutdown();
+        return FailTest("failed to send raw session snapshot");
+    }
+
+    const bool rejected = WaitUntil(std::chrono::milliseconds(3000), [&]() {
+        PumpRawServerEvents(&raw_server, &join_request, &disconnected);
+        client.poll();
+    }, [&]() { return disconnected || client.shouldExit(); });
+
+    if (!rejected) {
+        client.shutdown();
+        return FailTest("client did not reject chunk transfer with tampered end hash");
+    }
+
+    const std::filesystem::path server_cache_dir =
+        karma::data::EnsureUserWorldDirectoryForServer("127.0.0.1", raw_server.port);
+    const std::filesystem::path identity_path = server_cache_dir / "active_world_identity.txt";
+    const auto identity_after_reject = ReadCachedIdentity(identity_path);
+    if (identity_after_reject.has_value() &&
+        identity_after_reject->world_id == world.world_id &&
+        identity_after_reject->world_revision == world.world_revision &&
+        identity_after_reject->world_content_hash == world.world_content_hash) {
+        client.shutdown();
+        return FailTest("client promoted tampered-transfer identity after end-hash mismatch");
+    }
+    const std::filesystem::path package_root =
+        PackageRootForIdentity(server_cache_dir,
+                               world.world_id,
+                               world.world_revision,
+                               world.world_content_hash);
+    if (std::filesystem::exists(package_root)) {
+        client.shutdown();
+        return FailTest("client promoted world package after tampered chunk-transfer end hash");
+    }
+
+    client.shutdown();
+    return TestResult::Pass;
+}
+
 TestResult TestFailedWorldUpdatePreservesPreviousCache() {
     const std::filesystem::path temp_root = MakeTempPath("root");
     const std::filesystem::path xdg_root = temp_root / "xdg";
@@ -897,6 +1295,9 @@ TestResult TestFailedWorldUpdatePreservesPreviousCache() {
 int main() {
     const std::array tests{
         &TestInterruptedChunkTransferResumeRecovery,
+        &TestInitProtocolMismatchIsRejected,
+        &TestInitWorldMetadataMissingIdentityIsRejected,
+        &TestChunkTransferEndHashMismatchIsRejected,
         &TestFailedWorldUpdatePreservesPreviousCache,
     };
 

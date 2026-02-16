@@ -3,7 +3,7 @@
 ## Project Snapshot
 - Current owner: `specialist-renderer-parity`
 - Status: `priority/in progress (R1-R25 accepted; VQ1-VQ2 accepted; VQ3 active implementation moved to renderer-shadow-hardening track; VQ4 queued; R26-A baseline matrix complete; R26-B slice 1 landed; R26-B slice 2 scaffolding landed; R26-B slice 3 BGFX GPU pass prototype landed; R26-B slice 4 Diligent GPU pass prototype landed; R26-B slice 5 lifecycle/fallback hardening landed; R26-B visual closeout checkpoint captured with Diligent screenshot tooling blocker documented; R26-B gpu_default no-shadow regression fix landed and operator-verified; R26-B depth-attachment GPU shadow slice landed; R26-C intake matrix landed; R26-D config-policy slice landed; R26-D bias-model policy slice landed)`
-- Immediate next task: run bounded bias sweep evidence (BGFX + Diligent) and lock default bias presets for stable contact shadows without acne regressions.
+- Immediate next task: execute operator visual checkpoints for the locked bias defaults (`gpu_default`) and open only the smallest follow-up adjustment needed for contact edge quality.
 - Validation gate: both assigned renderer build dirs via `./bzbuild.py` plus both client runs listed in this file; run docs lint whenever this project doc or assignment board is updated.
 
 ## Mission
@@ -612,6 +612,51 @@ timeout -k 2s 10s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --st
   - RenderSystem now reports bias fields in both backends:
     - `... shadows(... bias=... recv=... norm=... rasterDepth=... rasterSlope=... mode=gpu_default)`.
 
+R26-D bounded bias sweep + default lock (2026-02-16):
+1. Sweep goal:
+   - compare bounded bias presets (`low`, `default`, `high`) in roaming mode with `gpu_default` shadows,
+   - validate backend parity while keeping depth attachment active.
+2. Sweep presets:
+   - `low`: `recv=0.03 norm=0.12 rasterDepth=0.0000 rasterSlope=0.2`
+   - `default`: `recv=0.08 norm=0.35 rasterDepth=0.0000 rasterSlope=0.0`
+   - `high`: `recv=0.14 norm=0.60 rasterDepth=0.0012 rasterSlope=2.0`
+3. Commands (run from `m-rewrite/`):
+```bash
+# temp configs (removed after sweep)
+cp data/client/config.json data/client/config_r26e_bias_default.json
+jq '.roamingMode.graphics.lighting.shadows.receiverBiasScale=0.03 | .roamingMode.graphics.lighting.shadows.normalBiasScale=0.12 | .roamingMode.graphics.lighting.shadows.rasterDepthBias=0.0 | .roamingMode.graphics.lighting.shadows.rasterSlopeBias=0.2' data/client/config.json > data/client/config_r26e_bias_low.json
+jq '.roamingMode.graphics.lighting.shadows.receiverBiasScale=0.14 | .roamingMode.graphics.lighting.shadows.normalBiasScale=0.60 | .roamingMode.graphics.lighting.shadows.rasterDepthBias=0.0012 | .roamingMode.graphics.lighting.shadows.rasterSlopeBias=2.0' data/client/config.json > data/client/config_r26e_bias_high.json
+
+for profile in low default high; do
+  timeout -k 2s 16s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config_r26e_bias_${profile}.json -v -t engine.sim,render.system,render.bgfx > /tmp/r26e-bias-sweep-20260216T022344Z/bgfx-${profile}.log 2>&1
+  timeout -k 2s 16s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config_r26e_bias_${profile}.json -v -t engine.sim,render.system,render.diligent > /tmp/r26e-bias-sweep-20260216T022344Z/diligent-${profile}.log 2>&1
+done
+
+rm -f data/client/config_r26e_bias_low.json data/client/config_r26e_bias_default.json data/client/config_r26e_bias_high.json
+```
+4. Sweep outcomes:
+   - all bounded runs exited `124` (expected timeout).
+   - evidence dir: `/tmp/r26e-bias-sweep-20260216T022344Z/`.
+   - all six runs confirmed `attachment=depth`.
+5. Sweep matrix (steady-state mean, drop first `perf1s`, `steady_n=13`):
+| Backend | Profile | Bias tuple (`recv/norm/rDepth/rSlope`) | steady mean fps | steady mean frame ms | steady mean avg_steps | steady worst `max_frame_ms` | Log |
+|---|---|---|---:|---:|---:|---:|---|
+| BGFX | low | `0.03/0.12/0.0000/0.2` | 40.15 | 25.11 | 1.51 | 38.78 | `/tmp/r26e-bias-sweep-20260216T022344Z/bgfx-low.log` |
+| BGFX | default | `0.08/0.35/0.0000/0.0` | 37.67 | 26.59 | 1.60 | 42.29 | `/tmp/r26e-bias-sweep-20260216T022344Z/bgfx-default.log` |
+| BGFX | high | `0.14/0.60/0.0012/2.0` | 36.55 | 27.42 | 1.64 | 39.45 | `/tmp/r26e-bias-sweep-20260216T022344Z/bgfx-high.log` |
+| Diligent | low | `0.03/0.12/0.0000/0.2` | 35.61 | 28.08 | 1.69 | 58.96 | `/tmp/r26e-bias-sweep-20260216T022344Z/diligent-low.log` |
+| Diligent | default | `0.08/0.35/0.0000/0.0` | 36.04 | 27.75 | 1.67 | 37.28 | `/tmp/r26e-bias-sweep-20260216T022344Z/diligent-default.log` |
+| Diligent | high | `0.14/0.60/0.0012/2.0` | 35.52 | 28.15 | 1.69 | 42.07 | `/tmp/r26e-bias-sweep-20260216T022344Z/diligent-high.log` |
+6. Default lock decision:
+   - keep `default` as production baseline (`recv=0.08 norm=0.35 rasterDepth=0.0000 rasterSlope=0.0`).
+   - rationale:
+     - best cross-backend consistency (Diligent default is top in this sweep; BGFX delta vs low is acceptable for parity-first preset),
+     - lower worst-frame volatility than Diligent low profile (`37.28ms` vs `58.96ms` worst `max_frame_ms`),
+     - avoids over-bias risk from `high` profile while preserving stable depth-attachment parity behavior.
+7. Automation follow-up landed:
+   - added `scripts/run-renderer-shadow-bias-sweep.sh` to run the 3-profile sweep end-to-end (temp config generation, BGFX+Diligent captures, exit codes, and summary table).
+   - smoke run evidence: `/tmp/renderer-shadow-bias-sweep-20260216T025300Z/`.
+
 R26-C m-dev intake matrix (2026-02-14):
 
 Reference root:
@@ -659,13 +704,14 @@ From `m-rewrite/`:
 ```bash
 ./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
 ./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
-timeout 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --backend-render bgfx --backend-ui imgui
-timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render diligent --backend-ui imgui
+timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
+timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
 ./docs/scripts/lint-project-docs.sh
 ```
 
 ## Trace Channels
-- `engine.app`
+- `engine.sim`
+- `render.system`
 - `render.mesh`
 - `render.bgfx`
 - `render.diligent`
@@ -675,8 +721,8 @@ timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render dil
 ```bash
 ./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
 ./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
-timeout 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --backend-render bgfx --backend-ui imgui
-timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render diligent --backend-ui imgui
+timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
+timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
 ```
 
 ## First Session Checklist
@@ -908,7 +954,7 @@ VQ3 closeout decision (`2026-02-11`, current state):
 29. R26-A baseline matrix slice (`shared unblocker`): record roaming-mode FPS/frame-time matrix across BGFX+Diligent with shadows on/off, including trace evidence for top CPU bottlenecks. `Queued 2026-02-14`
 30. R26-B GPU shadow parity intake slice (`KARMA intake`): replace rewrite default CPU shadow-map generation/sampling path with GPU-pass-based shadow map generation and GPU sampling parity across active backends. `Queued 2026-02-14`
 31. R26-C legacy renderer intake slice (`m-dev parity`): audit `m-dev` renderer offload techniques, classify adopt-now/later/reject, and attach concrete implementation follow-ups for adopt-now items. `Queued 2026-02-14`
-32. R26-D renderer config-surface policy slice (`shared unblocker`): ensure newly introduced performance-sensitive renderer techniques are exposed as bounded config options (or explicitly documented as fixed-policy decisions) in `data/client/config.json` and runtime plumbing. `In progress 2026-02-14` (`triangleBudget` config + fixed-policy ledger landed; further depth-pass policy controls pending)
+32. R26-D renderer config-surface policy slice (`shared unblocker`): ensure newly introduced performance-sensitive renderer techniques are exposed as bounded config options (or explicitly documented as fixed-policy decisions) in `data/client/config.json` and runtime plumbing. `In progress 2026-02-16` (`triangleBudget` + receiver/normal/raster bias controls landed; bounded sweep/default-lock evidence captured; visual closeout still pending`)
 
 ## Active Specialist Packet (R2)
 ```text

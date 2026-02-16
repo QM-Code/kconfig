@@ -25,6 +25,7 @@ Then:
 - enforce explicit wrapper build-dir args in parallel work.
 - enforce mandatory local `./vcpkg` bootstrap before delegated build/test work (no external vcpkg fallback).
 - enforce demo test-data policy: reusable local test state belongs under `demo/` (`demo/communities`, `demo/users`, `demo/worlds`), not personal `~/.config/bz3` or ad-hoc `/tmp`.
+- whenever I ask for a specialist prompt, return one fully copy-pastable prompt block (single fenced `text` block) with concrete instructions and no placeholders/template skeleton.
 
 For cross-repo integration mode (`m-rewrite` + `m-dev` + `KARMA-REPO`), use:
 - `docs/rewrite-overseer/BOOTSTRAP.md`

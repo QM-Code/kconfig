@@ -68,6 +68,18 @@ When issuing a specialist packet:
 - enforce `./bzbuild.py <build-dir>`-only operator flows,
 - require test/demo data paths under `demo/` (`demo/communities`, `demo/users`, `demo/worlds`) unless explicitly justified otherwise,
 - require project-specific validation and wrapper gates with explicit build-dir args.
+- use full specialist bootstrap packet once per specialist session, then use delta packets for follow-up slices.
+- provide the packet as a single fully copy-pastable fenced `text` block with concrete instructions (no placeholders/template skeleton).
+
+## Specialist Bootstrap Refresh Policy
+- Full specialist bootstrap packet is required when any of these are true:
+  - first packet for a specialist in the current session,
+  - ownership changes to a different specialist,
+  - human explicitly says `refresh bootstrap`,
+  - specialist reports context compaction/summarization/reset.
+- Otherwise issue a delta packet that references standing bootstrap context and only project-level reads.
+- On each new specialist bootstrap packet, include this operator recommendation:
+  - "If this specialist later reports context compaction/summarization, run `refresh bootstrap` before the next coding slice to restore policy/project alignment."
 
 ## Review and Rotation Protocol
 1. Close current slice with handoff evidence:
@@ -124,5 +136,8 @@ Do only:
 2) ensure project snapshot + ASSIGNMENTS row are current.
 ```
 
-### Start Specialist
-Use `docs/foundation/governance/handoff-template.md` and fill only one selected track packet.
+### Start Specialist (Bootstrap)
+Use `docs/foundation/governance/handoff-template.md` bootstrap packet and fill only one selected track packet.
+
+### Continue Specialist (Delta)
+Use `docs/foundation/governance/handoff-template.md` delta packet for follow-up slices in the same specialist session.

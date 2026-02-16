@@ -58,8 +58,8 @@ From `m-rewrite/`:
 Interactive smoke:
 
 ```bash
-./<build-dir>/bz3-server -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -w common
-./<build-dir>/bz3 -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -n tester -t input.events,net.client
+./<build-dir>/bz3-server --data-dir /home/karmak/dev/bz3-rewrite/m-rewrite/data --listen-port 11911 --server-config /home/karmak/dev/bz3-rewrite/m-rewrite/demo/worlds/Default/config.json
+./<build-dir>/bz3 --data-dir /home/karmak/dev/bz3-rewrite/m-rewrite/data --server 127.0.0.1:11911 --username tester --trace input.events,net.client
 ```
 
 ## Trace Channels

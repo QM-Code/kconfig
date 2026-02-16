@@ -1,9 +1,9 @@
 # Content Mount
 
 ## Project Snapshot
-- Current owner: `codex`
-- Status: `in progress`
-- Immediate next task: add stronger transfer-integrity controls for chunked world payloads (chunk hash chain or equivalent) with one targeted regression test.
+- Current owner: `unassigned`
+- Status: `handoff-ready (queued for reassignment; shared unblocker slices landed)`
+- Immediate next task: harden delta-selection policy with trace-backed tuning and one bounded regression.
 - Validation gate: `./scripts/test-server-net.sh <build-dir>` plus manual client/server world-override smoke.
 
 ## Mission
@@ -11,12 +11,12 @@ Implement the engine-facing content mount abstraction so default shipped content
 
 This project enables:
 - default runtime data from configured data root,
-- server-selected world override via `-w`,
+- server-selected world override via `--server-config <world-config.json>`,
 - client application of received world package overlays.
 
 ## Locked Behavior Contract
-1. No `-w`: default mode, use shipped/default content only.
-2. `-w <world-dir>`: world override mode on top of defaults.
+1. No `--server-config`: default mode, use shipped/default content only.
+2. `--server-config <world-config.json>`: world override mode on top of defaults.
 3. Server package behavior:
 - server uses world files/config as overrides,
 - server sends world package metadata/payload to client.
@@ -56,22 +56,25 @@ This project enables:
 - server retries and resumes from first unsent chunk with bounded attempts,
 - client accepts compatible transfer restarts and idempotent duplicate chunks,
 - interrupted transfer recovery is covered in integration test flow.
+14. Chunked transfer integrity is now hard-gated before apply/promotion:
+- begin/end transfer metadata hash/content-hash must bind to init metadata,
+- streamed full-payload hash is verified at transfer-end before package apply.
+15. Targeted regression coverage now rejects tampered transfer-end hash metadata before world package promotion.
+16. Client now hard-rejects incompatible or invalid init world metadata before transfer/apply:
+- protocol version mismatch,
+- missing world identity fields when metadata is present,
+- manifest count/hash contract mismatches.
 
 ## Current Gaps
-1. Transfer reliability
-- stronger transfer-integrity controls beyond current sequencing/size checks are not yet implemented.
-2. Compatibility contract
-- client/server/world compatibility policy needs explicit hard-reject gating (current behavior is mostly trace/soft handling).
-3. Delta policy hardening
-- delta applicability heuristics are functional but need tuning/telemetry hardening.
-4. Deferred boundary-hygiene candidate tracking
+1. Delta policy hardening
+- delta applicability heuristics are functional but need tuning/telemetry hardening plus one bounded regression coverage addition.
+2. Deferred boundary-hygiene candidate tracking
 - Deferred extraction candidate from `engine-game-boundary-hygiene` (world/package transfer assembler path in `src/game/client/net/client_connection.cpp`) remains intentionally game-owned.
 - Revisit only via a new explicitly scoped project doc with protocol-boundary review entry criteria and acceptance gates; do not silently fold this into generic engineization work.
 
 ## Execution Plan
-1. Add stronger transfer-integrity controls for streamed world payloads.
-2. Enforce explicit compatibility/version gating policy.
-3. Harden delta-selection policy with trace-backed tuning and regression tests.
+1. Harden delta-selection policy with trace-backed tuning and regression tests.
+2. Track deferred boundary-hygiene candidate via separately scoped project review only.
 
 ## Validation
 From `m-rewrite/`:
@@ -83,8 +86,8 @@ From `m-rewrite/`:
 Manual smoke:
 
 ```bash
-./<build-dir>/bz3-server -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -w common
-./<build-dir>/bz3 -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -n tester
+./<build-dir>/bz3-server --data-dir /home/karmak/dev/bz3-rewrite/m-rewrite/data --listen-port 11911 --server-config /home/karmak/dev/bz3-rewrite/m-rewrite/demo/worlds/Default/config.json
+./<build-dir>/bz3 --data-dir /home/karmak/dev/bz3-rewrite/m-rewrite/data --server 127.0.0.1:11911 --username tester
 ```
 
 ## Trace Channels
@@ -95,8 +98,7 @@ Manual smoke:
 
 ## Risks
 - Delta selection may be suboptimal under some content profiles without additional policy tuning.
-- Compatibility drift can surface as late runtime failures until explicit gating is enforced.
-- Transfer retries currently rely on chunk ordering/size invariants without per-chunk cryptographic integrity.
+- Transfer integrity now binds transfer metadata and streamed full-payload hash, but still relies on non-cryptographic FNV identities (no dedicated cryptographic per-chunk token yet).
 
 ## Handoff Checklist
 - [x] Mount precedence contract preserved.
@@ -104,5 +106,6 @@ Manual smoke:
 - [x] Cache/revision behavior validated with trace evidence.
 - [x] Tests and docs updated for current protocol/semantic changes.
 - [x] Resume/retry semantics implemented and validated.
-- [ ] Explicit compatibility gating policy implemented.
+- [x] Chunk-transfer integrity mismatch is hard-rejected before package apply/promotion.
+- [x] Explicit compatibility gating policy implemented.
 - [ ] Delta policy tuning validated across representative world-update cases.

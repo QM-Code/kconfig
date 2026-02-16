@@ -141,6 +141,14 @@ Drive renderer/shadow work forward in `m-rewrite` with minimal supervision, keep
    - Wired BGFX + Diligent to consume identical bias controls in GPU sampling/depth pass.
    - Added sandbox CLI controls for bias sweeps and extended RenderSystem traces with `recv/norm/rasterDepth/rasterSlope`.
    - Contract tests + both backend builds pass after slice; runtime traces confirm depth attachment path still active on both backends.
+15. R26-D bounded bias sweep + default lock landed (2026-02-16):
+   - Ran 3-profile roaming sweep (`low/default/high`) across BGFX + Diligent with `gpu_default` shadows.
+   - Evidence captured in `/tmp/r26e-bias-sweep-20260216T022344Z/`; all runs confirmed `attachment=depth`.
+   - Locked production defaults to `recv=0.08 norm=0.35 rasterDepth=0.0000 rasterSlope=0.0` for parity-first stability.
+   - Next task narrowed to operator visual closeout on contact-edge quality before any further bias churn.
+16. Bias-sweep automation tool landed (2026-02-16):
+   - Added `scripts/run-renderer-shadow-bias-sweep.sh` for repeatable 3-profile capture + summary across BGFX/Diligent.
+   - Smoke-run evidence logged at `/tmp/renderer-shadow-bias-sweep-20260216T025300Z/`.
 
 ## Periodic Self-Reorientation Protocol (Important)
 Run this check repeatedly (at least after each accepted slice or every ~45-60 minutes):

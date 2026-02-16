@@ -43,6 +43,7 @@ constexpr const char* kDeltaMetaFile = "__bz3_delta_meta.txt";
 constexpr size_t kMaxCachePathComponentLen = 96;
 constexpr uint16_t kDefaultMaxRevisionsPerWorld = 4;
 constexpr uint16_t kDefaultMaxPackagesPerRevision = 2;
+constexpr uint64_t kFNV1aOffsetBasis64 = 14695981039346656037ULL;
 
 struct CachedWorldIdentity {
     std::string world_hash{};
@@ -64,7 +65,7 @@ std::filesystem::path WorldPackagesByWorldRoot(const std::filesystem::path& serv
 }
 
 uint64_t HashStringFNV1a(std::string_view value) {
-    uint64_t hash = 14695981039346656037ULL;
+    uint64_t hash = kFNV1aOffsetBasis64;
     for (const char ch : value) {
         hash ^= static_cast<uint64_t>(static_cast<unsigned char>(ch));
         hash *= 1099511628211ULL;
@@ -100,6 +101,23 @@ std::string Hash64Hex(uint64_t hash) {
     std::ostringstream out;
     out << std::hex << std::setw(16) << std::setfill('0') << hash;
     return out.str();
+}
+
+void HashChunkChainFNV1a(uint64_t& hash, uint32_t chunk_index, const std::vector<std::byte>& chunk_data) {
+    HashBytesFNV1a(hash, std::to_string(chunk_index));
+    HashSeparatorFNV1a(hash);
+    HashBytesFNV1a(hash, chunk_data.data(), chunk_data.size());
+    HashSeparatorFNV1a(hash);
+}
+
+bool InitIncludesWorldMetadata(const bz3::net::ServerMessage& message) {
+    return !message.world_data.empty() ||
+           message.world_size > 0 ||
+           !message.world_hash.empty() ||
+           !message.world_content_hash.empty() ||
+           !message.world_manifest_hash.empty() ||
+           message.world_manifest_file_count > 0 ||
+           !message.world_manifest.empty();
 }
 
 bool IsChunkInTransferBounds(uint64_t total_bytes,
@@ -1569,10 +1587,54 @@ void ClientConnection::poll() {
                                             message->client_id,
                                             message->protocol_version);
                                 if (message->protocol_version != bz3::net::kProtocolVersion) {
-                                    KARMA_TRACE("net.client",
-                                                "ClientConnection: protocol mismatch server={} client={}",
-                                                message->protocol_version,
-                                                bz3::net::kProtocolVersion);
+                                    spdlog::error("ClientConnection: init protocol mismatch server={} client={}",
+                                                  message->protocol_version,
+                                                  bz3::net::kProtocolVersion);
+                                    should_exit_ = true;
+                                    request_disconnect();
+                                    break;
+                                }
+                                const bool has_world_metadata = InitIncludesWorldMetadata(*message);
+                                if (has_world_metadata &&
+                                    (message->world_id.empty() || message->world_revision.empty())) {
+                                    spdlog::error("ClientConnection: init world metadata missing identity world='{}' id='{}' rev='{}' size={} hash='{}' content_hash='{}'",
+                                                  message->world_name,
+                                                  message->world_id,
+                                                  message->world_revision,
+                                                  message->world_size,
+                                                  message->world_hash,
+                                                  message->world_content_hash);
+                                    should_exit_ = true;
+                                    request_disconnect();
+                                    break;
+                                }
+                                if (!message->world_manifest.empty() &&
+                                    message->world_manifest_file_count > 0 &&
+                                    message->world_manifest.size() != message->world_manifest_file_count) {
+                                    spdlog::error("ClientConnection: init manifest metadata mismatch world='{}' manifest_files={} manifest_entries={}",
+                                                  message->world_name,
+                                                  message->world_manifest_file_count,
+                                                  message->world_manifest.size());
+                                    should_exit_ = true;
+                                    request_disconnect();
+                                    break;
+                                }
+                                if (!message->world_manifest.empty() && message->world_manifest_hash.empty()) {
+                                    spdlog::error("ClientConnection: init manifest entries missing manifest_hash world='{}' manifest_entries={}",
+                                                  message->world_name,
+                                                  message->world_manifest.size());
+                                    should_exit_ = true;
+                                    request_disconnect();
+                                    break;
+                                }
+                                if (message->world_manifest_file_count > 0 &&
+                                    message->world_manifest_hash.empty()) {
+                                    spdlog::error("ClientConnection: init manifest file count missing manifest_hash world='{}' manifest_files={}",
+                                                  message->world_name,
+                                                  message->world_manifest_file_count);
+                                    should_exit_ = true;
+                                    request_disconnect();
+                                    break;
                                 }
                                 const bool expects_inline_payload = !message->world_data.empty();
                                 const bool cached_package_available =
@@ -1675,6 +1737,36 @@ void ClientConnection::poll() {
                                     request_disconnect();
                                     break;
                                 }
+                                if (!pending_world_package_.world_hash.empty() &&
+                                    message->transfer_world_hash != pending_world_package_.world_hash) {
+                                    spdlog::error("ClientConnection: world transfer begin hash mismatch transfer_id='{}' expected='{}' got='{}'",
+                                                  message->transfer_id,
+                                                  pending_world_package_.world_hash,
+                                                  message->transfer_world_hash);
+                                    should_exit_ = true;
+                                    request_disconnect();
+                                    break;
+                                }
+                                if (!pending_world_package_.world_content_hash.empty() &&
+                                    message->transfer_world_content_hash !=
+                                        pending_world_package_.world_content_hash) {
+                                    spdlog::error("ClientConnection: world transfer begin content_hash mismatch transfer_id='{}' expected='{}' got='{}'",
+                                                  message->transfer_id,
+                                                  pending_world_package_.world_content_hash,
+                                                  message->transfer_world_content_hash);
+                                    should_exit_ = true;
+                                    request_disconnect();
+                                    break;
+                                }
+
+                                const std::string expected_transfer_world_hash =
+                                    pending_world_package_.world_hash.empty()
+                                        ? message->transfer_world_hash
+                                        : pending_world_package_.world_hash;
+                                const std::string expected_transfer_world_content_hash =
+                                    pending_world_package_.world_content_hash.empty()
+                                        ? message->transfer_world_content_hash
+                                        : pending_world_package_.world_content_hash;
 
                                 bool resumed_transfer = false;
                                 uint32_t resumed_chunks = 0;
@@ -1695,6 +1787,10 @@ void ClientConnection::poll() {
                                             message->transfer_delta_base_world_hash &&
                                         active_world_transfer_.delta_base_world_content_hash ==
                                             message->transfer_delta_base_world_content_hash &&
+                                        active_world_transfer_.transfer_world_hash ==
+                                            expected_transfer_world_hash &&
+                                        active_world_transfer_.transfer_world_content_hash ==
+                                            expected_transfer_world_content_hash &&
                                         active_world_transfer_.payload.size() <=
                                             message->transfer_total_bytes;
                                     if (!transfer_compatible) {
@@ -1725,10 +1821,16 @@ void ClientConnection::poll() {
                                         message->transfer_delta_base_world_hash;
                                     active_world_transfer_.delta_base_world_content_hash =
                                         message->transfer_delta_base_world_content_hash;
+                                    active_world_transfer_.transfer_world_hash =
+                                        expected_transfer_world_hash;
+                                    active_world_transfer_.transfer_world_content_hash =
+                                        expected_transfer_world_content_hash;
                                     active_world_transfer_.total_bytes_expected =
                                         message->transfer_total_bytes;
                                     active_world_transfer_.chunk_size = message->transfer_chunk_size;
                                     active_world_transfer_.next_chunk_index = 0;
+                                    active_world_transfer_.payload_hash = kFNV1aOffsetBasis64;
+                                    active_world_transfer_.chunk_chain_hash = kFNV1aOffsetBasis64;
                                     active_world_transfer_.payload.clear();
                                     if (message->transfer_total_bytes > 0) {
                                         active_world_transfer_.payload.reserve(
@@ -1737,7 +1839,7 @@ void ClientConnection::poll() {
                                 }
                                 active_world_transfer_.transfer_id = message->transfer_id;
                                 KARMA_TRACE("net.client",
-                                            "ClientConnection: world transfer begin transfer_id='{}' mode={} world='{}' id='{}' rev='{}' total_bytes={} chunk_size={} base_id='{}' base_rev='{}' resume={} resumed_chunks={} resumed_bytes={}",
+                                            "ClientConnection: world transfer begin transfer_id='{}' mode={} world='{}' id='{}' rev='{}' total_bytes={} chunk_size={} hash='{}' content_hash='{}' base_id='{}' base_rev='{}' resume={} resumed_chunks={} resumed_bytes={}",
                                             active_world_transfer_.transfer_id,
                                             active_world_transfer_.is_delta ? "delta" : "full",
                                             pending_world_package_.world_name,
@@ -1745,6 +1847,12 @@ void ClientConnection::poll() {
                                             pending_world_package_.world_revision,
                                             active_world_transfer_.total_bytes_expected,
                                             active_world_transfer_.chunk_size,
+                                            active_world_transfer_.transfer_world_hash.empty()
+                                                ? "-"
+                                                : active_world_transfer_.transfer_world_hash,
+                                            active_world_transfer_.transfer_world_content_hash.empty()
+                                                ? "-"
+                                                : active_world_transfer_.transfer_world_content_hash,
                                             active_world_transfer_.delta_base_world_id.empty()
                                                 ? "-"
                                                 : active_world_transfer_.delta_base_world_id,
@@ -1830,13 +1938,19 @@ void ClientConnection::poll() {
                                     request_disconnect();
                                     break;
                                 }
+                                HashBytesFNV1a(active_world_transfer_.payload_hash,
+                                               message->transfer_chunk_data.data(),
+                                               message->transfer_chunk_data.size());
+                                HashChunkChainFNV1a(active_world_transfer_.chunk_chain_hash,
+                                                    message->transfer_chunk_index,
+                                                    message->transfer_chunk_data);
                                 active_world_transfer_.payload.insert(active_world_transfer_.payload.end(),
                                                                       message->transfer_chunk_data.begin(),
                                                                       message->transfer_chunk_data.end());
                                 ++active_world_transfer_.next_chunk_index;
                                 break;
                             }
-                            case bz3::net::ServerMessageType::WorldTransferEnd:
+                            case bz3::net::ServerMessageType::WorldTransferEnd: {
                                 if (!pending_world_package_.active || !active_world_transfer_.active) {
                                     spdlog::error("ClientConnection: unexpected world transfer end transfer_id='{}' (pending_init={} active_transfer={})",
                                                   message->transfer_id,
@@ -1872,12 +1986,50 @@ void ClientConnection::poll() {
                                     request_disconnect();
                                     break;
                                 }
+                                if (!active_world_transfer_.transfer_world_hash.empty() &&
+                                    message->transfer_world_hash != active_world_transfer_.transfer_world_hash) {
+                                    spdlog::error("ClientConnection: world transfer end hash mismatch transfer_id='{}' expected='{}' got='{}'",
+                                                  active_world_transfer_.transfer_id,
+                                                  active_world_transfer_.transfer_world_hash,
+                                                  message->transfer_world_hash);
+                                    should_exit_ = true;
+                                    request_disconnect();
+                                    break;
+                                }
+                                if (!active_world_transfer_.transfer_world_content_hash.empty() &&
+                                    message->transfer_world_content_hash !=
+                                        active_world_transfer_.transfer_world_content_hash) {
+                                    spdlog::error("ClientConnection: world transfer end content_hash mismatch transfer_id='{}' expected='{}' got='{}'",
+                                                  active_world_transfer_.transfer_id,
+                                                  active_world_transfer_.transfer_world_content_hash,
+                                                  message->transfer_world_content_hash);
+                                    should_exit_ = true;
+                                    request_disconnect();
+                                    break;
+                                }
+                                const std::string streamed_payload_hash =
+                                    Hash64Hex(active_world_transfer_.payload_hash);
+                                if (!active_world_transfer_.is_delta &&
+                                    !active_world_transfer_.transfer_world_hash.empty() &&
+                                    streamed_payload_hash != active_world_transfer_.transfer_world_hash) {
+                                    spdlog::error("ClientConnection: world transfer payload hash mismatch transfer_id='{}' expected='{}' got='{}'",
+                                                  active_world_transfer_.transfer_id,
+                                                  active_world_transfer_.transfer_world_hash,
+                                                  streamed_payload_hash);
+                                    should_exit_ = true;
+                                    request_disconnect();
+                                    break;
+                                }
+                                const std::string streamed_chunk_chain_hash =
+                                    Hash64Hex(active_world_transfer_.chunk_chain_hash);
                                 KARMA_TRACE("net.client",
-                                            "ClientConnection: world transfer end transfer_id='{}' mode={} chunks={} bytes={}",
+                                            "ClientConnection: world transfer end transfer_id='{}' mode={} chunks={} bytes={} payload_hash='{}' chunk_chain='{}'",
                                             active_world_transfer_.transfer_id,
                                             active_world_transfer_.is_delta ? "delta" : "full",
                                             active_world_transfer_.next_chunk_index,
-                                            active_world_transfer_.payload.size());
+                                            active_world_transfer_.payload.size(),
+                                            streamed_payload_hash,
+                                            streamed_chunk_chain_hash);
                                 if (!ApplyWorldPackageForServer(host_,
                                                                 port_,
                                                                 pending_world_package_.world_name,
@@ -1904,6 +2056,7 @@ void ClientConnection::poll() {
                                 pending_world_package_ = {};
                                 active_world_transfer_ = {};
                                 break;
+                            }
                             case bz3::net::ServerMessageType::SessionSnapshot:
                                 KARMA_TRACE("net.client",
                                             "ClientConnection: snapshot sessions={}",

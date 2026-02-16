@@ -2,6 +2,22 @@
 
 Use this template when assigning work to a specialist agent.
 
+Output requirement for overseer responses:
+- When the human asks for a specialist prompt, return one single fenced `text` block that is directly copy-pastable.
+- Fill concrete values for the selected slice; do not return placeholder-only/template skeleton output.
+
+Bootstrap cadence policy:
+- Use a `bootstrap packet` when any of these are true:
+  - first packet for a specialist in the current session,
+  - ownership moved to a different specialist,
+  - human explicitly says `refresh bootstrap`,
+  - specialist reports context compaction/summarization/reset.
+- Otherwise use a `delta packet` for follow-up slices in the same specialist session.
+- Operator recommendation to include in each new specialist bootstrap packet:
+  - "If this specialist later reports context compaction/summarization, run `refresh bootstrap` before the next coding slice to restore full project-policy alignment."
+
+## Bootstrap Packet (Full Read)
+
 ```text
 Execution root:
 - Standalone mode: if you are already in `m-rewrite` repo root, use unprefixed paths below.
@@ -45,6 +61,50 @@ Validation (required):
 Docs updates (required):
 - Update docs/projects/<project>.md Project Snapshot + status/handoff checklist.
 - Update docs/projects/ASSIGNMENTS.md row (owner/status/next-task/last-update).
+
+Handoff must include:
+- files changed
+- exact commands run + results
+- remaining risks/open questions
+```
+
+## Delta Packet (No Re-bootstrap)
+
+```text
+Use standing bootstrap context from this specialist session.
+Do not re-read foundation/bootstrap docs unless the human says: refresh bootstrap.
+
+Read only:
+1) docs/projects/ASSIGNMENTS.md
+2) docs/projects/<project>.md
+
+Take ownership of: docs/projects/<project>.md
+
+Goal:
+- <single concrete slice>
+
+Scope:
+- <exact behavior/API/test slice>
+
+Strategic alignment (required):
+- Track: <m-dev parity | KARMA capability intake | shared unblocker>
+- Keep scope aligned to standing bootstrap boundaries.
+
+Constraints:
+- Stay within owned paths and interface boundaries in docs/projects/<project>.md.
+- No unrelated subsystem changes.
+- Preserve engine/game and backend exposure boundaries from standing bootstrap context.
+- Use bzbuild.py only. Do not run raw cmake -S/-B directly.
+- Treat missing/unbootstrapped local ./vcpkg as a hard blocker before build/test execution.
+- Use only assigned build dirs listed in docs/projects/ASSIGNMENTS.md.
+
+Validation (required):
+- <exact command 1>
+- <exact command 2>
+
+Docs updates (required):
+- Update docs/projects/<project>.md Project Snapshot + status/handoff checklist.
+- Update docs/projects/ASSIGNMENTS.md row (owner/status/next-task/last-update) when changed by this slice.
 
 Handoff must include:
 - files changed
