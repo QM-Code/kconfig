@@ -4,6 +4,7 @@
 #include "server/net/transport_event_source.hpp"
 
 #include "karma/common/config_store.hpp"
+#include "karma/common/content/manifest.hpp"
 #include "karma/common/content/primitives.hpp"
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/world_archive.hpp"
@@ -195,20 +196,21 @@ bool WaitUntil(std::chrono::milliseconds timeout, StepFn&& step, DoneFn&& done) 
     return done();
 }
 
-void HashBytesFNV1a(uint64_t& hash, const std::byte* bytes, size_t count) {
-    karma::content::HashBytesFNV1a(hash, bytes, count);
-}
-
-void HashStringFNV1a(uint64_t& hash, std::string_view value) {
-    karma::content::HashStringFNV1a(hash, value);
-}
-
-std::string Hash64ToHex(uint64_t hash) {
-    return karma::content::Hash64Hex(hash);
-}
-
 std::string ComputeWorldPackageHash(const std::vector<std::byte>& bytes) {
     return karma::content::ComputeWorldPackageHash(bytes);
+}
+
+std::vector<bz3::server::net::WorldManifestEntry> ToServerManifestEntries(
+    const std::vector<karma::content::ManifestEntry>& entries) {
+    std::vector<bz3::server::net::WorldManifestEntry> converted{};
+    converted.reserve(entries.size());
+    for (const auto& entry : entries) {
+        converted.push_back(bz3::server::net::WorldManifestEntry{
+            .path = entry.path,
+            .size = entry.size,
+            .hash = entry.hash});
+    }
+    return converted;
 }
 
 bool WriteTextFile(const std::filesystem::path& path, const std::string& content) {
@@ -299,65 +301,14 @@ std::optional<WorldFixture> BuildWorldFixture(const std::filesystem::path& world
 
     fixture.world_package_size = static_cast<uint64_t>(fixture.world_package.size());
     fixture.world_package_hash = ComputeWorldPackageHash(fixture.world_package);
-
-    std::vector<std::filesystem::path> files{};
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(world_dir)) {
-        if (!entry.is_regular_file()) {
-            continue;
-        }
-        files.push_back(entry.path());
-    }
-    std::sort(files.begin(), files.end());
-
-    uint64_t content_hash = 14695981039346656037ULL;
-    uint64_t manifest_hash = 14695981039346656037ULL;
-    const std::byte separator{0};
-    std::array<char, 64 * 1024> buffer{};
-
-    for (const auto& path : files) {
-        const auto rel = std::filesystem::relative(path, world_dir).generic_string();
-        HashStringFNV1a(content_hash, rel);
-        HashBytesFNV1a(content_hash, &separator, 1);
-
-        std::ifstream input(path, std::ios::binary);
-        if (!input) {
-            return std::nullopt;
-        }
-
-        uint64_t file_hash = 14695981039346656037ULL;
-        uint64_t file_size = 0;
-        while (input.good()) {
-            input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-            const std::streamsize read_count = input.gcount();
-            if (read_count > 0) {
-                const auto* bytes = reinterpret_cast<const std::byte*>(buffer.data());
-                HashBytesFNV1a(content_hash, bytes, static_cast<size_t>(read_count));
-                HashBytesFNV1a(file_hash, bytes, static_cast<size_t>(read_count));
-                file_size += static_cast<uint64_t>(read_count);
-            }
-        }
-        if (!input.eof()) {
-            return std::nullopt;
-        }
-        HashBytesFNV1a(content_hash, &separator, 1);
-
-        const std::string file_hash_hex = Hash64ToHex(file_hash);
-        const std::string file_size_text = std::to_string(file_size);
-        HashStringFNV1a(manifest_hash, rel);
-        HashBytesFNV1a(manifest_hash, &separator, 1);
-        HashStringFNV1a(manifest_hash, file_size_text);
-        HashBytesFNV1a(manifest_hash, &separator, 1);
-        HashStringFNV1a(manifest_hash, file_hash_hex);
-        HashBytesFNV1a(manifest_hash, &separator, 1);
-
-        fixture.world_manifest.push_back(bz3::server::net::WorldManifestEntry{
-            .path = rel,
-            .size = file_size,
-            .hash = file_hash_hex});
+    const auto summary = karma::content::ComputeDirectoryManifestSummary(world_dir);
+    if (!summary.has_value()) {
+        return std::nullopt;
     }
 
-    fixture.world_content_hash = Hash64ToHex(content_hash);
-    fixture.world_manifest_hash = Hash64ToHex(manifest_hash);
+    fixture.world_content_hash = summary->content_hash;
+    fixture.world_manifest_hash = summary->manifest_hash;
+    fixture.world_manifest = ToServerManifestEntries(summary->entries);
     fixture.world_manifest_file_count = static_cast<uint32_t>(fixture.world_manifest.size());
     fixture.world_revision = fixture.world_content_hash;
     return fixture;

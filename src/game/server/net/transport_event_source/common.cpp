@@ -1,5 +1,6 @@
 #include "server/net/transport_event_source/internal.hpp"
 
+#include "karma/common/content/primitives.hpp"
 #include "karma/common/logging.hpp"
 #include "karma/common/world_archive.hpp"
 #include "net/protocol_codec.hpp"
@@ -11,6 +12,23 @@
 #include <fstream>
 
 namespace bz3::server::net::detail {
+
+namespace {
+
+std::vector<karma::content::ManifestEntry> ToContentManifest(
+    const std::vector<WorldManifestEntry>& manifest) {
+    std::vector<karma::content::ManifestEntry> converted{};
+    converted.reserve(manifest.size());
+    for (const auto& entry : manifest) {
+        converted.push_back(karma::content::ManifestEntry{
+            .path = entry.path,
+            .size = entry.size,
+            .hash = entry.hash});
+    }
+    return converted;
+}
+
+} // namespace
 
 std::string DefaultPlayerName(uint32_t client_id) {
     return "player-" + std::to_string(client_id);
@@ -24,79 +42,13 @@ std::string ResolvePlayerName(const bz3::net::ClientMessage& message, uint32_t c
 }
 
 bool NormalizeRelativePath(std::string_view raw_path, std::filesystem::path* out) {
-    if (!out || raw_path.empty()) {
-        return false;
-    }
-    std::filesystem::path normalized = std::filesystem::path(raw_path).lexically_normal();
-    if (normalized.empty() || normalized == "." || normalized.is_absolute() ||
-        normalized.has_root_path()) {
-        return false;
-    }
-    for (const auto& part : normalized) {
-        if (part == "..") {
-            return false;
-        }
-    }
-    *out = normalized;
-    return true;
+    return karma::content::NormalizeRelativePath(raw_path, out);
 }
 
 ManifestDiffPlan BuildServerManifestDiffPlan(const std::vector<WorldManifestEntry>& cached_manifest,
                                              const std::vector<WorldManifestEntry>& incoming_manifest) {
-    ManifestDiffPlan plan{};
-    plan.cached_entries = cached_manifest.size();
-    plan.incoming_entries = incoming_manifest.size();
-
-    if (incoming_manifest.empty()) {
-        return plan;
-    }
-    plan.incoming_manifest_available = true;
-
-    for (const auto& entry : incoming_manifest) {
-        plan.potential_transfer_bytes += entry.size;
-    }
-
-    if (cached_manifest.empty()) {
-        plan.added_entries = incoming_manifest.size();
-        plan.delta_transfer_bytes = plan.potential_transfer_bytes;
-        plan.changed_paths.reserve(incoming_manifest.size());
-        for (const auto& entry : incoming_manifest) {
-            plan.changed_paths.push_back(entry.path);
-        }
-        return plan;
-    }
-
-    std::unordered_map<std::string, const WorldManifestEntry*> cached_by_path{};
-    cached_by_path.reserve(cached_manifest.size());
-    for (const auto& entry : cached_manifest) {
-        cached_by_path[entry.path] = &entry;
-    }
-
-    for (const auto& entry : incoming_manifest) {
-        const auto it = cached_by_path.find(entry.path);
-        if (it == cached_by_path.end()) {
-            ++plan.added_entries;
-            plan.changed_paths.push_back(entry.path);
-            continue;
-        }
-        const WorldManifestEntry& cached_entry = *it->second;
-        if (cached_entry.size == entry.size && cached_entry.hash == entry.hash) {
-            ++plan.unchanged_entries;
-            plan.reused_bytes += entry.size;
-        } else {
-            ++plan.modified_entries;
-            plan.changed_paths.push_back(entry.path);
-        }
-        cached_by_path.erase(it);
-    }
-    plan.removed_entries = cached_by_path.size();
-    plan.removed_paths.reserve(plan.removed_entries);
-    for (const auto& [path, entry_ptr] : cached_by_path) {
-        (void)entry_ptr;
-        plan.removed_paths.push_back(path);
-    }
-    plan.delta_transfer_bytes = plan.potential_transfer_bytes - plan.reused_bytes;
-    return plan;
+    return karma::content::BuildManifestDiffPlan(ToContentManifest(cached_manifest),
+                                                 ToContentManifest(incoming_manifest));
 }
 
 void LogServerManifestDiffPlan(uint32_t client_id,

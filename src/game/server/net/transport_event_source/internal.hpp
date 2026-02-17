@@ -2,6 +2,7 @@
 
 #include "server/net/event_source.hpp"
 
+#include "karma/common/content/manifest.hpp"
 #include "karma/network/server_transport.hpp"
 
 #include <cstddef>
@@ -40,20 +41,7 @@ struct ClientConnectionState {
 inline constexpr const char* kDeltaRemovedPathsFile = "__bz3_delta_removed_paths.txt";
 inline constexpr const char* kDeltaMetaFile = "__bz3_delta_meta.txt";
 
-struct ManifestDiffPlan {
-    bool incoming_manifest_available = false;
-    size_t cached_entries = 0;
-    size_t incoming_entries = 0;
-    size_t unchanged_entries = 0;
-    size_t added_entries = 0;
-    size_t modified_entries = 0;
-    size_t removed_entries = 0;
-    uint64_t potential_transfer_bytes = 0;
-    uint64_t reused_bytes = 0;
-    uint64_t delta_transfer_bytes = 0;
-    std::vector<std::string> changed_paths{};
-    std::vector<std::string> removed_paths{};
-};
+using ManifestDiffPlan = karma::content::ManifestDiffPlan;
 
 std::string DefaultPlayerName(uint32_t client_id);
 std::string ResolvePlayerName(const bz3::net::ClientMessage& message, uint32_t client_id);

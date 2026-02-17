@@ -1,9 +1,9 @@
 # Engine-Game Boundary Hygiene (Content Sync Foundation)
 
 ## Project Snapshot
-- Current owner: `specialist-engine-boundary-e1`
-- Status: `in progress (E0.6 world-module normalization + E1 primitives extraction landed with zero-behavior-change wiring; E2 pending)`
-- Immediate next task: execute E2 by extracting manifest/hash/diff + cache identity/store flows into `include/karma/common/content/{manifest,cache_store}.hpp` and `src/engine/common/content/{manifest,cache_store}.cpp`, then keep game wrappers thin.
+- Current owner: `specialist-engine-boundary-e2`
+- Status: `in progress (E0.6/E1/E2 landed on build-a1; manifest/cache extraction to engine content modules completed with thin game wrappers)`
+- Immediate next task: execute E3 by extracting delta archive build/apply + package staging/promote operations into engine `common/content` modules while preserving client safety semantics.
 - Validation gate: `./abuild.py -c -d <build-dir>` + `./scripts/test-server-net.sh <build-dir>` + `./scripts/test-engine-backends.sh <build-dir>` + `ctest --test-dir <build-dir> -R client_world_package_safety_integration_test --output-on-failure` + `./docs/scripts/lint-project-docs.sh`.
 
 ## Mission
@@ -267,6 +267,13 @@ ctest --test-dir <build-dir> -R client_world_package_safety_integration_test --o
   - `./scripts/test-engine-backends.sh build-a1`
   - `ctest --test-dir build-a1 -R client_world_package_safety_integration_test --output-on-failure`
   - `./docs/scripts/lint-project-docs.sh`
+- `2026-02-17`: E2 landed: extracted manifest/hash/diff + cache identity/store/prune logic to `include/karma/common/content/{manifest,cache_store}.hpp` and `src/engine/common/content/{manifest,cache_store}.cpp`; migrated `src/game/client/net/world_package/{manifest,cache}.cpp`, `src/game/server/domain/world_session.cpp`, `src/game/server/net/transport_event_source/common.cpp`, and `src/game/tests/client_world_package_safety_integration_test.cpp` to thin wrappers/adapter usage.
+- `2026-02-17`: E2 validation on `build-a1`:
+  - `./abuild.py -c -d build-a1` *(fails in unrelated renderer track at `renderer_shadow_sandbox` link: missing `UpdateBgfxDirectionalShadowCache` / `UpdateBgfxPointShadowCache`)*
+  - `./scripts/test-server-net.sh build-a1` *(pass)*
+  - `./scripts/test-engine-backends.sh build-a1` *(pass)*
+  - `ctest --test-dir build-a1 -R client_world_package_safety_integration_test --output-on-failure` *(pass)*
+  - `./docs/scripts/lint-project-docs.sh` *(pass)*
 
 ## Open Questions
 - Should `world::*` namespace be retained as compatibility shims only during migration, with target APIs moving to `karma::content`?
@@ -280,3 +287,4 @@ ctest --test-dir <build-dir> -R client_world_package_safety_integration_test --o
 - [x] E0.5 server transport split prerequisite landed and validated.
 - [x] E0.6 world-module normalization implemented with compatibility wrappers.
 - [x] E1 primitive extraction implemented and validated.
+- [x] E2 manifest/cache extraction implemented with engine-owned modules and thin game wrappers.

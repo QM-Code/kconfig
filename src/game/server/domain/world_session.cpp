@@ -2,18 +2,17 @@
 
 #include "karma/cli/server_runtime_options.hpp"
 #include "karma/common/config_helpers.hpp"
+#include "karma/common/content/manifest.hpp"
 #include "karma/common/content/primitives.hpp"
 #include "karma/common/logging.hpp"
 #include "karma/common/world_archive.hpp"
 
 #include <spdlog/spdlog.h>
 
-#include <algorithm>
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
-#include <fstream>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -21,18 +20,6 @@
 namespace bz3::server::domain {
 
 namespace {
-
-void HashBytesFNV1a(uint64_t& hash, const std::byte* bytes, size_t count) {
-    karma::content::HashBytesFNV1a(hash, bytes, count);
-}
-
-void HashStringFNV1a(uint64_t& hash, std::string_view value) {
-    karma::content::HashStringFNV1a(hash, value);
-}
-
-std::string Hash64ToHex(uint64_t hash) {
-    return karma::content::Hash64Hex(hash);
-}
 
 std::string ComputeWorldPackageHash(const std::vector<std::byte>& bytes) {
     return karma::content::ComputeWorldPackageHash(bytes);
@@ -45,68 +32,22 @@ struct WorldManifestSummary {
 };
 
 WorldManifestSummary ComputeWorldManifestSummary(const std::filesystem::path& world_dir) {
-    std::vector<std::filesystem::path> files{};
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(world_dir)) {
-        if (!entry.is_regular_file()) {
-            continue;
-        }
-        files.push_back(entry.path());
+    const auto summary = karma::content::ComputeDirectoryManifestSummary(world_dir);
+    if (!summary.has_value()) {
+        throw std::runtime_error("Failed to compute world manifest summary for directory: " + world_dir.string());
     }
 
-    std::sort(files.begin(), files.end());
-
-    uint64_t content_hash = 14695981039346656037ULL;
-    uint64_t manifest_hash = 14695981039346656037ULL;
-    std::array<char, 64 * 1024> buffer{};
-    const std::byte separator = std::byte{0};
-    std::vector<WorldManifestEntry> entries{};
-    entries.reserve(files.size());
-    for (const auto& file_path : files) {
-        const std::filesystem::path rel_path = std::filesystem::relative(file_path, world_dir);
-        const std::string rel = rel_path.generic_string();
-        HashStringFNV1a(content_hash, rel);
-        HashBytesFNV1a(content_hash, &separator, 1);
-
-        std::ifstream input(file_path, std::ios::binary);
-        if (!input) {
-            throw std::runtime_error("Failed to open world file for content hash: " + file_path.string());
-        }
-
-        uint64_t file_hash = 14695981039346656037ULL;
-        uint64_t file_size = 0;
-        while (input.good()) {
-            input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-            const std::streamsize read_count = input.gcount();
-            if (read_count > 0) {
-                const auto* bytes = reinterpret_cast<const std::byte*>(buffer.data());
-                HashBytesFNV1a(content_hash, bytes, static_cast<size_t>(read_count));
-                HashBytesFNV1a(file_hash, bytes, static_cast<size_t>(read_count));
-                file_size += static_cast<uint64_t>(read_count);
-            }
-        }
-        if (!input.eof()) {
-            throw std::runtime_error("Failed while hashing world file: " + file_path.string());
-        }
-        HashBytesFNV1a(content_hash, &separator, 1);
-
-        const std::string file_hash_hex = Hash64ToHex(file_hash);
-        const std::string file_size_text = std::to_string(file_size);
-        HashStringFNV1a(manifest_hash, rel);
-        HashBytesFNV1a(manifest_hash, &separator, 1);
-        HashStringFNV1a(manifest_hash, file_size_text);
-        HashBytesFNV1a(manifest_hash, &separator, 1);
-        HashStringFNV1a(manifest_hash, file_hash_hex);
-        HashBytesFNV1a(manifest_hash, &separator, 1);
-        entries.push_back(WorldManifestEntry{
-            .path = rel,
-            .size = file_size,
-            .hash = file_hash_hex});
+    WorldManifestSummary converted{};
+    converted.content_hash = summary->content_hash;
+    converted.manifest_hash = summary->manifest_hash;
+    converted.entries.reserve(summary->entries.size());
+    for (const auto& entry : summary->entries) {
+        converted.entries.push_back(WorldManifestEntry{
+            .path = entry.path,
+            .size = entry.size,
+            .hash = entry.hash});
     }
-
-    return WorldManifestSummary{
-        .content_hash = Hash64ToHex(content_hash),
-        .manifest_hash = Hash64ToHex(manifest_hash),
-        .entries = std::move(entries)};
+    return converted;
 }
 
 } // namespace

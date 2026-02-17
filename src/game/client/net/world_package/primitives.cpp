@@ -1,11 +1,11 @@
 #include "client/net/world_package/internal.hpp"
 
+#include "karma/common/content/cache_store.hpp"
 #include "karma/common/content/primitives.hpp"
 
 #include <spdlog/spdlog.h>
 
 #include <chrono>
-#include <cctype>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -76,61 +76,33 @@ bool ChunkMatchesBufferedPayload(const std::vector<std::byte>& payload,
 }
 
 std::string SanitizeCachePathComponent(std::string_view input, std::string_view fallback_prefix) {
-    std::string sanitized{};
-    sanitized.reserve(input.size());
-    for (const char ch : input) {
-        const auto uch = static_cast<unsigned char>(ch);
-        if (std::isalnum(uch) || ch == '-' || ch == '_' || ch == '.') {
-            sanitized.push_back(ch);
-        } else {
-            sanitized.push_back('_');
-        }
-        if (sanitized.size() >= kMaxCachePathComponentLen) {
-            break;
-        }
-    }
-
-    while (!sanitized.empty() && sanitized.front() == '.') {
-        sanitized.erase(sanitized.begin());
-    }
-
-    if (sanitized.empty()) {
-        sanitized = std::string(fallback_prefix);
-        sanitized.push_back('-');
-        sanitized += Hash64Hex(HashStringFNV1a(input));
-    }
-    return sanitized;
+    return karma::content::SanitizeCachePathComponent(input,
+                                                      fallback_prefix,
+                                                      kMaxCachePathComponentLen);
 }
 
 std::filesystem::path PackageRootForIdentity(const std::filesystem::path& server_cache_dir,
                                              std::string_view world_id,
                                              std::string_view world_revision,
                                              std::string_view world_package_cache_key) {
-    const std::string world_dir = SanitizeCachePathComponent(world_id, "world");
-    const std::string revision_dir = SanitizeCachePathComponent(world_revision, "rev");
-    const std::string package_dir =
-        world_package_cache_key.empty() ? std::string("adhoc")
-                                        : SanitizeCachePathComponent(world_package_cache_key, "hash");
-    return server_cache_dir / kWorldPackagesDir / kWorldPackagesByWorldDir / world_dir / revision_dir / package_dir;
+    return karma::content::PackageRootForIdentity(WorldPackagesByWorldRoot(server_cache_dir),
+                                                  world_id,
+                                                  world_revision,
+                                                  world_package_cache_key,
+                                                  kMaxCachePathComponentLen);
 }
 
 std::string ResolveWorldPackageCacheKey(std::string_view world_content_hash, std::string_view world_hash) {
-    if (!world_content_hash.empty()) {
-        return std::string(world_content_hash);
-    }
-    if (!world_hash.empty()) {
-        return std::string(world_hash);
-    }
-    return "adhoc";
+    return karma::content::ResolveWorldPackageCacheKey(world_content_hash, world_hash);
 }
 
 
 std::string WorldCacheDirName(std::string_view world_id) {
-    return SanitizeCachePathComponent(world_id, "world");
+    return karma::content::WorldCacheDirName(world_id, kMaxCachePathComponentLen);
 }
 
 std::string RevisionCacheDirName(std::string_view world_revision) {
-    return SanitizeCachePathComponent(world_revision, "rev");
+    return karma::content::RevisionCacheDirName(world_revision, kMaxCachePathComponentLen);
 }
 
 std::filesystem::path BuildPackageStagingRoot(const std::filesystem::path& package_root) {
@@ -245,21 +217,11 @@ bool ActivateStagedPackageRootAtomically(const std::filesystem::path& package_ro
 
 
 void TouchPathIfPresent(const std::filesystem::path& path) {
-    std::error_code ec;
-    if (!std::filesystem::exists(path, ec) || ec) {
-        return;
-    }
-    ec.clear();
-    std::filesystem::last_write_time(path, std::filesystem::file_time_type::clock::now(), ec);
+    karma::content::TouchPathIfPresent(path);
 }
 
 std::filesystem::file_time_type LastWriteTimeOrMin(const std::filesystem::path& path) {
-    std::error_code ec;
-    const auto timestamp = std::filesystem::last_write_time(path, ec);
-    if (ec) {
-        return std::filesystem::file_time_type::min();
-    }
-    return timestamp;
+    return karma::content::LastWriteTimeOrMin(path);
 }
 
 
