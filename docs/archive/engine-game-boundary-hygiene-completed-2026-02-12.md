@@ -4,7 +4,7 @@
 - Current owner: `codex`
 - Status: `completed (P2 closeout; Slices 1/2A/2B/2C/3/4 complete; policy decisions finalized)`
 - Immediate next task: none; reopen only if a new project explicitly approves Candidate 6 protocol-boundary review scope.
-- Validation gate: docs lint must pass on every slice; code-touching slices must pass assigned `bzbuild.py` + wrapper gates.
+- Validation gate: docs lint must pass on every slice; code-touching slices must pass assigned `abuild.py` + wrapper gates.
 
 ## Mission
 Reduce game-side boilerplate/redundant infrastructure code by moving game-agnostic behavior into engine-owned contracts, while keeping gameplay rules and protocol payload semantics game-owned.
@@ -115,7 +115,7 @@ This is boundary-hygiene work that can be delivered in narrow slices without cha
 ### 3) Slice 2/3/4 Acceptance Gates (Explicit Semantic-Drift Checks; legacy plan baseline)
 | Slice | Acceptance gates |
 |---|---|
-| `Slice 2 (bootstrap/config scaffolding extraction)` | 1. Shared engine bootstrap helper is introduced and consumed by both `src/game/client/bootstrap.cpp` and `src/game/server/bootstrap.cpp` for duplicated bootstrap/config scaffolding only. 2. Required-config strict/nonstrict behavior remains identical (`strict=true` keeps terminal failure; `strict=false` remains warn-only). 3. Explicit semantic-drift check: no edits to `src/game/protos/messages.proto`, `src/game/net/protocol.hpp`, or `src/game/net/protocol_codec.cpp`; no gameplay rule changes. 4. Validation gates pass: `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio`, `./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio`, `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio`, `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio`. |
+| `Slice 2 (bootstrap/config scaffolding extraction)` | 1. Shared engine bootstrap helper is introduced and consumed by both `src/game/client/bootstrap.cpp` and `src/game/server/bootstrap.cpp` for duplicated bootstrap/config scaffolding only. 2. Required-config strict/nonstrict behavior remains identical (`strict=true` keeps terminal failure; `strict=false` remains warn-only). 3. Explicit semantic-drift check: no edits to `src/game/protos/messages.proto`, `src/game/net/protocol.hpp`, or `src/game/net/protocol_codec.cpp`; no gameplay rule changes. 4. Validation gates pass: `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio`, `./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio`, `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio`, `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio`. |
 | `Slice 3 (network config mapping extraction)` | 1. Client/server transport backend config parsing + mapping moves to shared engine-network helper(s), with call-sites updated in `client_connection.cpp` and `transport_event_source.cpp`. 2. Reconnect policy mapping (`maxAttempts`, `initialBackoffMs`, `maxBackoffMs`, `timeoutMs`) moves to engine helper without changing keys/defaults. 3. Explicit semantic-drift check: transport runtime behavior and protocol payload semantics remain unchanged; no edits to `src/game/protos/messages.proto`, `src/game/net/protocol.hpp`, or `src/game/net/protocol_codec.cpp`. 4. Validation gates pass (same dual-build + dual-wrapper commands as Slice 2). |
 | `Slice 4 (CLI scaffolding extraction)` | 1. Shared CLI parse scaffolding is introduced and consumed by both `src/game/client/cli_options.cpp` and `src/game/server/cli_options.cpp`. 2. Existing option surface and parse semantics remain stable (same option names, accepted values, and failure behavior). 3. Explicit semantic-drift check: no gameplay/protocol semantic changes; no edits to `src/game/protos/messages.proto`, `src/game/net/protocol.hpp`, or `src/game/net/protocol_codec.cpp`. 4. Validation gates pass (same dual-build + dual-wrapper commands as Slice 2). |
 
@@ -164,8 +164,8 @@ This is boundary-hygiene work that can be delivered in narrow slices without cha
   - no protocol payload/schema file changes (`messages.proto`, `protocol.hpp`, `protocol_codec.cpp` untouched),
   - game-specific options remain game-owned in this slice.
 - Validation completed (from `m-rewrite/`):
-  - `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass)
-  - `./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` (pass)
+  - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass)
+  - `./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` (pass)
   - `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass, `9/9`)
   - `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio` (pass, `9/9`)
 
@@ -184,8 +184,8 @@ This is boundary-hygiene work that can be delivered in narrow slices without cha
   - no protocol payload/schema file changes (`messages.proto`, `protocol.hpp`, `protocol_codec.cpp` untouched),
   - engine options remain engine-owned; game options remain game-owned and additive through hooks.
 - Validation evidence (from `m-rewrite/`):
-  - `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass)
-  - `./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` (pass)
+  - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass)
+  - `./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` (pass)
   - `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass, `9/9`)
   - `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio` (pass, `9/9`; timeout-race remains known intermittent under heavy contention)
 
@@ -204,8 +204,8 @@ This is boundary-hygiene work that can be delivered in narrow slices without cha
   - explicit CLI precedence preserved (`--backend-*` remains higher priority than config),
   - no protocol payload/schema file changes (`messages.proto`, `protocol.hpp`, `protocol_codec.cpp` untouched).
 - Validation evidence (from `m-rewrite/`):
-  - `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass)
-  - `./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` (pass)
+  - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass)
+  - `./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` (pass)
   - `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass, `9/9`)
   - `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio` (pass, `9/9`)
 
@@ -225,8 +225,8 @@ This is boundary-hygiene work that can be delivered in narrow slices without cha
   - non-strict mode still logs `warn` and continues,
   - no protocol payload/schema file changes (`messages.proto`, `protocol.hpp`, `protocol_codec.cpp` untouched).
 - Validation evidence (from `m-rewrite/`):
-  - `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass)
-  - `./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` (pass)
+  - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass)
+  - `./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` (pass)
   - `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass, `9/9`)
   - `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio` (pass, `9/9`)
 
@@ -252,8 +252,8 @@ This is boundary-hygiene work that can be delivered in narrow slices without cha
   - reconnect config keys/defaults unchanged (`network.ClientReconnect*` fallback to `network.Reconnect*`; defaults `0/250/2000/1000`),
   - protocol/gameplay boundaries unchanged (`messages.proto`, `protocol.hpp`, `protocol_codec.cpp` untouched).
 - Validation evidence (from `m-rewrite/`):
-  - `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass)
-  - `./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` (pass)
+  - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass)
+  - `./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` (pass)
   - `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio` (pass, `9/9`)
   - `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio` (pass, `9/9`)
 
@@ -267,8 +267,8 @@ Docs-only slices (from repository root):
 Code-touching slices (from `m-rewrite/`):
 
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
 ```
@@ -283,8 +283,8 @@ Code-touching slices (from `m-rewrite/`):
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
 ```

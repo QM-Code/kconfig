@@ -4,7 +4,7 @@
 - Current owner: `codex`
 - Status: `in progress (HUD/console + chat-entry/input-focus parity slices landed)`
 - Immediate next task: add one follow-up console parity slice for escape/focus-release ordering without expanding backend-specific surface area.
-- Validation gate: `./bzbuild.py -c <assigned-build-dir>` and client runs across BGFX + Diligent with `--backend-ui imgui`.
+- Validation gate: `./abuild.py -c <assigned-build-dir>` and client runs across BGFX + Diligent with `--backend-ui imgui`.
 
 ## Mission
 Port and stabilize BZ3 UI behavior in `m-rewrite` while preserving engine ownership of frame lifecycle and backend boundaries.
@@ -49,8 +49,8 @@ Port and stabilize BZ3 UI behavior in `m-rewrite` while preserving engine owners
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
 ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --backend-render bgfx --backend-ui imgui
 ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render diligent --backend-ui imgui
 ```
@@ -77,8 +77,8 @@ From `m-rewrite/`:
 - Implementation note: presentation stays backend-policy-safe via engine-owned lifecycle (`onUiUpdate`) and backend-agnostic `UiDrawContext::TextPanel`.
 
 Validation commands run:
-- `cd m-rewrite && ./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` (pass)
-- `cd m-rewrite && ./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` (pass)
+- `cd m-rewrite && ./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` (pass)
+- `cd m-rewrite && ./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` (pass)
 - `cd m-rewrite && timeout 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --backend-render bgfx --backend-ui imgui` (launched; bounded runtime timeout exit `124`; startup warning only: missing optional `librenderdoc.so`)
 - `cd m-rewrite && timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render diligent --backend-ui imgui` (launched; bounded runtime timeout exit `124`)
 

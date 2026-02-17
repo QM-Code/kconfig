@@ -44,10 +44,10 @@ Periodic posture while webserver work is active:
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py build-sdl3-bgfx-jolt-rmlui-sdl3audio
+./abuild.py build-sdl3-bgfx-jolt-rmlui-sdl3audio
 ```
 
-Use isolated build dirs and `./bzbuild.py`-only workflow per `docs/foundation/policy/execution-policy.md`.
+Use isolated build dirs and `./abuild.py`-only workflow per `docs/foundation/policy/execution-policy.md`.
 
 ## Tier 1: Multi-Community Boot + Language Posture
 Goal:

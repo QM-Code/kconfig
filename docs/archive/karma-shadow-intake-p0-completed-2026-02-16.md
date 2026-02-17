@@ -1,9 +1,9 @@
-# KARMA Shadow Intake P0 (Integration Track)
+# KARMA Shadow Intake P0 (Integration Track, Completed 2026-02-16)
 
 ## Project Snapshot
 - Current owner: `overseer`
-- Status: `priority/in progress (KS0 cache-invalidation + KS1 contract/config scaffolding + KS2.1 directional GPU shadow hardening + KS2.2 local-light source contract/shading bridge + KS2.3 bounded point-shadow generation/sampling + KS3 moving-caster/light dirty-face invalidation + KS4.1 point-shadow budget/map-size sweep + defaults lock + KS4.2 closeout run captured; operator visual verdict pending)`
-- Immediate next task: operator visual verdict on the latest locked-default closeout run (`/tmp/point-shadow-visual-closeout-20260216T142607Z`) for BGFX + Diligent.
+- Status: `completed (KS0 cache-invalidation + KS1 contract/config scaffolding + KS2.1 directional GPU shadow hardening + KS2.2 local-light source contract/shading bridge + KS2.3 bounded point-shadow generation/sampling + KS3 moving-caster/light dirty-face invalidation + KS4.1 point-shadow budget/map-size sweep + defaults lock + KS4.2 closeout run + operator visual verdict accepted)`
+- Immediate next task: archive snapshot complete; no active execution task.
 - Validation gate: renderer build gates in both assigned build dirs, sandbox/runtime trace evidence, and docs lint.
 
 ## Mission
@@ -41,7 +41,7 @@ Defer (not P0 in this track):
 3. Full renderer-pipeline refactors not required for shadow quality/stability closeout.
 
 ## Owned Paths
-- `m-rewrite/docs/projects/karma-shadow-intake-p0.md`
+- `m-rewrite/docs/archive/karma-shadow-intake-p0-completed-2026-02-16.md` (archived snapshot; active project path retired)
 - `m-rewrite/docs/projects/ASSIGNMENTS.md`
 - `m-rewrite/src/engine/renderer/backends/directional_shadow_internal.hpp`
 - `m-rewrite/src/engine/renderer/backends/bgfx/backend_bgfx.cpp`
@@ -90,8 +90,8 @@ Defer (not P0 in this track):
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
 ./scripts/run-renderer-shadow-sandbox.sh 20 16 20
 ./scripts/run-point-shadow-visual-closeout.sh all 20 1 20 0.9
 ./scripts/run-point-shadow-budget-sweep.sh 8 1024 1,2,4 2 1 20 0.9
@@ -168,9 +168,14 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./d
     - BGFX: `status=point_shadow_faces_updated`, log `/tmp/point-shadow-visual-closeout-20260216T142607Z/visual-bgfx.log`
     - Diligent: `status=point_shadow_faces_updated` via Wayland fallback, log `/tmp/point-shadow-visual-closeout-20260216T142607Z/visual-diligent-wayland-retry.log`
     - closeout bundle root: `/tmp/point-shadow-visual-closeout-20260216T142607Z/`
+- `2026-02-16`: Operator visual verdict accepted from interactive sandbox validation:
+  - detached/phantom point-shadow artifacts were resolved by projection-side behind-face rejection in point-shadow projection and bounded face-budget scheduling consistency.
+  - accepted interactive point-shadow posture in sandbox: `shadowExecutionMode=gpu_default`, `pointMapSize=256`, `pointShadowLights=2`, and effective `pointFacesPerFrameBudget=12` (`6 * active shadowed lights`).
+  - user-confirmed quality/performance observation: `pointMapSize=1024` incurs a large frame-time cost; `pointMapSize=256` is the accepted default for interactive point-shadow iteration.
+- `2026-02-16`: Project closed and prepared for archive under `docs/archive/`.
 - Validation evidence (`m-rewrite/`):
-  - `./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` ✅
-  - `./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` ✅
+  - `./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` ✅
+  - `./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` ✅
   - `./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` ✅
   - `./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` ✅
   - `./scripts/run-point-shadow-budget-sweep.sh 8 1024 1,2,4 2 1 20 0.9` (summary at `/tmp/point-shadow-budget-sweep-20260216T140724Z/summary.csv`; trace confirms active point-shadow updates under animated point-light scene) ✅
@@ -182,13 +187,14 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./d
   - `timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx,render.mesh` (timeout expected; traces confirmed `point shadow status ... reason=point_shadow_no_shadow_lights` and `point shadow refresh ... dirtyFaces=0 updatedFaces=0 budget=2`) ✅
   - `timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent,render.mesh` (timeout expected; traces confirmed `point shadow status ... reason=point_shadow_no_shadow_lights` and `point shadow refresh ... dirtyFaces=0 updatedFaces=0 budget=2`) ✅
 
-## Open Questions
-- Should point-shadow rendering be default-on in rewrite or rollout behind explicit config until closeout evidence is complete?
-- Keep hard cap at 2 shadow-casting point lights for P0, or expose bounded config now?
+## Open Questions (Resolved)
+- Keep rollout behind explicit config for P0 runtime behavior; do not force point-shadow default-on globally.
+- Keep default shadow-casting point-light cap at `2` for P0 quality/perf posture while preserving bounded config exposure (`0..4`) for explicit tuning.
+- Use face-budget policy `6 * active shadowed point lights` (for example `2 -> 12`, `3 -> 18`) to avoid stale/detached motion artifacts under animated lights/casters.
 
 ## Handoff Checklist
-- [ ] Slice boundary respected (`KS1`..`KS4`)
-- [ ] Required build/runtime evidence recorded
-- [ ] Regression checks for directional `gpu_default` path recorded
-- [ ] `ASSIGNMENTS.md` updated
-- [ ] Risks/open questions updated
+- [x] Slice boundary respected (`KS1`..`KS4`)
+- [x] Required build/runtime evidence recorded
+- [x] Regression checks for directional `gpu_default` path recorded
+- [x] `ASSIGNMENTS.md` updated
+- [x] Risks/open questions updated

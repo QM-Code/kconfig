@@ -12,7 +12,7 @@ Usage: ./scripts/setup.sh [--verify [build-dir]]
 Bootstraps mandatory local ./vcpkg for m-rewrite.
 
 Options:
-  --verify [build-dir]   After bootstrap, run ./bzbuild.py -c <build-dir>.
+  --verify [build-dir]   After bootstrap, run ./abuild.py -c <build-dir>.
                          Default build-dir: build-sdl3-bgfx-jolt-rmlui-sdl3audio
   -h, --help             Show this help.
 EOF
@@ -67,8 +67,8 @@ fi
 echo "[setup] Local vcpkg ready at ${VCPKG_DIR}"
 
 if [[ ${run_verify} -eq 1 ]]; then
-  echo "[setup] Verifying build with ./bzbuild.py -c ${build_dir}"
-  ./bzbuild.py -c "${build_dir}"
+  echo "[setup] Verifying build with ./abuild.py -c ${build_dir}"
+  ./abuild.py -c "${build_dir}"
 fi
 
 echo "[setup] Done."

@@ -62,8 +62,8 @@ if "%RUN_VERIFY%"=="1" (
   ) else (
     set "PYTHON_CMD=py -3"
   )
-  echo [setup] Verifying build with .\bzbuild.py -c %BUILD_DIR%
-  %PYTHON_CMD% bzbuild.py -c %BUILD_DIR%
+  echo [setup] Verifying build with .\abuild.py -c %BUILD_DIR%
+  %PYTHON_CMD% abuild.py -c %BUILD_DIR%
   if errorlevel 1 (
     echo [setup] ERROR: verify build failed.
     popd
@@ -81,7 +81,7 @@ echo.
 echo Bootstraps mandatory local .\vcpkg for m-rewrite.
 echo.
 echo Options:
-echo   --verify [build-dir]   After bootstrap, run .\bzbuild.py -c ^<build-dir^>.
+echo   --verify [build-dir]   After bootstrap, run .\abuild.py -c ^<build-dir^>.
 echo                           Default build-dir: build-sdl3-bgfx-jolt-rmlui-sdl3audio
 echo   -h, --help             Show this help.
 exit /b 0

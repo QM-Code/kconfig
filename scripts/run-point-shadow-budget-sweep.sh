@@ -48,7 +48,7 @@ run_case() {
   local log_file="${LOG_DIR}/point-shadow-${backend}-budget${budget}.log"
 
   if [[ ! -x "${binary}" ]]; then
-    echo "ERROR: missing executable ${binary}. Build first with ./bzbuild.py -c ${build_dir}" >&2
+    echo "ERROR: missing executable ${binary}. Build first with ./abuild.py -c ${build_dir}" >&2
     exit 1
   fi
 

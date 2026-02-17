@@ -3,7 +3,7 @@
 This document defines long-lived governance for validation wrappers, guard scripts, and CI alignment.
 
 ## Core Policy
-- Operator-facing configure/build/test flows use `./bzbuild.py <build-dir>`.
+- Operator-facing configure/build/test flows use `./abuild.py <build-dir>`.
 - In parallel work, wrapper invocations must pass explicit build dirs:
   - `./scripts/test-engine-backends.sh <build-dir>`
   - `./scripts/test-server-net.sh <build-dir>`

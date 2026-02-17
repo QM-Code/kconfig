@@ -4,7 +4,7 @@
 - Current owner: `unassigned`
 - Status: `completed (slices 1-29 accepted; closeout accepted)`
 - Immediate next task: none; reopen only for concrete transport contract regressions requiring a new bounded slice.
-- Validation gate: `./scripts/test-server-net.sh <assigned-build-dir>` must pass after `./bzbuild.py -c` in both assigned build dirs.
+- Validation gate: `./scripts/test-server-net.sh <assigned-build-dir>` must pass after `./abuild.py -c` in both assigned build dirs.
 
 ## Mission
 Move reusable networking boilerplate into engine-owned contracts so game code stops owning transport/session plumbing.
@@ -255,8 +255,8 @@ Current twenty-eighth-slice boundary (`2026-02-11`):
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
 ```
@@ -268,8 +268,8 @@ From `m-rewrite/`:
 
 ## Build/Run Commands
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
 ```
 
 ## First Session Checklist
@@ -285,43 +285,43 @@ From `m-rewrite/`:
   - Added `karma::network::ServerTransport` contract and engine ENet implementation.
   - Migrated server accept/receive/send/disconnect lifecycle path in `src/game/server/net/enet_event_source.cpp` to use engine transport.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Validation passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`).
+  - Validation passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`).
 - `2026-02-10`: Landed second vertical slice:
   - Added `karma::network::ClientTransport` contract and engine ENet implementation.
   - Migrated client connect/poll/disconnect + reliable send lifecycle path in `src/game/client/net/client_connection.cpp` to use engine transport.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Validation passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`).
+  - Validation passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`).
 - `2026-02-10`: Landed third vertical slice:
   - Added bounded reconnect/backoff policy fields to client transport connect options and engine reconnect state machine behavior.
   - Added config-driven reconnect consumption and join-bootstrap replay on reconnect in `src/game/client/net/client_connection.cpp`.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`).
 - `2026-02-10`: Landed fourth vertical slice:
   - Added transport registration/extensibility hooks in engine transport contracts (`RegisterClientTransportFactory`, `RegisterServerTransportFactory`) and backend-ID resolution in transport creation paths.
   - Added backend-name transport config plumbing and default ENet registration in client/server engine transport implementations.
   - Updated client transport consumption to pass custom backend IDs while preserving existing `auto|enet` behavior.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`).
 - `2026-02-10`: Landed fifth vertical slice:
   - Added shared transport pump normalizer helper in engine network layer.
   - Updated client/server transport poll paths to stage ENet events and emit normalized cycle order (`Connected`, `Received`, `Disconnected`).
   - Normalized client reconnect-generated lifecycle events through the same ordering path.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`).
 - `2026-02-10`: Landed sixth vertical slice:
   - Added explicit engine transport contract tests in `src/engine/network/tests`:
     - `client_transport_contract_test` locks normalized ordering, disconnect-terminal semantics, and reconnect-cycle ordering behavior.
     - `server_transport_contract_test` locks normalized ordering and disconnect-terminal semantics.
   - Wired transport contract tests into `src/engine/CMakeLists.txt` and `scripts/test-server-net.sh`.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`).
 - `2026-02-10`: Landed seventh vertical slice:
   - Updated server transport consumption in `src/game/server/net/enet_event_source.cpp` to mirror client backend-ID plumbing:
     - reads `network.ServerTransportBackend` and passes it via `ServerTransportConfig.backend_name`;
     - keeps enum parsing for known built-ins while allowing custom backend IDs through engine transport creation.
   - Updated server transport creation failure logging to report the configured backend ID string.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`).
 - `2026-02-10`: Landed eighth vertical slice:
   - Added explicit server-side backend-ID config-plumbing contract coverage in `src/game/tests/server_net_contract_test.cpp`:
     - built-in `auto`/`enet` behavior checks;
@@ -329,14 +329,14 @@ From `m-rewrite/`:
     - unregistered backend-ID failure check.
   - Added fake server transport factory test harness to assert handed-off `ServerTransportConfig` fields deterministically.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-10`: Landed ninth vertical slice:
   - Added warning-level observability for unregistered transport backend IDs in engine transport creation paths (`client_transport.cpp`, `server_transport.cpp`) with client/server parity.
   - Added explicit warning+failure contract assertions for unregistered backend IDs in:
     - `src/engine/network/tests/client_transport_contract_test.cpp`
     - `src/engine/network/tests/server_transport_contract_test.cpp`
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-10`: Landed tenth vertical slice:
   - Added per-key transport-pump normalization helper (`NormalizePumpEventsPerKey`) and applied it to server transport poll normalization keyed by peer token.
   - Updated client transport poll path to use the same per-key normalization helper with a single-key function for parity.
@@ -344,12 +344,12 @@ From `m-rewrite/`:
     - `src/engine/network/tests/server_transport_contract_test.cpp` locks per-peer ordering and disconnect-terminal semantics with multi-peer staged events.
     - `src/engine/network/tests/client_transport_contract_test.cpp` locks single-peer lifecycle-edge ordering semantics.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-10`: Landed eleventh vertical slice:
   - Added `TestHighVolumeMultiPeerOrderingStress()` in `src/engine/network/tests/server_transport_contract_test.cpp` and wired it into test main.
   - Locked high-volume per-peer normalized ordering and disconnect-terminal behavior over a large deterministic interleaved staged-event set.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-10`: Landed twelfth vertical slice:
   - Added `TestLiveLoopbackMultiPeerOrderingStress()` in `src/engine/network/tests/server_transport_contract_test.cpp`.
   - Locked live loopback multi-peer burst behavior across runtime poll cycles:
@@ -357,7 +357,7 @@ From `m-rewrite/`:
     - terminal disconnect checks per peer,
     - full bounded per-peer receive-burst assertions.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-10`: Landed thirteenth vertical slice:
   - Added `TestLiveReconnectPayloadInterleaveStress()` in `src/engine/network/tests/client_transport_contract_test.cpp`.
   - Locked live reconnect-cycle behavior across runtime loopback pumping:
@@ -365,7 +365,7 @@ From `m-rewrite/`:
     - bounded full post-reconnect payload-burst reception per cycle,
     - no terminal `Disconnected` surfaced during reconnect-cycle recovery.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-10`: Landed fourteenth vertical slice:
   - Hardened live timeout/disconnect edge-race coverage in `TestLiveTimeoutDisconnectRaceTerminalOrdering()` in `src/engine/network/tests/client_transport_contract_test.cpp`.
   - Locked reconnect-race and terminal ordering behavior under live loopback timing pressure:
@@ -373,22 +373,22 @@ From `m-rewrite/`:
     - terminal disconnect is emitted exactly once after bounded reconnect exhaustion,
     - no `Connected`/`Received` events are emitted after terminal disconnect.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-10`: Landed fifteenth vertical slice:
   - Added `TestLiveLoopbackMultiPeerFairnessUnderReconnectChurn()` plus churn helpers in `src/engine/network/tests/server_transport_contract_test.cpp` (payload decode attribution, loopback client churn hardening, optional token-reuse restart allowance for churn validation).
   - Locked live fairness-under-churn coverage while preserving existing per-peer normalized ordering/disconnect-terminal invariants.
   - Kept `messages.proto` and `src/game/net/protocol*` unchanged.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-11`: Landed sixteenth vertical slice:
   - Hardened live loopback coverage resilience in `src/engine/network/tests/server_transport_contract_test.cpp` via wider/retried server endpoint allocation, client endpoint retry helper, active-client settle gating, and widened timing budgets for churn/ordering stress tests.
   - Preserved protocol/schema boundaries and transport runtime behavior (coverage-only slice).
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-11`: Landed seventeenth vertical slice:
   - Made loopback endpoint allocation deterministic across live-stress client/server helpers:
     - `CreateLoopbackServerEndpoint` (client transport contract test) now uses deterministic multi-pass sequential scan/retry.
     - `CreateLoopbackServerTransport` (server transport contract test) now uses deterministic multi-pass sequential scan/retry with no time-based start offset.
   - Preserved protocol/schema boundaries and all accepted ordering contracts.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-11`: Landed eighteenth vertical slice:
   - Added shared deterministic loopback endpoint-allocation helper in
     `src/engine/network/tests/loopback_endpoint_alloc.hpp`.
@@ -396,7 +396,7 @@ From `m-rewrite/`:
     - `src/engine/network/tests/client_transport_contract_test.cpp`
     - `src/engine/network/tests/server_transport_contract_test.cpp`
   - Preserved protocol/schema boundaries and all accepted ordering/disconnect contracts.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-11`: Landed nineteenth vertical slice:
   - Added shared live-loopback ENet fixture helper in
     `src/engine/network/tests/loopback_enet_fixture.hpp` covering create/retry, pump, send, teardown, and payload decode.
@@ -404,21 +404,21 @@ From `m-rewrite/`:
     - `src/engine/network/tests/client_transport_contract_test.cpp`
     - `src/engine/network/tests/server_transport_contract_test.cpp`
   - Preserved protocol/schema boundaries and all accepted ordering/disconnect contracts.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-11`: Landed twentieth vertical slice:
   - Moved shared loopback fixture implementation from header-only to compiled utility:
     - added `src/engine/network/tests/loopback_enet_fixture.cpp`,
     - retained stable helper API in `src/engine/network/tests/loopback_enet_fixture.hpp`,
     - linked new `network_test_loopback_fixture` into client/server transport contract tests via `src/engine/CMakeLists.txt`.
   - Preserved protocol/schema boundaries and all accepted ordering/disconnect/reconnect contracts.
-  - Required validation rerun by overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-11`: Landed twenty-first vertical slice:
   - Moved deterministic endpoint-allocation helper implementation from header-only to compiled utility:
     - added `src/engine/network/tests/loopback_endpoint_alloc.cpp`,
     - retained stable helper API in `src/engine/network/tests/loopback_endpoint_alloc.hpp`,
     - linked new `network_test_endpoint_alloc` into client/server transport contract tests via `src/engine/CMakeLists.txt`.
   - Preserved protocol/schema boundaries and all accepted ordering/disconnect/reconnect contracts.
-  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
 - `2026-02-11`: Landed twenty-second vertical slice:
   - Added structured sink helper in
     `src/engine/network/tests/structured_log_event_sink.hpp`.
@@ -427,7 +427,7 @@ From `m-rewrite/`:
     - `src/engine/network/tests/server_transport_contract_test.cpp`
     to assert structured warning/error event counts by logger identity instead of warning-message substring content.
   - Preserved protocol/schema boundaries and all accepted ordering/disconnect/reconnect contracts.
-  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs); one transient overseer rerun failure (`client_transport_contract_test` reconnect timeout-race wait) reproduced once and passed on immediate rerun.
+  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs); one transient overseer rerun failure (`client_transport_contract_test` reconnect timeout-race wait) reproduced once and passed on immediate rerun.
   - Risks/deferrals:
     - structured warning assertions now depend on per-test logger identity and warning-event cardinality; future additional warning emissions in the same code paths may require explicit contract updates,
     - no transport runtime behavior changes were made in this slice (network-test assertion hardening only).
@@ -435,10 +435,10 @@ From `m-rewrite/`:
   - Hardened `TestLiveTimeoutDisconnectRaceTerminalOrdering()` in
     `src/engine/network/tests/client_transport_contract_test.cpp` with wider reconnect/terminal timing budgets, reconnect-burst send gating after observed reconnect `Connected`, and stronger fixed-port loopback restart retry.
   - Preserved protocol/schema boundaries and all accepted ordering/disconnect/reconnect contracts.
-  - Required validation rerun by specialist passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by specialist passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
   - Overseer rerun results:
     - `test-server-net.sh` passed in both assigned build dirs (`9/9` each),
-    - full `bzbuild.py -c` in both assigned build dirs was temporarily blocked at that overseer checkpoint by unrelated in-review renderer compile errors in `src/engine/renderer/tests/directional_shadow_contract_test.cpp` and `src/engine/renderer/backends/bgfx/backend_bgfx.cpp`.
+    - full `abuild.py -c` in both assigned build dirs was temporarily blocked at that overseer checkpoint by unrelated in-review renderer compile errors in `src/engine/renderer/tests/directional_shadow_contract_test.cpp` and `src/engine/renderer/backends/bgfx/backend_bgfx.cpp`.
   - Risks/deferrals:
     - live timeout-race coverage remains scheduler/load sensitive because it relies on runtime ENet timeout/reconnect progression; this slice reduces flake likelihood but cannot guarantee zero timing variance across all host-load conditions,
     - no transport runtime behavior changes were made in this slice (network-test-only hardening).
@@ -447,7 +447,7 @@ From `m-rewrite/`:
     `src/engine/network/tests/client_transport_contract_test.cpp` with deterministic reconnect readiness gating and bounded retry instrumentation (reconnect/terminal probe pacing + bounded counters + explicit retry diagnostics).
   - Reduced wall-time variance pressure by splitting reconnect handling into readiness and delivery phases with stable-ready gating before burst send.
   - Preserved protocol/schema boundaries and all accepted ordering/disconnect/reconnect contracts.
-  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
   - Risks/deferrals:
     - live timeout-race coverage remains inherently scheduler/load sensitive under runtime ENet reconnect/timing races; deterministic gating and bounded retries reduce, but do not eliminate, host-load-dependent variance,
     - no transport runtime behavior changes were made in this slice (network-test-only hardening).
@@ -456,14 +456,14 @@ From `m-rewrite/`:
     `src/engine/network/tests/client_transport_contract_test.cpp` by replacing reconnect-phase per-poll pump-thread churn with deterministic bounded background server-pump lifecycle control (`start_server_pump`/`stop_server_pump`).
   - Kept deterministic reconnect-readiness gating, bounded retry instrumentation, and ordering/disconnect/reconnect assertions intact.
   - Preserved protocol/schema boundaries and all accepted ordering/disconnect/reconnect contracts.
-  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
   - Risks/deferrals:
     - live timeout-race coverage remains scheduler/load sensitive because runtime ENet reconnect/timeout races are inherently timing-dependent; this slice reduces thread-churn-driven jitter but cannot eliminate host-load variance,
     - no transport runtime behavior changes were made in this slice (network-test-only hardening).
 - `2026-02-11`: Landed twenty-sixth vertical slice (accepted):
   - Centralized bounded timeout-race harness controls/diagnostics into shared network test helpers (`loopback_enet_fixture.hpp/.cpp`) and refactored `TestLiveTimeoutDisconnectRaceTerminalOrdering()` in `client_transport_contract_test.cpp` to consume them.
   - Kept deterministic reconnect-readiness gating semantics and existing ordering/disconnect/reconnect assertions intact.
-  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs); one transient overseer wrapper failure reproduced once during concurrent runs and then passed on immediate sequential rerun.
+  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs); one transient overseer wrapper failure reproduced once during concurrent runs and then passed on immediate sequential rerun.
   - Risks/deferrals:
     - live timeout-race coverage remains scheduler/load sensitive because ENet timeout/reconnect progression is runtime timing-dependent; shared bounded diagnostics improve determinism and triage quality but cannot fully eliminate host-load variance,
     - no transport runtime behavior changes were made in this slice (network-test/docs-only hardening).
@@ -475,7 +475,7 @@ From `m-rewrite/`:
   - Updated `src/engine/CMakeLists.txt` so both `client_transport_contract_test` and
     `server_transport_contract_test` link `network_test_support` only.
   - Preserved existing transport contract semantics/behavior; no transport runtime changes.
-  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
   - Risks/deferrals:
     - live timeout-race coverage remains scheduler/load sensitive due runtime ENet timing behavior; this slice is build/linkage consolidation only and does not alter runtime timing behavior.
 - `2026-02-11`: Landed twenty-eighth vertical slice (accepted):
@@ -484,7 +484,7 @@ From `m-rewrite/`:
       `src/engine/network/tests/loopback_enet_fixture.hpp/.cpp`,
     - refactored timeout-race reconnect/terminal phases in
       `src/engine/network/tests/client_transport_contract_test.cpp` to consume the shared helper while keeping existing assertions/order checks intact.
-  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
+  - Required validation rerun by specialist and overseer passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh`, `9/9` in both wrapper runs).
   - Risks/deferrals:
     - live timeout-race coverage remains scheduler/load sensitive because ENet timeout/reconnect progression is runtime timing-dependent; this slice reduces harness drift only and does not change runtime behavior.
 - `2026-02-12`: Landed twenty-ninth vertical slice (accepted; closeout):
@@ -493,8 +493,8 @@ From `m-rewrite/`:
     - introducing a shared local bounded-probe option builder for reconnect phases.
   - Scope remained test-harness-only (no transport runtime behavior changes, no protocol/schema changes).
   - Required validation:
-    - `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` -> success,
-    - `./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` -> success,
+    - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` -> success,
+    - `./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` -> success,
     - `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio` -> PASS (`9/9`),
     - `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio` -> transient `client_transport_contract_test` timeout-race/reconnect flakes observed on immediate retries, then PASS (`9/9`) in same session retry window.
   - Residual risk/deferral:

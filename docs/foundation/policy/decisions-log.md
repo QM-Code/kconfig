@@ -110,9 +110,9 @@ Note:
 - Impact:
   - startup guidance remains predictable and easier to maintain.
 
-### B) Delegated build policy is `bzbuild.py`-only
+### B) Delegated build policy is `abuild.py`-only
 - Decision:
-  - delegated operator flows use `./bzbuild.py <build-dir>`; no raw `cmake -S/-B` flows.
+  - delegated operator flows use `./abuild.py <build-dir>`; no raw `cmake -S/-B` flows.
 - Why:
   - prevent toolchain/config drift.
 - Impact:
@@ -176,7 +176,7 @@ Note:
 
 ### J) Local repo `./vcpkg` is mandatory for delegated builds
 - Decision:
-  - require local `m-rewrite/vcpkg` for delegated `bzbuild.py` flows; no external vcpkg fallback.
+  - require local `m-rewrite/vcpkg` for delegated `abuild.py` flows; no external vcpkg fallback.
 - Why:
   - remove recurring toolchain drift and cross-repo lock contention failures.
 - Impact:

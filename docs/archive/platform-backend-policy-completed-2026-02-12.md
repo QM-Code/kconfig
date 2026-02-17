@@ -5,7 +5,7 @@
 - Status: `completed` (archived closeout snapshot; Slice 1-4 complete with admission contract active)
 - Immediate next task: `none` (reference-only; reopen via a new active project doc if a concrete second-backend blocker is accepted).
 - Strategic alignment track: `shared unblocker (architecture hygiene)`
-- Validation gate: docs lint must pass for every slice; code-touching slices must also pass assigned `bzbuild.py` and wrapper gates.
+- Validation gate: docs lint must pass for every slice; code-touching slices must also pass assigned `abuild.py` and wrapper gates.
 
 ## Mission
 Keep an engine-owned platform seam while standardizing on SDL3 as the single active platform backend.
@@ -58,7 +58,7 @@ Code-touching slices (from `m-rewrite/` with assigned build dir):
 
 ```bash
 ./scripts/check-platform-seam.sh
-./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio
+./abuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio
 ./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio
 ```
 
@@ -71,7 +71,7 @@ From `m-rewrite/`:
 
 ```bash
 ./scripts/check-platform-seam.sh
-./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio
+./abuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio
 ./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio
 ```
 
@@ -88,7 +88,7 @@ From `m-rewrite/`:
   - keep thin engine/platform abstraction seam,
   - keep SDL3 as only active backend,
   - remove dormant GLFW/SDL2 implementation and documentation references,
-  - retain `bzbuild.py`/CMake scaffolding for future adapter reintroduction only if justified by concrete requirements.
+  - retain `abuild.py`/CMake scaffolding for future adapter reintroduction only if justified by concrete requirements.
 - `2026-02-11`: Slice 1 (docs+inventory) completed:
   - scoped inventory executed across `docs/`, `CMakeLists.txt`, `src/engine/CMakeLists.txt`, `include/karma/platform/*`, and `src/engine/platform/*`,
   - keep/remove decisions captured below with rationale,
@@ -171,9 +171,9 @@ From `m-rewrite/`:
 | Gate | Command / Evidence | Pass Criteria | Failure / Rollback Policy |
 |---|---|---|---|
 | `Seam Guardrail` | `./scripts/check-platform-seam.sh` | No SDL header/type violations outside allowlist. | Candidate admission is blocked; revert offending seam leakage before any further review. |
-| `Baseline Build` | `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio` | Clean configure/build with SDL3 default path intact. | Candidate is rejected for regression risk; rollback candidate changes and restore baseline pass. |
+| `Baseline Build` | `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio` | Clean configure/build with SDL3 default path intact. | Candidate is rejected for regression risk; rollback candidate changes and restore baseline pass. |
 | `Baseline Backend Wrapper` | `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio` | Required backend smoke/parity tests pass on baseline profile. | Candidate is rejected; no merge until wrapper gate returns to green. |
-| `Candidate Build Profile` | `./bzbuild.py -c build-<candidate>-bgfx-jolt-rmlui-sdl3audio` (or explicitly approved equivalent) | Candidate profile config/build passes without touching renderer/network/gameplay semantics. | Candidate stays in prototype state; rollback or isolate failing changes. |
+| `Candidate Build Profile` | `./abuild.py -c build-<candidate>-bgfx-jolt-rmlui-sdl3audio` (or explicitly approved equivalent) | Candidate profile config/build passes without touching renderer/network/gameplay semantics. | Candidate stays in prototype state; rollback or isolate failing changes. |
 | `Candidate Backend Wrapper` | `./scripts/test-engine-backends.sh build-<candidate>-bgfx-jolt-rmlui-sdl3audio` (or explicitly approved equivalent) | Candidate backend passes same backend wrapper expectations as baseline. | Candidate admission fails; rollback and keep SDL3-only active backend policy. |
 | `Docs Integrity` | `./docs/scripts/lint-project-docs.sh` | Project/assignment docs stay synchronized with actual gate outcomes. | Candidate cannot be promoted; docs + status must be corrected in same handoff. |
 
@@ -239,7 +239,7 @@ From `m-rewrite/`:
    - `rg -n -i "glfw|sdl2|sdl 2|sdl-2" docs CMakeLists.txt src/engine/CMakeLists.txt include/karma/platform src/engine/platform`
    - outcome: no stale build/platform stub wiring remains; retained references are policy/history/inventory records.
 7. [x] Ran closeout validation gates for Slice 2:
-   - `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio`,
+   - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio`,
    - `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio`,
    - `./docs/scripts/lint-project-docs.sh`.
 
@@ -267,11 +267,11 @@ Constraints:
 - Do not implement GLFW/SDL2 functionality.
 - Do not remove SDL3 seam abstractions.
 - Do not touch renderer/network/gameplay paths.
-- Build policy remains `bzbuild.py`-only if build validation is run.
+- Build policy remains `abuild.py`-only if build validation is run.
 
 Validation (required):
 - `./docs/scripts/lint-project-docs.sh`
-- Because Slice 2 is code-touching, also run assigned `bzbuild.py` + wrapper gates.
+- Because Slice 2 is code-touching, also run assigned `abuild.py` + wrapper gates.
 
 Docs updates (required):
 - Update docs/projects/platform-backend-policy.md snapshot/status/slice queue.
@@ -309,5 +309,5 @@ Handoff must include:
 - [x] Slice scope completed
 - [x] Docs updated
 - [x] Validation run and summarized
-- [x] Build policy constraints preserved (`bzbuild.py` only)
+- [x] Build policy constraints preserved (`abuild.py` only)
 - [x] Risks/open questions listed

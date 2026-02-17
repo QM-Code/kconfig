@@ -2,9 +2,9 @@
 
 ## Project Snapshot
 - Current owner: `specialist-renderer-parity`
-- Status: `priority/in progress (R1-R25 accepted; VQ1-VQ2 accepted; VQ3 active implementation moved to renderer-shadow-hardening track; VQ4 queued; R26-A baseline matrix complete; R26-B slice 1 landed; R26-B slice 2 scaffolding landed; R26-B slice 3 BGFX GPU pass prototype landed; R26-B slice 4 Diligent GPU pass prototype landed; R26-B slice 5 lifecycle/fallback hardening landed; R26-B visual closeout checkpoint captured with Diligent screenshot tooling blocker documented; R26-B gpu_default no-shadow regression fix landed and operator-verified; R26-B depth-attachment GPU shadow slice landed; R26-C intake matrix landed; R26-D config-policy slice landed; R26-D bias-model policy slice landed)`
+- Status: `priority/in progress (R1-R25 accepted; VQ1-VQ2 accepted; VQ3 active implementation moved to karma-lighting-shadow-parity track; VQ4 queued; R26-A baseline matrix complete; R26-B slice 1 landed; R26-B slice 2 scaffolding landed; R26-B slice 3 BGFX GPU pass prototype landed; R26-B slice 4 Diligent GPU pass prototype landed; R26-B slice 5 lifecycle/fallback hardening landed; R26-B visual closeout checkpoint captured with Diligent screenshot tooling blocker documented; R26-B gpu_default no-shadow regression fix landed and operator-verified; R26-B depth-attachment GPU shadow slice landed; R26-C intake matrix landed; R26-D config-policy slice landed; R26-D bias-model policy slice landed)`
 - Immediate next task: execute operator visual checkpoints for the locked bias defaults (`gpu_default`) and open only the smallest follow-up adjustment needed for contact edge quality.
-- Validation gate: both assigned renderer build dirs via `./bzbuild.py` plus both client runs listed in this file; run docs lint whenever this project doc or assignment board is updated.
+- Validation gate: both assigned renderer build dirs via `./abuild.py` plus both client runs listed in this file; run docs lint whenever this project doc or assignment board is updated.
 
 ## Mission
 Expand renderer capability toward BGFX/Diligent parity behind stable engine contracts, then convert those capability gains into visible runtime quality improvements (shadow visibility + stable distance texture quality).
@@ -20,7 +20,7 @@ Expand renderer capability toward BGFX/Diligent parity behind stable engine cont
 ## R26 Performance/GPU Offload Program (2026-02-14)
 Strategic alignment:
 - Track labels in this program intentionally span: `shared unblocker`, `KARMA intake`, and `m-dev parity`.
-- This program expands renderer parity work; it does not replace `renderer-shadow-hardening.md` as the active VQ3 execution source.
+- This program expands renderer parity work; active VQ3/KARMA shadow intake execution is tracked in `docs/projects/karma-lighting-shadow-parity.md`.
 
 Program mission additions:
 1. Bring BGFX and Diligent to behavior/perf parity for shadow/lighting paths that currently diverge.
@@ -63,8 +63,8 @@ Capture notes:
 
 R26-A commands (run from `m-rewrite/`):
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
 
 timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-off.json -v -t engine.sim,render.bgfx
 timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-on.json -v -t engine.sim,render.bgfx
@@ -132,8 +132,8 @@ Evidence logs:
 Commands and outcomes (run from `m-rewrite/`):
 ```bash
 # build gates
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio   # fail (missing layers include), then pass after fix
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio       # pass
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio   # fail (missing layers include), then pass after fix
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio       # pass
 
 # matrix captures (expected timeout exit 124)
 timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-off.json -v -t engine.sim,render.bgfx
@@ -204,8 +204,8 @@ R26-B slice-2 scaffolding landed (2026-02-14):
    - `src/engine/renderer/tests/directional_shadow_contract_test.cpp`.
 
 Slice-2 scaffolding validation:
-- `./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` -> pass.
-- `./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` -> pass.
+- `./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` -> pass.
+- `./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` -> pass.
 - `./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` -> pass.
 - `./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` -> pass.
 - GPU-mode fallback smoke (`executionMode=gpu_default`) logs in `/tmp/r26b-shadow-execmode-20260214T083325Z/` show:
@@ -230,8 +230,8 @@ R26-B slice-3 BGFX GPU pass prototype landed (2026-02-14):
 
 Slice-3 validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
 ./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
 ./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
 
@@ -278,8 +278,8 @@ R26-B slice-4 Diligent GPU pass prototype landed (2026-02-14):
 
 Slice-4 validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
 ./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
 ./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
 
@@ -326,8 +326,8 @@ R26-B slice-5 lifecycle/fallback hardening landed (2026-02-14):
 
 Slice-5 validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
 ./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
 ./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
 
@@ -376,8 +376,8 @@ R26-B visual closeout checkpoint (partial; tooling blocker documented, 2026-02-1
 Visual closeout commands and outcomes:
 ```bash
 # build gates
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
 
 # contract tests
 ./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
@@ -425,8 +425,8 @@ R26-B gpu_default no-shadow regression fix attempt (pending operator visual veri
    - `src/engine/renderer/tests/directional_shadow_contract_test.cpp` now includes `RunShadowClipDepthTransformChecks()`.
 4. Validation after fix (run from `m-rewrite/`):
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
 ./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
 ./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
 ```
@@ -458,8 +458,8 @@ R26-D config-surface policy slice landed (2026-02-14):
 
 R26-D validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
 ./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
 ./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
 ```
@@ -498,8 +498,8 @@ R26-B slice-6 depth-attachment GPU shadow path landed (2026-02-15):
 
 R26-B slice-6 validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
 ./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
 ./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
 
@@ -590,8 +590,8 @@ R26-D bias-model policy slice landed (2026-02-15):
 
 R26-D bias-model validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
 ./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
 ./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
 
@@ -702,8 +702,8 @@ Renderer feature work can proceed independently of server networking and backend
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
 timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
 timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
 ./docs/scripts/lint-project-docs.sh
@@ -719,8 +719,8 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --st
 
 ## Build/Run Commands
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
 timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
 timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
 ```
@@ -734,7 +734,7 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --st
 
 ## Current Status
 - `2026-02-14`: R26 performance/GPU-offload program was added to this project to unify four linked efforts under one track: BGFX-vs-Diligent parity closure, KARMA CPU->GPU shadow/lighting intake, m-dev renderer-technique intake review, and config-surface expansion policy for performance-sensitive renderer controls.
-- `2026-02-12`: active shadow stabilization/investigation work (sandbox bring-up, KARMA commit-mined shadow intake findings, and staged hardening plan) has been moved to `docs/projects/renderer-shadow-hardening.md`; this file remains the parity ledger and VQ rubric host, and must be synced whenever shadow-hardening slices are accepted.
+- `2026-02-12`: active shadow stabilization/investigation work (sandbox bring-up, KARMA commit-mined shadow intake findings, and staged hardening plan) moved into the dedicated shadow track now archived at `docs/archive/renderer-shadow-hardening-superseded-2026-02-17.md`; the active successor track is `docs/projects/karma-lighting-shadow-parity.md`. This file remains the parity ledger and VQ rubric host, and must be synced whenever shadow-intake slices are accepted.
 - `2026-02-11`: merged former `renderer-visual-quality.md` into this project as VQ1-VQ4 follow-up slices so renderer execution remains under one track/owner.
 - `2026-02-11`: VQ1 diagnostics baseline accepted as shared unblocker for measurable renderer quality outcomes (deterministic repro recipe + explicit VQ2/VQ3 thresholds) while preserving backend-parity boundaries.
 - `2026-02-11`: VQ2 texture minification quality slice started: shared RGBA8 mip-chain generation/upload path and anisotropic/trilinear material sampler policy are now wired for BGFX + Diligent under shared renderer contract helpers; VQ3/VQ4 remain untouched.
@@ -949,7 +949,7 @@ VQ3 closeout decision (`2026-02-11`, current state):
 24. R25 BGFX source-absent integrity signature-model hardening slice: codify canonical asymmetric-signature verification contract inputs/validation boundaries for signed-envelope metadata (without introducing external trust-store rotation tooling yet), preserving deterministic disable reasons and accepted R1/R2/R3/R4/R5/R6/R7/R8/R9/R10/R11/R12/R13/R14/R15/R16/R17/R18/R19/R20/R21/R22/R23/R24 behavior. `Accepted 2026-02-11` (canonical verification-input boundary checks + deterministic `...verification_inputs_invalid` propagation).
 25. VQ1 visual-quality diagnostics baseline slice: capture deterministic repro settings and concrete acceptance thresholds for distant texture aliasing/grain and obvious shadow caster/receiver visibility in roaming scenes. `Accepted 2026-02-11` (deterministic repro recipe + phased camera-path scoring rubric + explicit VQ2/VQ3 thresholds).
 26. VQ2 texture minification quality slice: add mip-chain generation/upload plus trilinear/anisotropic sampler policy across BGFX + Diligent material texture paths (including fallback/composite paths) with parity guardrails. `Accepted 2026-02-11` (manual worksheet TA scores: BGFX `0/0`, Diligent `0/0`, parity deltas `0/0`, all VQ2 rules passed).
-27. VQ3 visible directional shadowing slice: evolve bounded directional shadow path toward backend-parity projected shadow-map pass with per-pixel depth sampling (bias + bounded PCF), preserving deterministic fallback policy and contract boundaries. `In progress 2026-02-12` (active implementation + KARMA-intake execution moved to `docs/projects/renderer-shadow-hardening.md`; mirror only accepted outcomes back into this parity ledger, including final VQ3 worksheet closeout).
+27. VQ3 visible directional shadowing slice: evolve bounded directional shadow path toward backend-parity projected shadow-map pass with per-pixel depth sampling (bias + bounded PCF), preserving deterministic fallback policy and contract boundaries. `In progress 2026-02-12` (active implementation + KARMA-intake execution moved to `docs/projects/karma-lighting-shadow-parity.md`; mirror only accepted outcomes back into this parity ledger, including final VQ3 worksheet closeout).
 28. VQ4 visual regression guardrail slice: add deterministic visual-quality assertions/metrics and align wrapper/testing docs with new renderer quality expectations. `Queued 2026-02-11`
 29. R26-A baseline matrix slice (`shared unblocker`): record roaming-mode FPS/frame-time matrix across BGFX+Diligent with shadows on/off, including trace evidence for top CPU bottlenecks. `Queued 2026-02-14`
 30. R26-B GPU shadow parity intake slice (`KARMA intake`): replace rewrite default CPU shadow-map generation/sampling path with GPU-pass-based shadow map generation and GPU sampling parity across active backends. `Queued 2026-02-14`
@@ -982,14 +982,14 @@ Constraints:
 - Stay within owned paths and interface boundaries in docs/projects/renderer-parity.md.
 - No unrelated subsystem changes.
 - Preserve engine/game and backend exposure boundaries from AGENTS.md.
-- Use bzbuild.py only. Do not run raw cmake -S/-B directly.
+- Use abuild.py only. Do not run raw cmake -S/-B directly.
 - Use only assigned build dirs:
   - build-sdl3-bgfx-physx-imgui-sdl3audio
   - build-sdl3-diligent-physx-imgui-sdl3audio
 
 Validation (required):
-- cd m-rewrite && ./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-- cd m-rewrite && ./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+- cd m-rewrite && ./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
+- cd m-rewrite && ./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
 - cd m-rewrite && timeout 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --backend-render bgfx --backend-ui imgui
 - cd m-rewrite && timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render diligent --backend-ui imgui
 

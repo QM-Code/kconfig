@@ -5,7 +5,7 @@
 - Status: `completed (P1 medium-high; Slice 1 + Slice 2 + Slice 3 + Slice 4 + Slice 5 + Slice 6 complete through 2026-02-12)`
 - Immediate next task: monitor guardrail enforcement in wrapper/CI flows to keep `src/game/*` backend-token clean.
 - Strategic alignment: `shared unblocker` for `m-dev` parity + `KARMA-capability-ready` architecture by advancing engine-owned networking defaults and removing backend leakage from game paths without changing gameplay/protocol semantics.
-- Validation gate: docs-only slices run `./docs/scripts/lint-project-docs.sh`; code-touching slices must pass `./scripts/check-network-backend-encapsulation.sh`, `./bzbuild.py -c`, and `./scripts/test-server-net.sh <build-dir>` in both assigned engine-network-foundation build dirs.
+- Validation gate: docs-only slices run `./docs/scripts/lint-project-docs.sh`; code-touching slices must pass `./scripts/check-network-backend-encapsulation.sh`, `./abuild.py -c`, and `./scripts/test-server-net.sh <build-dir>` in both assigned engine-network-foundation build dirs.
 
 ## Mission
 Complete network backend encapsulation so game code consumes only `karma::network` contracts and never directly references `ENet` APIs/types/includes/link wiring.
@@ -74,7 +74,7 @@ Runtime transport ownership has mostly moved into engine contracts; this track f
     - `CreateEnetServerEventSource(uint16_t)` -> `CreateServerTransportEventSource(uint16_t)`
   - updated call-sites/includes and game CMake compile references to consume backend-neutral names.
   - neutralized runtime event-source creation traces in `src/game/server/net/event_source.cpp` (`ENet event source` -> `transport event source`).
-- Acceptance gate result: both required `bzbuild.py -c` builds and both required `test-server-net.sh <build-dir>` wrappers passed.
+- Acceptance gate result: both required `abuild.py -c` builds and both required `test-server-net.sh <build-dir>` wrappers passed.
 
 ## Slice 3 Results (Game Test Fixture Migration, 2026-02-11)
 - Scope executed: migrated raw game-test ENet C API usage into engine-owned network test support contracts without protocol or gameplay semantic changes.
@@ -93,7 +93,7 @@ Runtime transport ownership has mostly moved into engine contracts; this track f
   - Kept direct `enet_static/enet` game-test link wiring untouched for Slice 4.
 - Verification result:
   - Raw ENet C API/type usage was removed from migrated game tests (`#include <enet.h>`, `ENetHost`/`ENetPeer`/`ENetEvent`, direct `enet_*` calls).
-  - Both required `./bzbuild.py -c` validations passed in the assigned build dirs.
+  - Both required `./abuild.py -c` validations passed in the assigned build dirs.
   - Required wrapper gates passed in both assigned build dirs.
 
 ## Slice 5 Results (Closure + Guardrails, 2026-02-11)
@@ -134,8 +134,8 @@ From `m-rewrite/`:
 
 ```bash
 ./scripts/check-network-backend-encapsulation.sh
-./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
 ```
@@ -156,8 +156,8 @@ From `m-rewrite/`:
 
 ```bash
 ./scripts/check-network-backend-encapsulation.sh
-./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
 ```
@@ -179,8 +179,8 @@ From `m-rewrite/`:
    - replace game-facing ENet-specific event-source naming (`CreateEnetServerEventSource`, `enet_event_source.*`) with backend-neutral contracts in `src/game/server/net/*`,
    - preserve protocol/gameplay semantics and existing runtime behavior.
    - Acceptance gates:
-     - `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio`
-     - `./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio`
+     - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio`
+     - `./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio`
      - `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio`
      - `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio`
      - docs updates in this file + `docs/projects/ASSIGNMENTS.md`.
@@ -189,7 +189,7 @@ From `m-rewrite/`:
    - eliminate raw ENet C API usage from game tests (`src/game/tests/transport_*`, raw fixture paths in `client_world_package_safety_integration_test.cpp`),
    - move backend fixture mechanics into engine-owned test support (`src/engine/network/tests/*`) and keep game tests protocol/gameplay assertion focused.
    - Acceptance gates:
-     - both `./bzbuild.py -c` configurations above pass,
+     - both `./abuild.py -c` configurations above pass,
      - both `./scripts/test-server-net.sh <build-dir>` wrappers pass,
      - game tests compile without `<enet.h>` includes and without direct `enet_*` calls.
    - Status: `Completed (2026-02-11; both required bzbuild + wrapper gates passed)`.
@@ -197,7 +197,7 @@ From `m-rewrite/`:
    - remove direct `enet_static/enet` link wiring from `src/game/CMakeLists.txt`,
    - rename/re-scope backend-named test targets to contract-intent names and keep backend linkage owned by engine/internal test-support targets.
    - Acceptance gates:
-     - both `./bzbuild.py -c` configurations above pass,
+     - both `./abuild.py -c` configurations above pass,
      - both `./scripts/test-server-net.sh <build-dir>` wrappers pass,
      - `src/game/CMakeLists.txt` has no direct `target_link_libraries(... enet|enet_static)` entries.
    - Status: `Completed (2026-02-11; both required bzbuild + wrapper gates passed; game CMake ENet link grep returned no matches).`
@@ -215,7 +215,7 @@ From `m-rewrite/`:
    - tighten guardrail checks to fail on any `enet` token or `*enet*` file path under `src/game/*`.
    - Acceptance gates:
      - `rg -n -i "enet" src/game` returns no matches,
-     - both `./bzbuild.py -c` configurations above pass,
+     - both `./abuild.py -c` configurations above pass,
      - both `./scripts/test-server-net.sh <build-dir>` wrappers pass,
      - docs updates in this file + `docs/projects/ASSIGNMENTS.md`.
    - Status: `Completed (2026-02-12; game tree backend-token clean, compatibility coverage moved engine-side, wrapper/guardrails updated).`
@@ -224,8 +224,8 @@ From `m-rewrite/`:
 - `2026-02-11`: Project created at medium-high priority to finish ENet encapsulation and remove backend leakage from game-side code/tests/build wiring.
 - `2026-02-11`: Slice 1 (docs+inventory) completed; direct ENet references under `src/game/*` fully mapped/classified (`remove`/`migrate`/`retain-with-rationale`) and follow-on gated slice plan defined.
 - `2026-02-11`: Slice 2 (runtime boundary migration) completed; game-facing ENet-specific event-source files/factory were migrated to backend-neutral `transport_event_source.*` and `CreateServerTransportEventSource` contracts while preserving runtime behavior.
-- `2026-02-11`: Slice 3 (game test fixture migration) completed; raw ENet C API usage was removed from targeted game tests and moved behind engine-owned loopback test-support contracts; both required `bzbuild.py -c` and wrapper gates passed in both assigned build dirs.
-- `2026-02-11`: Slice 4 (game CMake decoupling + target hygiene) completed; direct game-side `enet_static/enet` target link wiring was removed from `src/game/CMakeLists.txt` while preserving Slice 3 test behavior and runtime semantics; both required `bzbuild.py -c` and wrapper gates passed, and `rg -n "target_link_libraries\\(.*(enet_static|enet)\\b" src/game/CMakeLists.txt` returned no matches.
+- `2026-02-11`: Slice 3 (game test fixture migration) completed; raw ENet C API usage was removed from targeted game tests and moved behind engine-owned loopback test-support contracts; both required `abuild.py -c` and wrapper gates passed in both assigned build dirs.
+- `2026-02-11`: Slice 4 (game CMake decoupling + target hygiene) completed; direct game-side `enet_static/enet` target link wiring was removed from `src/game/CMakeLists.txt` while preserving Slice 3 test behavior and runtime semantics; both required `abuild.py -c` and wrapper gates passed, and `rg -n "target_link_libraries\\(.*(enet_static|enet)\\b" src/game/CMakeLists.txt` returned no matches.
 - `2026-02-11`: Slice 5 (closure + guardrails) completed; added `scripts/check-network-backend-encapsulation.sh`, integrated it into `scripts/test-server-net.sh`, validated guardrail/build/wrapper/docs gates, and settled backend-id compatibility policy as retain-with-rationale until explicit `"enet"` selection deprecation/removal is approved.
 - `2026-02-11`: Strategic track alignment confirmed: this project is a shared unblocker for `m-dev` parity and KARMA-capability-ready architecture by tightening engine-owned networking defaults without protocol/gameplay changes.
 - `2026-02-12`: Slice 6 completed; ENet-labeled game test files/targets were renamed to transport-neutral names, remaining backend-specific token mentions were removed from `src/game/*`, explicit `"enet"` builtin backend-id assertions were migrated from `src/game/tests/server_net_contract_test.cpp` to `src/engine/network/tests/server_transport_contract_test.cpp`, and guardrails now fail on any `enet` token/path under `src/game/*`.

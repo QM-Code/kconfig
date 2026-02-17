@@ -78,7 +78,7 @@ From `m-rewrite/`:
 
 ## Build/Run Commands
 ```bash
-./bzbuild.py -a
+./abuild.py -a
 ./scripts/test-server-net.sh
 ```
 

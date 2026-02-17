@@ -19,7 +19,7 @@ Overseer-only coordination workflow lives in `docs/foundation/governance/oversee
 - `docs/foundation/policy/decisions-log.md`: durable decisions and rationale.
 
 ## Execution Root (Required)
-- Standalone mode: if the current directory is the `m-rewrite` repository root (contains `bzbuild.py` and `docs/`), use unprefixed repo-relative paths (`AGENTS.md`, `docs/...`).
+- Standalone mode: if the current directory is the `m-rewrite` repository root (contains `abuild.py` and `docs/`), use unprefixed repo-relative paths (`AGENTS.md`, `docs/...`).
 - Integration mode: if the current directory is workspace root (`bz3-rewrite/`), anchor first:
 
 ```bash
@@ -49,7 +49,7 @@ If multiple agents need a hotspot, assign one owner and queue merge order.
 
 ## Build and Isolation Policy (Required)
 From repo root:
-- Use `./bzbuild.py <build-dir>` for configure/build/test flows.
+- Use `./abuild.py <build-dir>` for configure/build/test flows.
 - Do not run raw `cmake -S/-B` directly for delegated project work.
 - Local repo `./vcpkg` is mandatory for all delegated builds.
 - External `VCPKG_ROOT` paths are not allowed for delegated builds.
@@ -61,8 +61,8 @@ From repo root:
   - `git clone https://github.com/microsoft/vcpkg.git vcpkg`
   - `./vcpkg/bootstrap-vcpkg.sh -disableMetrics`
 - One-time migration note: older build dirs may still have `CMAKE_TOOLCHAIN_FILE` cached to a non-local vcpkg path; clear that build dir cache (`CMakeCache.txt`, `CMakeFiles/`) before reconfigure.
-- Build dir names must follow `build-<platform>-<renderer>-<physics>-<ui>-<audio>`.
-- Valid platform token is `sdl3` (not `sdl`).
+- Build dir names must start with `build-`; preferred shared slots are `build-a1` through `build-a8`.
+- Build dirs can target defaults or explicit backend sets via `./abuild.py -b ...`.
 - Each active specialist stays inside assigned isolated build dirs.
 
 Standard isolated pairs:
@@ -98,9 +98,9 @@ Wrapper gate policy:
   - backend headers/types stay out of `src/game/*` and engine/game-facing public contracts,
   - no dormant/stub-only backend trees.
 - Required conformance evidence (in one handoff):
-  - baseline: `./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio`
+  - baseline: `./abuild.py -c -d build-a1`
   - baseline wrapper: `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio`
-  - candidate build: `./bzbuild.py -c build-<candidate>-bgfx-jolt-rmlui-sdl3audio` (or explicitly approved equivalent)
+  - candidate build: `./abuild.py -c -d build-a2 -b <candidate>,bgfx,jolt,rmlui,sdl3audio` (or explicitly approved equivalent)
   - candidate wrapper: `./scripts/test-engine-backends.sh build-<candidate>-bgfx-jolt-rmlui-sdl3audio` (or explicitly approved equivalent)
 - Reject speculative backend work when:
   - blocker/proposal/approval is missing,

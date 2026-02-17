@@ -177,7 +177,7 @@ And interactive client/server behavior validation for responsiveness scenarios.
 
 ## Build/Run Commands
 ```bash
-./bzbuild.py -a
+./abuild.py -a
 ./build-dev/bz3-server -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -w common
 ./build-dev/bz3 -d /home/karmak/dev/bz3-rewrite/m-rewrite/data -p 11911 -n tester -t input.events,net.client
 ```

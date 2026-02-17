@@ -4,7 +4,7 @@
 - Current owner: `unassigned`
 - Status: `in progress`
 - Immediate next task: define and land the next concrete HUD/console parity slice from `m-dev` while preserving the engine-owned UI lifecycle and backend policy.
-- Validation gate: `./bzbuild.py -a` and run client across both render backends with selected UI backend(s).
+- Validation gate: `./abuild.py -a` and run client across both render backends with selected UI backend(s).
 
 This is the canonical project file for UI integration and overlay/backend policy.
 
@@ -319,7 +319,7 @@ UI backend work is largely independent from physics/audio/network internals when
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py -a
+./abuild.py -a
 ./build-dev/bz3 --backend-render bgfx --backend-ui imgui
 ./build-dev/bz3 --backend-render diligent --backend-ui rmlui
 ```
@@ -332,7 +332,7 @@ From `m-rewrite/`:
 
 ## Build/Run Commands
 ```bash
-./bzbuild.py -a
+./abuild.py -a
 ```
 
 ## First Session Checklist

@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `codex`
-- Status: `in progress (P0; BGFX + Diligent now run gpu_default shadow passes with depth attachments and shared bias-model controls; visual closeout still pending)`
-- Immediate next task: execute operator visual closeout for locked `gpu_default` defaults, then open one minimal follow-up for contact-edge quality only if needed.
+- Status: `queued/superseded (active lighting/shadow intake moved to docs/projects/karma-lighting-shadow-parity.md on 2026-02-17)`
+- Immediate next task: do not start new work here; use `docs/projects/karma-lighting-shadow-parity.md` as the canonical execution track and archive this file after final carry-over verification.
 - Strategic alignment track: `shared unblocker (m-dev visual parity + KARMA-REPO capability intake)`
 - Validation gate: required renderer builds + sandbox evidence run + runtime smoke + docs lint must pass for each accepted slice.
 
@@ -45,8 +45,8 @@ Shadow defects are currently the primary visual blocker and are cross-cutting (r
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
 ./scripts/run-renderer-shadow-sandbox.sh 20 16 20
 timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
 timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
@@ -65,8 +65,8 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --st
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./bzbuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
+./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
 ./scripts/run-renderer-shadow-sandbox.sh 20 16 20
 ./scripts/run-renderer-shadow-bias-sweep.sh 16
 ```

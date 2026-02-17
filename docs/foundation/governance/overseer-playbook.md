@@ -65,7 +65,7 @@ When issuing a specialist packet:
 - use `docs/foundation/governance/handoff-template.md`,
 - include explicit owned paths, non-goals, and conflict hotspots,
 - include assigned isolated build dirs from `docs/projects/ASSIGNMENTS.md`,
-- enforce `./bzbuild.py <build-dir>`-only operator flows,
+- enforce `./abuild.py <build-dir>`-only operator flows,
 - require test/demo data paths under `demo/` (`demo/communities`, `demo/users`, `demo/worlds`) unless explicitly justified otherwise,
 - require project-specific validation and wrapper gates with explicit build-dir args.
 - use full specialist bootstrap packet once per specialist session, then use delta packets for follow-up slices.

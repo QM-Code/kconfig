@@ -78,8 +78,8 @@ Audio backend work is mostly isolated to engine audio subsystem and can run in p
 - Required parity expectation:
   - audio backend parity/smoke coverage must explicitly assert deterministic request rejection + `VoiceId` lifecycle equivalence across all compiled audio backends.
 - Required project-level backend validation commands:
-  - `./bzbuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio`
-  - `./bzbuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio`
+  - `./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio`
+  - `./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio`
 - Required wrapper-gate expectation for handoff:
   - `./scripts/test-engine-backends.sh <build-dir>` must pass for touched assigned audio build dirs.
 
@@ -91,8 +91,8 @@ Audio backend work is mostly isolated to engine audio subsystem and can run in p
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio
-./bzbuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio
+./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio
+./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio
 ```
 
 ## Trace Channels
@@ -102,15 +102,15 @@ From `m-rewrite/`:
 
 ## Build/Run Commands
 ```bash
-./bzbuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio
-./bzbuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio
+./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio
+./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio
 ```
 
 ## First Session Checklist
 1. Read `docs/projects/core-engine-infrastructure.md` audio sections.
 2. Verify current backend selection behavior in logs.
 3. Make scoped changes under owned paths.
-4. Run both assigned isolated audio builds with `./bzbuild.py`.
+4. Run both assigned isolated audio builds with `./abuild.py`.
 5. Record behavior/test deltas in status notes.
 
 ## Current Status
@@ -140,8 +140,8 @@ From `m-rewrite/`:
   - SDL3audio and miniaudio backend `AddVoice` paths now reject non-finite `gain` or `pitch` deterministically (`kInvalidVoiceId`) before clamping/mixing.
   - smoke test now asserts rejection + side-effect-free voice allocation semantics for invalid `gain`/`pitch` requests across both backends.
   - isolated audio validation passed:
-    - `./bzbuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio`
-    - `./bzbuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio`
+    - `./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio`
+    - `./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio`
   - wrapper closeout passed with explicit build dirs:
     - `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-imgui-sdl3audio` (`2/2`)
     - `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-imgui-miniaudio` (`2/2`)

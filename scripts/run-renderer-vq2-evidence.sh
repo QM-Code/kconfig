@@ -76,7 +76,7 @@ run_backend_capture() {
   )
 
   if [[ ! -x "${binary}" ]]; then
-    echo "ERROR: missing executable ${binary}. Run ./bzbuild.py -c ${build_dir} first." >&2
+    echo "ERROR: missing executable ${binary}. Run ./abuild.py -c ${build_dir} first." >&2
     exit 1
   fi
 

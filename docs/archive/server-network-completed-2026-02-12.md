@@ -60,7 +60,7 @@ Own server-side networking/event-source/runtime behavior for join/spawn/shot/lea
 From `m-rewrite/`:
 
 ```bash
-./bzbuild.py -c <build-dir>
+./abuild.py -c <build-dir>
 ./scripts/test-server-net.sh <build-dir>
 ```
 
@@ -102,7 +102,7 @@ Full legacy material preserved at:
   - protocol/schema scope intentionally unchanged:
     - no edits to `messages.proto`, `protocol.hpp`, `protocol_codec.*`
   - validation run in isolated build profile:
-    - `cd m-rewrite && ./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio`
+    - `cd m-rewrite && ./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio`
     - Result: success (`[100%] Built target transport_disconnect_lifecycle_integration_test`)
     - `cd m-rewrite && ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio`
     - Result: PASS (9/9), including `transport_disconnect_lifecycle_integration_test`.
@@ -116,7 +116,7 @@ Full legacy material preserved at:
 - Protocol/schema scope intentionally unchanged:
   - no edits to `messages.proto`, `protocol.hpp`, `protocol_codec.*`
 - Validation run in assigned build profile:
-  - `cd m-rewrite && ./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio`
+  - `cd m-rewrite && ./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio`
   - Result: success (`[100%] Built target bz3`)
   - `cd m-rewrite && ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio`
   - Result: PASS (7/7), including `transport_disconnect_lifecycle_integration_test`.

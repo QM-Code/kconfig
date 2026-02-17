@@ -158,8 +158,8 @@ From `m-rewrite/`:
 
 ## Build/Run Commands
 ```bash
-./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
+./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
 ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
 ```
@@ -212,15 +212,15 @@ Constraints:
 - No unrelated subsystem changes.
 - Preserve engine/game and backend exposure boundaries from AGENTS.md.
 - Treat `KARMA-REPO` as capability reference only (never structure/layout template).
-- Use bzbuild.py only. Do not run raw cmake -S/-B directly.
+- Use abuild.py only. Do not run raw cmake -S/-B directly.
 - Treat missing/unbootstrapped local `./vcpkg` as a hard blocker for delegated build/test execution.
 - Use only assigned build dirs:
   - build-sdl3-bgfx-jolt-rmlui-miniaudio
   - build-sdl3-bgfx-physx-rmlui-miniaudio
 
 Validation (required):
-- ./bzbuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-- ./bzbuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
+- ./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
+- ./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
 - ./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
 - ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
 - ./build-sdl3-bgfx-jolt-rmlui-miniaudio/src/game/tank_drive_controller_test
@@ -244,7 +244,7 @@ Handoff must include:
 - `2026-02-13`: G1 discovery completed; migration ledger now has concrete `m-dev` source-to-rewrite target mapping for shots/hits/scoring/round lifecycle.
 - `2026-02-13`: identified engine/game leak in `m-dev` renderer backends (`shot.glb` special-casing), marked as explicit anti-pattern for rewrite migration.
 - `2026-02-13`: G2 implemented in rewrite server runtime/domain: active-shot tracking + deterministic expiry/remove broadcast path are now rewrite-owned.
-- `2026-02-13`: G2 validation passed in both assigned build dirs (`bzbuild.py -c` + `test-server-net.sh <build-dir>` on jolt/physx).
+- `2026-02-13`: G2 validation passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh <build-dir>` on jolt/physx).
 - `2026-02-14`: D1 landed: rewrite client now has local drivable tank baseline (`tank_drive_controller` + in-game tank entity + follow camera).
 - `2026-02-14`: D1 movement proof passed in both assigned build dirs via `src/game/tank_drive_controller_test`.
 - `2026-02-14`: D1 hardening landed: reduced movement stutter via substep+visual smoothing, added FPS/chase camera modes (FPS default), and added startup-world collision blocking via engine-public geometry contract (`include/karma/geometry/mesh_loader.hpp`) with boundary-safe include usage in game paths.
