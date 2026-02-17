@@ -32,7 +32,7 @@ This project file is intentionally transient and should only track execution seq
 4. Surface cross-project risks early in `docs/projects/ASSIGNMENTS.md`.
 
 ## Coordination Points
-- `docs/projects/physics-backend.md`
+- `docs/projects/physics-refactor.md`
 - `docs/projects/karma-lighting-shadow-parity.md`
 - `docs/projects/content-mount.md`
 - `docs/projects/gameplay-netcode.md`
