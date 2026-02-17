@@ -1,6 +1,7 @@
 #include "client/net/world_package/internal.hpp"
 
 #include "karma/common/config_store.hpp"
+#include "karma/common/content/package_apply.hpp"
 #include "karma/common/data_path_resolver.hpp"
 #include "karma/common/logging.hpp"
 #include "karma/common/world_archive.hpp"
@@ -14,6 +15,23 @@
 
 namespace bz3::client::net {
 
+namespace {
+
+std::vector<karma::content::ManifestEntry> ToContentManifest(
+    const std::vector<bz3::net::WorldManifestEntry>& manifest) {
+    std::vector<karma::content::ManifestEntry> converted{};
+    converted.reserve(manifest.size());
+    for (const auto& entry : manifest) {
+        converted.push_back(karma::content::ManifestEntry{
+            .path = entry.path,
+            .size = entry.size,
+            .hash = entry.hash});
+    }
+    return converted;
+}
+
+} // namespace
+
 bool ExtractWorldArchiveAtomically(const std::vector<std::byte>& world_data,
                                    const std::filesystem::path& package_root,
                                    std::string_view world_name,
@@ -21,37 +39,14 @@ bool ExtractWorldArchiveAtomically(const std::vector<std::byte>& world_data,
                                    std::string_view expected_world_manifest_hash,
                                    uint32_t expected_world_manifest_file_count,
                                    const std::vector<bz3::net::WorldManifestEntry>& expected_world_manifest) {
-    const std::filesystem::path staging_root = BuildPackageStagingRoot(package_root);
-    std::error_code ec;
-    std::filesystem::remove_all(staging_root, ec);
-    ec.clear();
-    std::filesystem::create_directories(staging_root, ec);
-    if (ec) {
-        spdlog::error("ClientConnection: failed to create staging directory '{}': {}",
-                      staging_root.string(),
-                      ec.message());
-        return false;
-    }
-
-    if (!world::ExtractWorldArchive(world_data, staging_root)) {
-        std::filesystem::remove_all(staging_root, ec);
-        spdlog::error("ClientConnection: failed to extract world archive into staging '{}'",
-                      staging_root.string());
-        return false;
-    }
-
-    if (!VerifyExtractedWorldPackage(staging_root,
-                                     world_name,
-                                     expected_world_content_hash,
-                                     expected_world_manifest_hash,
-                                     expected_world_manifest_file_count,
-                                     expected_world_manifest,
-                                     "staged full")) {
-        std::filesystem::remove_all(staging_root, ec);
-        return false;
-    }
-
-    return ActivateStagedPackageRootAtomically(package_root, staging_root);
+    return karma::content::ExtractArchiveAtomically(world_data,
+                                                    package_root,
+                                                    world_name,
+                                                    expected_world_content_hash,
+                                                    expected_world_manifest_hash,
+                                                    expected_world_manifest_file_count,
+                                                    ToContentManifest(expected_world_manifest),
+                                                    "ClientConnection");
 }
 
 

@@ -11,7 +11,9 @@ set(ENGINE_CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/common/content/archive.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/content/catalog.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/content/cache_store.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/common/content/delta_builder.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/content/manifest.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/common/content/package_apply.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/content/primitives.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/simulation_clock.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/stb_image_impl.cpp

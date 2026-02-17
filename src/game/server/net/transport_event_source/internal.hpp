@@ -2,6 +2,7 @@
 
 #include "server/net/event_source.hpp"
 
+#include "karma/common/content/delta_builder.hpp"
 #include "karma/common/content/manifest.hpp"
 #include "karma/network/server_transport.hpp"
 
@@ -38,8 +39,8 @@ struct ClientConnectionState {
     std::vector<WorldManifestEntry> cached_world_manifest{};
 };
 
-inline constexpr const char* kDeltaRemovedPathsFile = "__bz3_delta_removed_paths.txt";
-inline constexpr const char* kDeltaMetaFile = "__bz3_delta_meta.txt";
+inline constexpr const char* kDeltaRemovedPathsFile = karma::content::kDeltaRemovedPathsFile;
+inline constexpr const char* kDeltaMetaFile = karma::content::kDeltaMetaFile;
 
 using ManifestDiffPlan = karma::content::ManifestDiffPlan;
 

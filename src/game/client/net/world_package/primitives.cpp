@@ -1,11 +1,9 @@
 #include "client/net/world_package/internal.hpp"
 
 #include "karma/common/content/cache_store.hpp"
+#include "karma/common/content/package_apply.hpp"
 #include "karma/common/content/primitives.hpp"
 
-#include <spdlog/spdlog.h>
-
-#include <chrono>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -106,113 +104,22 @@ std::string RevisionCacheDirName(std::string_view world_revision) {
 }
 
 std::filesystem::path BuildPackageStagingRoot(const std::filesystem::path& package_root) {
-    const auto nonce = static_cast<unsigned long long>(
-        std::chrono::steady_clock::now().time_since_epoch().count());
-    return package_root.parent_path() /
-           (package_root.filename().string() + ".staging-" + std::to_string(nonce));
+    return karma::content::BuildPackageStagingRoot(package_root);
 }
 
 std::filesystem::path BuildPackageBackupRoot(const std::filesystem::path& package_root) {
-    const auto nonce = static_cast<unsigned long long>(
-        std::chrono::steady_clock::now().time_since_epoch().count());
-    return package_root.parent_path() /
-           (package_root.filename().string() + ".previous-" + std::to_string(nonce));
+    return karma::content::BuildPackageBackupRoot(package_root);
 }
 
 void CleanupStaleTemporaryDirectories(const std::filesystem::path& package_root) {
-    const std::filesystem::path parent = package_root.parent_path();
-    if (parent.empty() || !std::filesystem::exists(parent) || !std::filesystem::is_directory(parent)) {
-        return;
-    }
-
-    const std::string staging_prefix = package_root.filename().string() + ".staging-";
-    const std::string previous_prefix = package_root.filename().string() + ".previous-";
-    std::error_code ec;
-    for (const auto& entry : std::filesystem::directory_iterator(parent, ec)) {
-        if (ec) {
-            return;
-        }
-        if (!entry.is_directory()) {
-            continue;
-        }
-        const auto name = entry.path().filename().string();
-        const bool stale_staging = name.rfind(staging_prefix, 0) == 0;
-        const bool stale_previous = name.rfind(previous_prefix, 0) == 0;
-        if (!stale_staging && !stale_previous) {
-            continue;
-        }
-
-        std::error_code remove_ec;
-        std::filesystem::remove_all(entry.path(), remove_ec);
-        if (remove_ec) {
-            spdlog::warn("ClientConnection: failed to remove stale package temp dir '{}': {}",
-                         entry.path().string(),
-                         remove_ec.message());
-        }
-    }
+    karma::content::CleanupStaleTemporaryDirectories(package_root, "ClientConnection");
 }
 
 bool ActivateStagedPackageRootAtomically(const std::filesystem::path& package_root,
                                          const std::filesystem::path& staging_root) {
-    const std::filesystem::path backup_root = BuildPackageBackupRoot(package_root);
-    std::error_code ec;
-    bool moved_existing_root = false;
-    const bool package_root_exists = std::filesystem::exists(package_root, ec);
-    if (ec) {
-        spdlog::error("ClientConnection: failed to query package directory '{}': {}",
-                      package_root.string(),
-                      ec.message());
-        return false;
-    }
-
-    if (package_root_exists) {
-        std::filesystem::remove_all(backup_root, ec);
-        ec.clear();
-        std::filesystem::rename(package_root, backup_root, ec);
-        if (ec) {
-            spdlog::error("ClientConnection: failed to move package '{}' -> '{}': {}",
-                          package_root.string(),
-                          backup_root.string(),
-                          ec.message());
-            return false;
-        }
-        moved_existing_root = true;
-    }
-
-    ec.clear();
-    std::filesystem::rename(staging_root, package_root, ec);
-    if (ec) {
-        std::error_code cleanup_ec;
-        std::filesystem::remove_all(staging_root, cleanup_ec);
-        if (moved_existing_root) {
-            std::error_code rollback_ec;
-            std::filesystem::rename(backup_root, package_root, rollback_ec);
-            if (rollback_ec) {
-                spdlog::error("ClientConnection: failed to rollback package '{}' -> '{}' after activation failure: {}",
-                              backup_root.string(),
-                              package_root.string(),
-                              rollback_ec.message());
-            }
-        }
-        spdlog::error("ClientConnection: failed to activate staged package '{}' -> '{}': {}",
-                      staging_root.string(),
-                      package_root.string(),
-                      ec.message());
-        return false;
-    }
-
-    if (moved_existing_root) {
-        std::error_code remove_ec;
-        std::filesystem::remove_all(backup_root, remove_ec);
-        if (remove_ec) {
-            spdlog::warn("ClientConnection: failed to remove previous package backup '{}': {}",
-                         backup_root.string(),
-                         remove_ec.message());
-        }
-    }
-
-    CleanupStaleTemporaryDirectories(package_root);
-    return true;
+    return karma::content::ActivateStagedPackageRootAtomically(package_root,
+                                                               staging_root,
+                                                               "ClientConnection");
 }
 
 

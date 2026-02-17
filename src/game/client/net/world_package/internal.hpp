@@ -1,6 +1,7 @@
 #pragma once
 
 #include "client/net/connection/internal.hpp"
+#include "karma/common/content/delta_builder.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -18,8 +19,8 @@ inline constexpr const char* kWorldIdentityFile = "active_world_identity.txt";
 inline constexpr const char* kWorldManifestFile = "active_world_manifest.txt";
 inline constexpr const char* kWorldPackagesDir = "world-packages";
 inline constexpr const char* kWorldPackagesByWorldDir = "by-world";
-inline constexpr const char* kDeltaRemovedPathsFile = "__bz3_delta_removed_paths.txt";
-inline constexpr const char* kDeltaMetaFile = "__bz3_delta_meta.txt";
+inline constexpr const char* kDeltaRemovedPathsFile = karma::content::kDeltaRemovedPathsFile;
+inline constexpr const char* kDeltaMetaFile = karma::content::kDeltaMetaFile;
 inline constexpr size_t kMaxCachePathComponentLen = 96;
 inline constexpr uint16_t kDefaultMaxRevisionsPerWorld = 4;
 inline constexpr uint16_t kDefaultMaxPackagesPerRevision = 2;
