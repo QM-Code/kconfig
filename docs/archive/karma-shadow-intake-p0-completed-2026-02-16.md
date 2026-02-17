@@ -90,13 +90,12 @@ Defer (not P0 in this track):
 From `m-rewrite/`:
 
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c -d <build-dir>
 ./scripts/run-renderer-shadow-sandbox.sh 20 16 20
 ./scripts/run-point-shadow-visual-closeout.sh all 20 1 20 0.9
 ./scripts/run-point-shadow-budget-sweep.sh 8 1024 1,2,4 2 1 20 0.9
-timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx,render.mesh
-timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent,render.mesh
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx,render.mesh
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent,render.mesh
 ./docs/scripts/lint-project-docs.sh
 ```
 
@@ -108,8 +107,7 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./d
 - `engine.sim`
 
 ## Build Dirs (Assigned)
-- `build-sdl3-bgfx-physx-imgui-sdl3audio`
-- `build-sdl3-diligent-physx-imgui-sdl3audio`
+- `<build-dir>`
 
 ## Current Status
 - `2026-02-16`: P0 integration track created from latest KARMA shadowing deltas.
@@ -174,18 +172,16 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./d
   - user-confirmed quality/performance observation: `pointMapSize=1024` incurs a large frame-time cost; `pointMapSize=256` is the accepted default for interactive point-shadow iteration.
 - `2026-02-16`: Project closed and prepared for archive under `docs/archive/`.
 - Validation evidence (`m-rewrite/`):
-  - `./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` ✅
-  - `./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` ✅
-  - `./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` ✅
-  - `./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` ✅
+  - `./abuild.py -c -d <build-dir>` ✅
+  - `./<build-dir>/src/engine/directional_shadow_contract_test` ✅
   - `./scripts/run-point-shadow-budget-sweep.sh 8 1024 1,2,4 2 1 20 0.9` (summary at `/tmp/point-shadow-budget-sweep-20260216T140724Z/summary.csv`; trace confirms active point-shadow updates under animated point-light scene) ✅
   - `./scripts/run-point-shadow-budget-sweep.sh 8 1024 2 2 1 20 0.9` (summary at `/tmp/point-shadow-budget-sweep-20260216T141641Z/summary.csv`; locked-budget replay) ✅
   - `./scripts/run-point-shadow-budget-sweep.sh 8 2048 2 2 1 20 0.9` (summary at `/tmp/point-shadow-budget-sweep-20260216T141704Z/summary.csv`; confirms `point_shadow_map_build_failed` at `2048 x 2 lights`) ✅
   - `./scripts/run-point-shadow-budget-sweep.sh 8 2048 2 1 1 20 0.9` (summary at `/tmp/point-shadow-budget-sweep-20260216T141732Z/summary.csv`; confirms `2048` viability only with `1` shadow light and high frame cost) ✅
   - `./scripts/run-point-shadow-visual-closeout.sh all 6 1 20 0.9` (logs at `/tmp/point-shadow-visual-closeout-20260216T142516Z/`; both backends reached `point_shadow_faces_updated`) ✅
   - `./scripts/run-point-shadow-visual-closeout.sh all 20 1 20 0.9` (logs at `/tmp/point-shadow-visual-closeout-20260216T142607Z/`; both backends reached `point_shadow_faces_updated`) ✅
-  - `timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx,render.mesh` (timeout expected; traces confirmed `point shadow status ... reason=point_shadow_no_shadow_lights` and `point shadow refresh ... dirtyFaces=0 updatedFaces=0 budget=2`) ✅
-  - `timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent,render.mesh` (timeout expected; traces confirmed `point shadow status ... reason=point_shadow_no_shadow_lights` and `point shadow refresh ... dirtyFaces=0 updatedFaces=0 budget=2`) ✅
+  - `timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx,render.mesh` (timeout expected; traces confirmed `point shadow status ... reason=point_shadow_no_shadow_lights` and `point shadow refresh ... dirtyFaces=0 updatedFaces=0 budget=2`) ✅
+  - `timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent,render.mesh` (timeout expected; traces confirmed `point shadow status ... reason=point_shadow_no_shadow_lights` and `point shadow refresh ... dirtyFaces=0 updatedFaces=0 budget=2`) ✅
 
 ## Open Questions (Resolved)
 - Keep rollout behind explicit config for P0 runtime behavior; do not force point-shadow default-on globally.

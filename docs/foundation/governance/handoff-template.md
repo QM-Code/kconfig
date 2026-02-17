@@ -49,10 +49,21 @@ Constraints:
 - Preserve engine/game and backend exposure boundaries from AGENTS.md.
 - Treat `KARMA-REPO` as capability reference only (never structure/layout template).
 - Use abuild.py only. Do not run raw cmake -S/-B directly.
-- Treat missing/unbootstrapped local `./vcpkg` as a hard blocker and resolve/bootstrap before build/test execution.
+- Treat missing/unbootstrapped local `./vcpkg` as a hard blocker; report it to overseer/human and stop build/test work for that slice.
+- Use explicit specialist identity and slot ownership:
+  - Set `ABUILD_AGENT_NAME=<specialist-name>` (or pass `--agent <specialist-name>`).
+  - Claim assigned slot(s) before first build: `./abuild.py --claim-lock -d <dir>`.
+  - Do not use unassigned slots or mismatched owner locks.
 - Use only assigned build dirs:
   - <dir A>
   - <dir B>
+- Use explicit build-dir args on every build command:
+  - default-first pattern: `./abuild.py -c -d <dir>`
+  - backend-selective pattern (only when needed): `./abuild.py -c -d <dir> -b <token_csv>`
+  - renderer dual-backend example: `./abuild.py -c -d <dir> -b bgfx,diligent`
+  - ui dual-backend example: `./abuild.py -c -d <dir> -b imgui,rmlui`
+  - physics dual-backend example: `./abuild.py -c -d <dir> -b jolt,physx`
+  - never request broad multi-category backend lists unless the slice explicitly requires each category.
 
 Validation (required):
 - <exact command 1>
@@ -95,8 +106,18 @@ Constraints:
 - No unrelated subsystem changes.
 - Preserve engine/game and backend exposure boundaries from standing bootstrap context.
 - Use abuild.py only. Do not run raw cmake -S/-B directly.
-- Treat missing/unbootstrapped local ./vcpkg as a hard blocker before build/test execution.
+- Treat missing/unbootstrapped local `./vcpkg` as a hard blocker; report it to overseer/human and stop build/test work for that slice.
+- Keep standing slot ownership in force:
+  - reuse the same `ABUILD_AGENT_NAME`,
+  - keep work in the same claimed slot(s) unless overseer explicitly reassigns.
 - Use only assigned build dirs listed in docs/projects/ASSIGNMENTS.md.
+- Use explicit build-dir args on every build command:
+  - default-first pattern: `./abuild.py -c -d <dir>`
+  - backend-selective pattern (only when needed): `./abuild.py -c -d <dir> -b <token_csv>`
+  - renderer dual-backend example: `./abuild.py -c -d <dir> -b bgfx,diligent`
+  - ui dual-backend example: `./abuild.py -c -d <dir> -b imgui,rmlui`
+  - physics dual-backend example: `./abuild.py -c -d <dir> -b jolt,physx`
+  - keep backend lists scoped to the exact category/categories touched by the slice.
 
 Validation (required):
 - <exact command 1>

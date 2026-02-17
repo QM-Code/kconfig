@@ -13,6 +13,7 @@ Strategic tracking:
 
 | Project | Owner | Status | Next Task | Last Update |
 |---|---|---|---|---|
+| `abuild-documentation.md` | `codex` | `in progress` | Sweep active project docs for stale `abuild.py` examples and normalize to explicit lock/slot + `-c -d` usage. | `2026-02-17` |
 | `content-mount.md` | `unassigned` | `queued (handoff-ready; shared unblocker slices landed)` | `shared unblocker`: harden delta-selection policy with trace-backed tuning and one bounded regression. | `2026-02-16` |
 | `core-engine-infrastructure.md` | `overseer` | `in progress` | Keep implementation sequencing aligned to `docs/foundation/architecture/core-engine-contracts.md` as active tracks land. | `2026-02-12` |
 | `gameplay-migration.md` | `overseer` | `in progress (D1 hardening landed)` | Execute D2 movement replication slice: wire client `PlayerLocation` intent path to rewrite server authority for tank drive state. | `2026-02-14` |
@@ -26,12 +27,25 @@ Strategic tracking:
 ## Active Specialist Roster
 - `specialist-renderer-parity` -> `docs/projects/renderer-parity.md`
   - Build dirs:
-    - `build-sdl3-bgfx-physx-imgui-sdl3audio`
-    - `build-sdl3-diligent-physx-imgui-sdl3audio`
+    - `build-a5`
+    - `build-a8`
 
 ## Build Policy Lock
-- Use `./abuild.py <build-dir>` for configure/build/test workflows.
+- Use `./abuild.py -c -d <build-dir>` for configure/build/test workflows (`-d` required; omit `-c` only when intentionally reusing an already configured dir).
+- Default-first: most slices should use `./abuild.py -c -d <build-dir>` with no `-b`.
 - Do not use raw `cmake -S/-B` for delegated execution.
+- Specialist packets must provide explicit agent identity and assigned `build-a*` slot(s).
+- Specialists must claim/release assigned slots through `abuild.py` lock commands:
+  - claim: `./abuild.py --claim-lock -d <build-dir>`
+  - release: `./abuild.py --release-lock -d <build-dir>`
+- Renderer dual-backend runtime-select builds use one command/list in a single binary:
+  - `./abuild.py -c -d <build-dir> -b bgfx,diligent`
+- UI dual-backend runtime-select builds use one command/list in a single binary:
+  - `./abuild.py -c -d <build-dir> -b imgui,rmlui`
+- Physics dual-backend runtime-select builds use one command/list in a single binary:
+  - `./abuild.py -c -d <build-dir> -b jolt,physx`
+- When `-b` is used, include only the backend category/categories directly touched by that slice.
+- Local `./vcpkg` is mandatory; specialists treat missing/unbootstrapped setup as a blocker and escalate to overseer/human.
 - Wrapper closeouts in parallel must pass explicit build dirs:
   - `./scripts/test-engine-backends.sh <build-dir>`
   - `./scripts/test-server-net.sh <build-dir>`

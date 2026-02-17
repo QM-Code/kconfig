@@ -134,10 +134,8 @@ From `m-rewrite/`:
 
 ```bash
 ./scripts/check-network-backend-encapsulation.sh
-./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
-./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
-./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c -d <build-dir>
+./scripts/test-server-net.sh <build-dir>
 ```
 
 Docs lint (from repository root):
@@ -156,10 +154,8 @@ From `m-rewrite/`:
 
 ```bash
 ./scripts/check-network-backend-encapsulation.sh
-./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
-./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
-./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c -d <build-dir>
+./scripts/test-server-net.sh <build-dir>
 ```
 
 ## First Session Checklist
@@ -179,10 +175,8 @@ From `m-rewrite/`:
    - replace game-facing ENet-specific event-source naming (`CreateEnetServerEventSource`, `enet_event_source.*`) with backend-neutral contracts in `src/game/server/net/*`,
    - preserve protocol/gameplay semantics and existing runtime behavior.
    - Acceptance gates:
-     - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio`
-     - `./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio`
-     - `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio`
-     - `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio`
+     - `./abuild.py -c -d <build-dir>`
+     - `./scripts/test-server-net.sh <build-dir>`
      - docs updates in this file + `docs/projects/ASSIGNMENTS.md`.
    - Status: `Completed (2026-02-11)`.
 3. Slice 3 (game test fixture migration):

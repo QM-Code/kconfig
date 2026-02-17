@@ -112,7 +112,7 @@ Note:
 
 ### B) Delegated build policy is `abuild.py`-only
 - Decision:
-  - delegated operator flows use `./abuild.py <build-dir>`; no raw `cmake -S/-B` flows.
+  - delegated operator flows use `./abuild.py -d <build-dir>`; no raw `cmake -S/-B` flows.
 - Why:
   - prevent toolchain/config drift.
 - Impact:
@@ -180,4 +180,21 @@ Note:
 - Why:
   - remove recurring toolchain drift and cross-repo lock contention failures.
 - Impact:
-  - missing/unbootstrapped local `./vcpkg` is a hard build blocker until bootstrap commands are run.
+  - missing/unbootstrapped local `./vcpkg` is a hard build blocker.
+  - specialists escalate this blocker to overseer/human instead of spending coding-slice context on environment bootstrap work.
+
+### K) Named build-slot ownership is mandatory for parallel delegated work
+- Decision:
+  - managed slot pool is `build-a1` through `build-a8`, and each specialist must use explicit agent identity with lock ownership via `abuild.py` (`--claim-lock` / `--release-lock`).
+- Why:
+  - prevent cross-agent build-dir collisions and preserve stable per-session build ownership.
+- Impact:
+  - specialist packets must include agent identity + assigned slots, and lock ownership must match before build/test execution (except overseer-approved `--ignore-lock` emergency use).
+
+### L) Specialists run in pre-provisioned slots; setup chores stay with overseer
+- Decision:
+  - specialist packets should assume assigned `build-a*` slots are pre-provisioned and should not include setup chores like creating new build dirs or bootstrapping local tooling.
+- Why:
+  - preserve specialist context for product/code slices and keep environment provisioning centralized.
+- Impact:
+  - when slot/toolchain readiness is missing, specialists report blockers and stop delegated build/test steps until overseer/human resolves setup.

@@ -78,8 +78,7 @@ Audio backend work is mostly isolated to engine audio subsystem and can run in p
 - Required parity expectation:
   - audio backend parity/smoke coverage must explicitly assert deterministic request rejection + `VoiceId` lifecycle equivalence across all compiled audio backends.
 - Required project-level backend validation commands:
-  - `./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio`
-  - `./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio`
+  - `./abuild.py -c --test-audio -d <build-dir>`
 - Required wrapper-gate expectation for handoff:
   - `./scripts/test-engine-backends.sh <build-dir>` must pass for touched assigned audio build dirs.
 
@@ -91,8 +90,7 @@ Audio backend work is mostly isolated to engine audio subsystem and can run in p
 From `m-rewrite/`:
 
 ```bash
-./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio
-./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio
+./abuild.py -c --test-audio -d <build-dir>
 ```
 
 ## Trace Channels
@@ -102,8 +100,7 @@ From `m-rewrite/`:
 
 ## Build/Run Commands
 ```bash
-./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio
-./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio
+./abuild.py -c --test-audio -d <build-dir>
 ```
 
 ## First Session Checklist
@@ -132,19 +129,17 @@ From `m-rewrite/`:
 - Completed slice: rejected invalid positional requests are now asserted as side-effect-free backend no-ops:
   - invalid `startVoice` and invalid `playOneShot` requests (non-finite `world_position`) must not consume voice allocation state.
 - Isolated audio validation passed in assigned build dirs:
-  - `build-sdl3-bgfx-jolt-imgui-sdl3audio`: `audio_backend_smoke_sdl3audio` PASS
-  - `build-sdl3-bgfx-jolt-imgui-miniaudio`: `audio_backend_smoke_miniaudio` PASS
+  - `<build-dir>`: `audio_backend_smoke_sdl3audio` PASS
+  - `<build-dir>`: `audio_backend_smoke_miniaudio` PASS
 - Wrapper validation passed in assigned build dir:
-  - `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-imgui-sdl3audio` PASS (2/2)
+  - `./scripts/test-engine-backends.sh <build-dir>` PASS (2/2)
 - `2026-02-12`: Closeout slice completed for non-finite `gain`/`pitch` handling:
   - SDL3audio and miniaudio backend `AddVoice` paths now reject non-finite `gain` or `pitch` deterministically (`kInvalidVoiceId`) before clamping/mixing.
   - smoke test now asserts rejection + side-effect-free voice allocation semantics for invalid `gain`/`pitch` requests across both backends.
   - isolated audio validation passed:
-    - `./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-sdl3audio`
-    - `./abuild.py -c --test-audio build-sdl3-bgfx-jolt-imgui-miniaudio`
+    - `./abuild.py -c --test-audio -d <build-dir>`
   - wrapper closeout passed with explicit build dirs:
-    - `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-imgui-sdl3audio` (`2/2`)
-    - `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-imgui-miniaudio` (`2/2`)
+    - `./scripts/test-engine-backends.sh <build-dir>` (`2/2`)
 - This project should prioritize backend correctness and headless-safe determinism over feature expansion.
 
 ## Open Questions

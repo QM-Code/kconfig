@@ -3,7 +3,7 @@
 This document defines long-lived governance for validation wrappers, guard scripts, and CI alignment.
 
 ## Core Policy
-- Operator-facing configure/build/test flows use `./abuild.py <build-dir>`.
+- Operator-facing configure/build/test flows use `./abuild.py -d <build-dir>`.
 - In parallel work, wrapper invocations must pass explicit build dirs:
   - `./scripts/test-engine-backends.sh <build-dir>`
   - `./scripts/test-server-net.sh <build-dir>`
@@ -46,7 +46,7 @@ When changing wrappers/guards/CI:
 - Keep residual-risk summaries here only when they are cross-project governance concerns.
 - Keep project-specific risk details in the active project file.
 - Active cross-project note (`2026-02-12`):
-  - `client_transport_contract_test` timeout-race coverage can be scheduler/load-sensitive in some runs (most visible under `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio`).
+  - `client_transport_contract_test` timeout-race coverage can be scheduler/load-sensitive in some runs (most visible under `./scripts/test-server-net.sh build-a6`).
   - Required posture: rerun once immediately on isolated build dirs before escalation, and record both initial and rerun results in handoff evidence.
 
 ## Related Docs

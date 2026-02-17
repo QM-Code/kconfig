@@ -58,8 +58,8 @@ Code-touching slices (from `m-rewrite/` with assigned build dir):
 
 ```bash
 ./scripts/check-platform-seam.sh
-./abuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio
-./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio
+./abuild.py -c -d <build-dir>
+./scripts/test-engine-backends.sh <build-dir>
 ```
 
 ## Trace Channels
@@ -71,8 +71,8 @@ From `m-rewrite/`:
 
 ```bash
 ./scripts/check-platform-seam.sh
-./abuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio
-./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio
+./abuild.py -c -d <build-dir>
+./scripts/test-engine-backends.sh <build-dir>
 ```
 
 ## First Session Checklist
@@ -171,8 +171,8 @@ From `m-rewrite/`:
 | Gate | Command / Evidence | Pass Criteria | Failure / Rollback Policy |
 |---|---|---|---|
 | `Seam Guardrail` | `./scripts/check-platform-seam.sh` | No SDL header/type violations outside allowlist. | Candidate admission is blocked; revert offending seam leakage before any further review. |
-| `Baseline Build` | `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio` | Clean configure/build with SDL3 default path intact. | Candidate is rejected for regression risk; rollback candidate changes and restore baseline pass. |
-| `Baseline Backend Wrapper` | `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio` | Required backend smoke/parity tests pass on baseline profile. | Candidate is rejected; no merge until wrapper gate returns to green. |
+| `Baseline Build` | `./abuild.py -c -d <build-dir>` | Clean configure/build with SDL3 default path intact. | Candidate is rejected for regression risk; rollback candidate changes and restore baseline pass. |
+| `Baseline Backend Wrapper` | `./scripts/test-engine-backends.sh <build-dir>` | Required backend smoke/parity tests pass on baseline profile. | Candidate is rejected; no merge until wrapper gate returns to green. |
 | `Candidate Build Profile` | `./abuild.py -c build-<candidate>-bgfx-jolt-rmlui-sdl3audio` (or explicitly approved equivalent) | Candidate profile config/build passes without touching renderer/network/gameplay semantics. | Candidate stays in prototype state; rollback or isolate failing changes. |
 | `Candidate Backend Wrapper` | `./scripts/test-engine-backends.sh build-<candidate>-bgfx-jolt-rmlui-sdl3audio` (or explicitly approved equivalent) | Candidate backend passes same backend wrapper expectations as baseline. | Candidate admission fails; rollback and keep SDL3-only active backend policy. |
 | `Docs Integrity` | `./docs/scripts/lint-project-docs.sh` | Project/assignment docs stay synchronized with actual gate outcomes. | Candidate cannot be promoted; docs + status must be corrected in same handoff. |
@@ -239,8 +239,8 @@ From `m-rewrite/`:
    - `rg -n -i "glfw|sdl2|sdl 2|sdl-2" docs CMakeLists.txt src/engine/CMakeLists.txt include/karma/platform src/engine/platform`
    - outcome: no stale build/platform stub wiring remains; retained references are policy/history/inventory records.
 7. [x] Ran closeout validation gates for Slice 2:
-   - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-sdl3audio`,
-   - `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio`,
+   - `./abuild.py -c -d <build-dir>`,
+   - `./scripts/test-engine-backends.sh <build-dir>`,
    - `./docs/scripts/lint-project-docs.sh`.
 
 ## Completed Specialist Packet (Slice 2)

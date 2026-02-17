@@ -49,35 +49,46 @@ If multiple agents need a hotspot, assign one owner and queue merge order.
 
 ## Build and Isolation Policy (Required)
 From repo root:
-- Use `./abuild.py <build-dir>` for configure/build/test flows.
+- Use `./abuild.py -c -d <build-dir>` for configure/build/test flows (`-d` required; omit `-c` only when intentionally reusing an already configured build dir).
 - Do not run raw `cmake -S/-B` directly for delegated project work.
+- Specialists must work only in overseer-assigned pre-provisioned build slots (`build-a*`); creating new build dirs is an overseer task.
 - Local repo `./vcpkg` is mandatory for all delegated builds.
 - External `VCPKG_ROOT` paths are not allowed for delegated builds.
-- If `./vcpkg` is missing or not bootstrapped, treat as immediate blocker and notify the human before continuing any build/test execution.
-- Preferred bootstrap helpers:
+- If `./vcpkg` is missing or not bootstrapped, treat as immediate blocker and notify the human/overseer before continuing any build/test execution.
+- Overseer/workspace setup helpers (not specialist slice work):
   - Linux/macOS: `./scripts/setup.sh`
   - Windows: `scripts\\setup.bat`
-- Mandatory bootstrap commands (run once from repo root):
+- Overseer/workspace one-time bootstrap commands (run once from repo root, when setup is required):
   - `git clone https://github.com/microsoft/vcpkg.git vcpkg`
   - `./vcpkg/bootstrap-vcpkg.sh -disableMetrics`
 - One-time migration note: older build dirs may still have `CMAKE_TOOLCHAIN_FILE` cached to a non-local vcpkg path; clear that build dir cache (`CMakeCache.txt`, `CMakeFiles/`) before reconfigure.
-- Build dir names must start with `build-`; preferred shared slots are `build-a1` through `build-a8`.
+- Build dir names must start with `build-`; managed specialist slot pool is `build-a1` through `build-a8`.
+- `build-dev` remains shared fallback and should be avoided for parallel specialist work.
 - Build dirs can target defaults or explicit backend sets via `./abuild.py -b ...`.
-- Each active specialist stays inside assigned isolated build dirs.
+- Default-first operator rule: use `./abuild.py -c -d <build-dir>` for most slices and omit `-b` unless backend variability is directly required by the scoped work.
+- Canonical explicit runtime-select command form:
+  - `./abuild.py -c -d <build-dir>` (default backend set; preferred for non-backend slices).
+  - `./abuild.py -c -d <build-dir> -b bgfx,diligent` (single binary with runtime-selectable renderer backend).
+  - `./abuild.py -c -d <build-dir> -b imgui,rmlui` (single binary with runtime-selectable UI backend).
+  - `./abuild.py -c -d <build-dir> -b jolt,physx` (single binary with runtime-selectable physics backend).
+- Backend-category selection behavior:
+  - if a category is omitted, `abuild.py` uses that category default,
+  - if one token in a category is provided, that backend becomes the active/default for that category,
+  - if multiple tokens in a category are provided, `abuild.py` builds a runtime-selectable set for that category.
+  - avoid multi-category backend lists unless each included category is required for the active validation scope.
+- Each active specialist stays inside assigned slot(s) from `docs/projects/ASSIGNMENTS.md`.
 
-Standard isolated pairs:
-- Physics:
-  - `build-sdl3-bgfx-jolt-rmlui-sdl3audio`
-  - `build-sdl3-bgfx-physx-rmlui-sdl3audio`
-- Audio:
-  - `build-sdl3-bgfx-jolt-imgui-sdl3audio`
-  - `build-sdl3-bgfx-jolt-imgui-miniaudio`
-- Renderer:
-  - `build-sdl3-bgfx-physx-imgui-sdl3audio`
-  - `build-sdl3-diligent-physx-imgui-sdl3audio`
-- Engine-network foundation:
-  - `build-sdl3-bgfx-jolt-rmlui-miniaudio`
-  - `build-sdl3-bgfx-physx-rmlui-miniaudio`
+### Agent Identity and Slot Ownership (Required)
+- Every specialist packet must include:
+  - explicit agent identity (for example: `specialist-renderer-parity`),
+  - assigned build slot(s) (for example: `build-a5`, `build-a8`).
+- Specialists must set identity before build/test execution:
+  - `export ABUILD_AGENT_NAME=<agent-name>` (or pass `--agent <agent-name>` on each `abuild.py` call).
+- Specialists must claim assigned slot(s) before first build in a session:
+  - `./abuild.py --claim-lock -d <build-dir>`
+- Specialists must release assigned slot(s) when retiring or transferring ownership:
+  - `./abuild.py --release-lock -d <build-dir>`
+- Default lock behavior is strict owner enforcement. `--ignore-lock` is emergency-only and requires overseer approval.
 
 Wrapper gate policy:
 - `./scripts/test-engine-backends.sh` and `./scripts/test-server-net.sh` accept optional build-dir args and default to `build-dev`.
@@ -99,9 +110,9 @@ Wrapper gate policy:
   - no dormant/stub-only backend trees.
 - Required conformance evidence (in one handoff):
   - baseline: `./abuild.py -c -d build-a1`
-  - baseline wrapper: `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio`
+  - baseline wrapper: `./scripts/test-engine-backends.sh build-a1`
   - candidate build: `./abuild.py -c -d build-a2 -b <candidate>,bgfx,jolt,rmlui,sdl3audio` (or explicitly approved equivalent)
-  - candidate wrapper: `./scripts/test-engine-backends.sh build-<candidate>-bgfx-jolt-rmlui-sdl3audio` (or explicitly approved equivalent)
+  - candidate wrapper: `./scripts/test-engine-backends.sh build-a2` (or explicitly approved equivalent)
 - Reject speculative backend work when:
   - blocker/proposal/approval is missing,
   - backend leakage breaks seam policy,

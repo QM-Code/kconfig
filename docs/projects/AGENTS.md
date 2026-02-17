@@ -19,6 +19,7 @@ Delta workflow (same specialist session, no bootstrap refresh trigger):
 
 ## Build/Validation Policy
 - Canonical build/validation policy is in `docs/foundation/policy/execution-policy.md`.
+- Named agent identity and build-slot lock ownership rules are defined there and are required for delegated work.
 - Do not restate or fork that policy in project docs; link to it.
 
 ## Scope Rules

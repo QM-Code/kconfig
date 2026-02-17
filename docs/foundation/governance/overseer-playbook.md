@@ -64,8 +64,12 @@ git -C ../KARMA-REPO fetch --all --prune
 When issuing a specialist packet:
 - use `docs/foundation/governance/handoff-template.md`,
 - include explicit owned paths, non-goals, and conflict hotspots,
+- include explicit specialist agent identity (stable name for lock ownership),
 - include assigned isolated build dirs from `docs/projects/ASSIGNMENTS.md`,
-- enforce `./abuild.py <build-dir>`-only operator flows,
+- enforce `./abuild.py -c -d <build-dir>`-first operator flows (omit `-c` only for intentional reuse of configured dirs),
+- require `ABUILD_AGENT_NAME` (or `abuild.py --agent`) plus slot lock lifecycle (`abuild.py --claim-lock` at start, `abuild.py --release-lock` on retire/transfer),
+- keep specialist packets focused on assigned pre-provisioned build slots; avoid setup/bootstrap chores in specialist slices,
+- if local `./vcpkg` or slot readiness is missing, escalate to overseer/human as a blocker instead of spending specialist context on environment setup,
 - require test/demo data paths under `demo/` (`demo/communities`, `demo/users`, `demo/worlds`) unless explicitly justified otherwise,
 - require project-specific validation and wrapper gates with explicit build-dir args.
 - use full specialist bootstrap packet once per specialist session, then use delta packets for follow-up slices.
@@ -133,7 +137,8 @@ This slice is accepted and complete. Stop coding on this track.
 
 Do only:
 1) final handoff summary (files/tests/risks),
-2) ensure project snapshot + ASSIGNMENTS row are current.
+2) ensure project snapshot + ASSIGNMENTS row are current,
+3) release assigned slot locks (`./abuild.py --release-lock -d <build-dir>` with matching `ABUILD_AGENT_NAME`).
 ```
 
 ### Start Specialist (Bootstrap)

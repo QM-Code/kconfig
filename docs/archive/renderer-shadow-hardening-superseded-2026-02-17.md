@@ -45,11 +45,10 @@ Shadow defects are currently the primary visual blocker and are cross-cutting (r
 From `m-rewrite/`:
 
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c -d <build-dir>
 ./scripts/run-renderer-shadow-sandbox.sh 20 16 20
-timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
-timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
 ./scripts/run-renderer-shadow-bias-sweep.sh 16
 ./docs/scripts/lint-project-docs.sh
 ```
@@ -65,8 +64,7 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --st
 From `m-rewrite/`:
 
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c -d <build-dir>
 ./scripts/run-renderer-shadow-sandbox.sh 20 16 20
 ./scripts/run-renderer-shadow-bias-sweep.sh 16
 ```

@@ -6,7 +6,7 @@
 - Upstream snapshot: `KARMA-REPO@905b63b`
 - Rewrite snapshot: `m-rewrite@7ee717f8d`
 - Immediate next task: execute Slice `P0-S1` (directional CSM intake design lock + first vertical slice in sandbox).
-- Validation gate: both renderer builds, sandbox proof recipes, runtime smoke, and docs lint must pass before slice acceptance.
+- Validation gate: one assigned runtime-select renderer profile (`bgfx,diligent`), sandbox proof recipes, runtime smoke across renderer overrides, and docs lint must pass before slice acceptance.
 
 ## Mission
 Implement every lighting/shadow technique that is actively used in KARMA demo paths and still missing (or only partially implemented) in `m-rewrite`, prove each in sandbox first, then wire the proven stack into `bz3` runtime.
@@ -158,18 +158,18 @@ Legend:
 From `m-rewrite/`:
 
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c -d <build-dir> -b bgfx,diligent
 
 # Canonical sandbox parity recipes (backend-specific)
-./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/renderer_shadow_sandbox \
+# Keep default UI/physics/audio/platform backends for this track.
+./<build-dir>/src/engine/renderer_shadow_sandbox \
   --backend-render bgfx --duration-sec 30 --ground-tiles 1 --ground-extent 20 \
   --shadow-map-size 2048 --shadow-pcf 2 --shadow-strength 0.85 --shadow-execution-mode gpu_default \
   --point-shadow-lights 2 --point-shadow-map-size 256 --point-shadow-max-lights 2 \
   --point-shadow-light-range 14 --point-shadow-light-intensity 2 \
   --point-shadow-scene-motion --point-shadow-motion-speed 0.9
 
-./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/renderer_shadow_sandbox \
+./<build-dir>/src/engine/renderer_shadow_sandbox \
   --backend-render diligent --duration-sec 30 --ground-tiles 1 --ground-extent 20 \
   --shadow-map-size 2048 --shadow-pcf 2 --shadow-strength 0.85 --shadow-execution-mode gpu_default \
   --point-shadow-lights 2 --point-shadow-map-size 256 --point-shadow-max-lights 2 \
@@ -177,8 +177,8 @@ From `m-rewrite/`:
   --point-shadow-scene-motion --point-shadow-motion-speed 0.9
 
 # Runtime smoke
-timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
-timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
 
 ./docs/scripts/lint-project-docs.sh
 ```

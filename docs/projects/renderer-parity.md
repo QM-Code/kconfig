@@ -4,7 +4,7 @@
 - Current owner: `specialist-renderer-parity`
 - Status: `priority/in progress (R1-R25 accepted; VQ1-VQ2 accepted; VQ3 active implementation moved to karma-lighting-shadow-parity track; VQ4 queued; R26-A baseline matrix complete; R26-B slice 1 landed; R26-B slice 2 scaffolding landed; R26-B slice 3 BGFX GPU pass prototype landed; R26-B slice 4 Diligent GPU pass prototype landed; R26-B slice 5 lifecycle/fallback hardening landed; R26-B visual closeout checkpoint captured with Diligent screenshot tooling blocker documented; R26-B gpu_default no-shadow regression fix landed and operator-verified; R26-B depth-attachment GPU shadow slice landed; R26-C intake matrix landed; R26-D config-policy slice landed; R26-D bias-model policy slice landed)`
 - Immediate next task: execute operator visual checkpoints for the locked bias defaults (`gpu_default`) and open only the smallest follow-up adjustment needed for contact edge quality.
-- Validation gate: both assigned renderer build dirs via `./abuild.py` plus both client runs listed in this file; run docs lint whenever this project doc or assignment board is updated.
+- Validation gate: assigned renderer build dir configured as runtime-select (`bgfx,diligent`) plus both client runs listed in this file; run docs lint whenever this project doc or assignment board is updated.
 
 ## Mission
 Expand renderer capability toward BGFX/Diligent parity behind stable engine contracts, then convert those capability gains into visible runtime quality improvements (shadow visibility + stable distance texture quality).
@@ -58,21 +58,20 @@ Strategic alignment:
 
 Capture notes:
 - Runtime logs captured in `/tmp/r26a-renderer-baseline-20260214T064426Z/`.
-- `bz3` currently rejects legacy CLI flags `--backend-render` and `--backend-ui`; R26-A used build-specific binaries plus config overrides.
+- `bz3` backend override flags are parsed by shared client CLI (`--backend-render`, `--backend-ui`) when multiple corresponding backends are compiled; this track now runs one assigned runtime-select build dir plus explicit CLI backend overrides for deterministic captures.
 - The first BGFX-shadows-ON run had one anomalous tail-window perf sample (`avg_fps=0.3`, `max_frame_ms=18731.69`) in `bgfx-shadow-on.log`; a same-command rerun (`bgfx-shadow-on-rerun.log`) was recorded and used for the steady-state matrix below.
 
 R26-A commands (run from `m-rewrite/`):
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
+./abuild.py -c -d <build-dir> -b bgfx,diligent
 
-timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-off.json -v -t engine.sim,render.bgfx
-timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-on.json -v -t engine.sim,render.bgfx
-timeout 25s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-off.json -v -t engine.sim,render.diligent
-timeout 25s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-on.json -v -t engine.sim,render.diligent
+timeout 25s ./<build-dir>/bz3 --backend-render bgfx --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-off.json -v -t engine.sim,render.bgfx
+timeout 25s ./<build-dir>/bz3 --backend-render bgfx --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-on.json -v -t engine.sim,render.bgfx
+timeout 25s ./<build-dir>/bz3 --backend-render diligent --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-off.json -v -t engine.sim,render.diligent
+timeout 25s ./<build-dir>/bz3 --backend-render diligent --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-on.json -v -t engine.sim,render.diligent
 
 # anomaly-check rerun for BGFX shadows ON
-timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-on.json -v -t engine.sim,render.bgfx
+timeout 25s ./<build-dir>/bz3 --backend-render bgfx --strict-config=true --config /tmp/r26a-renderer-baseline-20260214T064426Z/user-shadow-on.json -v -t engine.sim,render.bgfx
 ```
 
 Matrix method:
@@ -115,7 +114,7 @@ R26-B implementation recommendation (ordered):
 R26-B risks:
 - Contract drift between backends if GPU pass logic diverges before shared semantics are finalized.
 - Runtime fallback complexity (GPU path failure -> CPU path) can hide regressions unless trace reasons are explicit.
-- Existing docs still include legacy CLI examples (`--backend-render`, `--backend-ui`) that now fail; command recipes should be normalized in follow-up docs maintenance.
+- Existing docs still include backend-override examples attached to build-specific binaries; normalize recipes so overrides are only shown where multi-backend binaries are used.
 
 ## R26-B Slice 1 Progress (In Progress, 2026-02-14)
 Strategic alignment:
@@ -132,18 +131,18 @@ Evidence logs:
 Commands and outcomes (run from `m-rewrite/`):
 ```bash
 # build gates
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio   # fail (missing layers include), then pass after fix
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio       # pass
+./abuild.py -c -d <build-dir> -b bgfx,diligent   # fail (missing layers include), then pass after fix
+./abuild.py -c -d <build-dir> -b bgfx,diligent       # pass
 
 # matrix captures (expected timeout exit 124)
-timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-off.json -v -t engine.sim,render.bgfx
-timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-on.json -v -t engine.sim,render.bgfx
-timeout 25s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-off.json -v -t engine.sim,render.diligent
-timeout 25s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-on.json -v -t engine.sim,render.diligent
+timeout 25s ./<build-dir>/bz3 --backend-render bgfx --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-off.json -v -t engine.sim,render.bgfx
+timeout 25s ./<build-dir>/bz3 --backend-render bgfx --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-on.json -v -t engine.sim,render.bgfx
+timeout 25s ./<build-dir>/bz3 --backend-render diligent --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-off.json -v -t engine.sim,render.diligent
+timeout 25s ./<build-dir>/bz3 --backend-render diligent --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-on.json -v -t engine.sim,render.diligent
 
 # cadence A/B (shadows ON)
-timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-on-every1.json -v -t engine.sim,render.bgfx
-timeout 25s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-on-every1.json -v -t engine.sim,render.diligent
+timeout 25s ./<build-dir>/bz3 --backend-render bgfx --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-on-every1.json -v -t engine.sim,render.bgfx
+timeout 25s ./<build-dir>/bz3 --backend-render diligent --strict-config=true --config /tmp/r26b-shadow-cadence-20260214T082141Z/user-shadow-on-every1.json -v -t engine.sim,render.diligent
 ```
 
 Matrix method:
@@ -204,10 +203,8 @@ R26-B slice-2 scaffolding landed (2026-02-14):
    - `src/engine/renderer/tests/directional_shadow_contract_test.cpp`.
 
 Slice-2 scaffolding validation:
-- `./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio` -> pass.
-- `./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio` -> pass.
-- `./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` -> pass.
-- `./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test` -> pass.
+- `./abuild.py -c -d <build-dir> -b bgfx,diligent` -> pass.
+- `./<build-dir>/src/engine/directional_shadow_contract_test` -> pass.
 - GPU-mode fallback smoke (`executionMode=gpu_default`) logs in `/tmp/r26b-shadow-execmode-20260214T083325Z/` show:
   - BGFX fallback trace count: `1`
   - Diligent fallback trace count: `1`
@@ -230,17 +227,15 @@ R26-B slice-3 BGFX GPU pass prototype landed (2026-02-14):
 
 Slice-3 validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
-./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
-./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
+./abuild.py -c -d <build-dir> -b bgfx,diligent      # pass
+./<build-dir>/src/engine/directional_shadow_contract_test      # pass
 
 # BGFX CPU vs GPU mode compare (shadows ON)
-timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26b-bgfx-gpu-compare-20260214T173727Z/cpu_on.json -v -t engine.sim,render.bgfx
-timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26b-bgfx-gpu-compare-20260214T173727Z/gpu_on.json -v -t engine.sim,render.bgfx
+timeout 25s ./<build-dir>/bz3 --backend-render bgfx --strict-config=true --config /tmp/r26b-bgfx-gpu-compare-20260214T173727Z/cpu_on.json -v -t engine.sim,render.bgfx
+timeout 25s ./<build-dir>/bz3 --backend-render bgfx --strict-config=true --config /tmp/r26b-bgfx-gpu-compare-20260214T173727Z/gpu_on.json -v -t engine.sim,render.bgfx
 
 # Diligent GPU-request fallback check (shadows ON)
-timeout -k 2s 25s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --strict-config=true --config /tmp/r26b-gpu-pass-20260214T173514Z/gpu_on.json -v -t engine.sim,render.diligent
+timeout -k 2s 25s ./<build-dir>/bz3 --backend-render diligent --strict-config=true --config /tmp/r26b-gpu-pass-20260214T173514Z/gpu_on.json -v -t engine.sim,render.diligent
 ```
 
 Slice-3 evidence:
@@ -278,17 +273,15 @@ R26-B slice-4 Diligent GPU pass prototype landed (2026-02-14):
 
 Slice-4 validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
-./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
-./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
+./abuild.py -c -d <build-dir> -b bgfx,diligent      # pass
+./<build-dir>/src/engine/directional_shadow_contract_test      # pass
 
 # 4-way ON-state matrix (BGFX/Diligent x cpu_reference/gpu_default)
 # temporary capture configs created under data/client/, then removed
-timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config ./data/client/config_r26b_cpu_capture.json -v -t engine.sim,render.bgfx
-timeout 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config ./data/client/config_r26b_gpu_capture.json -v -t engine.sim,render.bgfx
-timeout 25s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config ./data/client/config_r26b_cpu_capture.json -v -t engine.sim,render.diligent
-timeout 25s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config ./data/client/config_r26b_gpu_capture.json -v -t engine.sim,render.diligent
+timeout 25s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config ./data/client/config_r26b_cpu_capture.json -v -t engine.sim,render.bgfx
+timeout 25s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config ./data/client/config_r26b_gpu_capture.json -v -t engine.sim,render.bgfx
+timeout 25s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config ./data/client/config_r26b_cpu_capture.json -v -t engine.sim,render.diligent
+timeout 25s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config ./data/client/config_r26b_gpu_capture.json -v -t engine.sim,render.diligent
 ```
 - Final capture exits: all `124` (expected bounded run).
 - Evidence dir: `/tmp/r26b-diligent-gpu-compare-20260214T175043Z/`.
@@ -326,15 +319,13 @@ R26-B slice-5 lifecycle/fallback hardening landed (2026-02-14):
 
 Slice-5 validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
-./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
-./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
+./abuild.py -c -d <build-dir> -b bgfx,diligent      # pass
+./<build-dir>/src/engine/directional_shadow_contract_test      # pass
 
-timeout -k 2s 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config ./data/client/config_r26b_cpu_capture.json -v -t engine.sim,render.bgfx
-timeout -k 2s 25s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config ./data/client/config_r26b_gpu_capture.json -v -t engine.sim,render.bgfx
-timeout -k 2s 25s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config ./data/client/config_r26b_cpu_capture.json -v -t engine.sim,render.diligent
-timeout -k 2s 25s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config ./data/client/config_r26b_gpu_capture.json -v -t engine.sim,render.diligent
+timeout -k 2s 25s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config ./data/client/config_r26b_cpu_capture.json -v -t engine.sim,render.bgfx
+timeout -k 2s 25s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config ./data/client/config_r26b_gpu_capture.json -v -t engine.sim,render.bgfx
+timeout -k 2s 25s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config ./data/client/config_r26b_cpu_capture.json -v -t engine.sim,render.diligent
+timeout -k 2s 25s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config ./data/client/config_r26b_gpu_capture.json -v -t engine.sim,render.diligent
 ```
 
 Slice-5 4-way ON-state matrix (steady-state, drop first `perf1s`, `steady_n=22`):
@@ -376,32 +367,30 @@ R26-B visual closeout checkpoint (partial; tooling blocker documented, 2026-02-1
 Visual closeout commands and outcomes:
 ```bash
 # build gates
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
+./abuild.py -c -d <build-dir> -b bgfx,diligent      # pass
 
 # contract tests
-./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
-./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
+./<build-dir>/src/engine/directional_shadow_contract_test      # pass
 
 # BGFX screenshot capture (sandbox, gpu_default, Xvfb/X11)
 xvfb-run -a --server-args="-screen 0 1280x720x24" \
-  ./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/renderer_shadow_sandbox \
+  ./<build-dir>/src/engine/renderer_shadow_sandbox \
   --backend-render bgfx --duration-sec 10 --video-driver x11 \
   --shadow-execution-mode gpu_default --trace render.system,render.bgfx --verbose
 # pass (images captured)
 
 # Diligent screenshot capture attempt (sandbox, gpu_default, Xvfb/X11)
 xvfb-run -a --server-args="-screen 0 1280x720x24" \
-  ./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/renderer_shadow_sandbox \
+  ./<build-dir>/src/engine/renderer_shadow_sandbox \
   --backend-render diligent --duration-sec 10 --video-driver x11 \
   --shadow-execution-mode gpu_default --trace render.system,render.diligent --verbose
 # fail (VK_ERROR_INITIALIZATION_FAILED on X11 swapchain in this environment)
 
 # Wayland trace parity fallback for Diligent and BGFX (no screenshot path)
-timeout -k 2s 10s ./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/renderer_shadow_sandbox \
+timeout -k 2s 10s ./<build-dir>/src/engine/renderer_shadow_sandbox \
   --backend-render diligent --duration-sec 8 --video-driver wayland \
   --shadow-execution-mode gpu_default --trace render.system,render.diligent --verbose
-timeout -k 2s 10s ./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/renderer_shadow_sandbox \
+timeout -k 2s 10s ./<build-dir>/src/engine/renderer_shadow_sandbox \
   --backend-render bgfx --duration-sec 8 --video-driver wayland \
   --shadow-execution-mode gpu_default --trace render.system,render.bgfx --verbose
 # both pass
@@ -425,10 +414,8 @@ R26-B gpu_default no-shadow regression fix attempt (pending operator visual veri
    - `src/engine/renderer/tests/directional_shadow_contract_test.cpp` now includes `RunShadowClipDepthTransformChecks()`.
 4. Validation after fix (run from `m-rewrite/`):
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
-./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
-./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
+./abuild.py -c -d <build-dir> -b bgfx,diligent      # pass
+./<build-dir>/src/engine/directional_shadow_contract_test      # pass
 ```
 5. Remaining acceptance gate:
    - operator visual confirmation that `gpu_default` shadows are restored on desktop runtime for both backends.
@@ -458,10 +445,8 @@ R26-D config-surface policy slice landed (2026-02-14):
 
 R26-D validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
-./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
-./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
+./abuild.py -c -d <build-dir> -b bgfx,diligent      # pass
+./<build-dir>/src/engine/directional_shadow_contract_test      # pass
 ```
 
 R26-D perf-capture note:
@@ -498,19 +483,17 @@ R26-B slice-6 depth-attachment GPU shadow path landed (2026-02-15):
 
 R26-B slice-6 validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
-./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
-./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
+./abuild.py -c -d <build-dir> -b bgfx,diligent      # pass
+./<build-dir>/src/engine/directional_shadow_contract_test      # pass
 
 # matrix configs (temporary; removed after capture)
 jq '.roamingMode.graphics.lighting.shadows.enabled=false' data/client/config.json > data/client/config_r26d_shadow_off.json
 jq '.roamingMode.graphics.lighting.shadows.enabled=true | .roamingMode.graphics.lighting.shadows.executionMode="gpu_default"' data/client/config.json > data/client/config_r26d_shadow_on_gpu.json
 
-timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config_r26d_shadow_off.json -v -t engine.sim,render.bgfx
-timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config_r26d_shadow_on_gpu.json -v -t engine.sim,render.bgfx
-timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config_r26d_shadow_off.json -v -t engine.sim,render.diligent
-timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config_r26d_shadow_on_gpu.json -v -t engine.sim,render.diligent
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config data/client/config_r26d_shadow_off.json -v -t engine.sim,render.bgfx
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config data/client/config_r26d_shadow_on_gpu.json -v -t engine.sim,render.bgfx
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config data/client/config_r26d_shadow_off.json -v -t engine.sim,render.diligent
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config data/client/config_r26d_shadow_on_gpu.json -v -t engine.sim,render.diligent
 
 rm -f data/client/config_r26d_shadow_off.json data/client/config_r26d_shadow_on_gpu.json
 ```
@@ -590,15 +573,13 @@ R26-D bias-model policy slice landed (2026-02-15):
 
 R26-D bias-model validation commands and outcomes (run from `m-rewrite/`):
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio      # pass
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio  # pass
-./build-sdl3-bgfx-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test      # pass
-./build-sdl3-diligent-physx-imgui-sdl3audio/src/engine/directional_shadow_contract_test  # pass
+./abuild.py -c -d <build-dir> -b bgfx,diligent      # pass
+./<build-dir>/src/engine/directional_shadow_contract_test      # pass
 
-timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.bgfx
-timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.diligent
-timeout -k 2s 10s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t render.system,render.bgfx
-timeout -k 2s 10s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t render.system,render.diligent
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.bgfx
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.diligent
+timeout -k 2s 10s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config data/client/config.json -v -t render.system,render.bgfx
+timeout -k 2s 10s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config data/client/config.json -v -t render.system,render.diligent
 ```
 - Final bounded run exits: all `124` (expected timeout).
 - Evidence logs:
@@ -628,8 +609,8 @@ jq '.roamingMode.graphics.lighting.shadows.receiverBiasScale=0.03 | .roamingMode
 jq '.roamingMode.graphics.lighting.shadows.receiverBiasScale=0.14 | .roamingMode.graphics.lighting.shadows.normalBiasScale=0.60 | .roamingMode.graphics.lighting.shadows.rasterDepthBias=0.0012 | .roamingMode.graphics.lighting.shadows.rasterSlopeBias=2.0' data/client/config.json > data/client/config_r26e_bias_high.json
 
 for profile in low default high; do
-  timeout -k 2s 16s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config_r26e_bias_${profile}.json -v -t engine.sim,render.system,render.bgfx > /tmp/r26e-bias-sweep-20260216T022344Z/bgfx-${profile}.log 2>&1
-  timeout -k 2s 16s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config_r26e_bias_${profile}.json -v -t engine.sim,render.system,render.diligent > /tmp/r26e-bias-sweep-20260216T022344Z/diligent-${profile}.log 2>&1
+  timeout -k 2s 16s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config data/client/config_r26e_bias_${profile}.json -v -t engine.sim,render.system,render.bgfx > /tmp/r26e-bias-sweep-20260216T022344Z/bgfx-${profile}.log 2>&1
+  timeout -k 2s 16s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config data/client/config_r26e_bias_${profile}.json -v -t engine.sim,render.system,render.diligent > /tmp/r26e-bias-sweep-20260216T022344Z/diligent-${profile}.log 2>&1
 done
 
 rm -f data/client/config_r26e_bias_low.json data/client/config_r26e_bias_default.json data/client/config_r26e_bias_high.json
@@ -702,10 +683,9 @@ Renderer feature work can proceed independently of server networking and backend
 From `m-rewrite/`:
 
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
-timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
-timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
+./abuild.py -c -d <build-dir> -b bgfx,diligent
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
 ./docs/scripts/lint-project-docs.sh
 ```
 
@@ -719,10 +699,9 @@ timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --st
 
 ## Build/Run Commands
 ```bash
-./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
-timeout -k 2s 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
-timeout -k 2s 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
+./abuild.py -c -d <build-dir> -b bgfx,diligent
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.bgfx
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent -d ./data --strict-config=true --config data/client/config.json -v -t engine.sim,render.system,render.diligent
 ```
 
 ## First Session Checklist
@@ -800,17 +779,13 @@ cat > /tmp/bz3-vq1-user-config.json <<'JSON'
 JSON
 
 # BGFX baseline capture window (20s)
-timeout 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 \
-  --backend-render bgfx \
-  --backend-ui imgui \
+timeout 20s ./<build-dir>/bz3 --backend-render bgfx \
   --strict-config=true \
   --config /tmp/bz3-vq1-user-config.json \
   -v -t engine.app,render.mesh,render.bgfx
 
 # Diligent baseline capture window (20s)
-timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 \
-  --backend-render diligent \
-  --backend-ui imgui \
+timeout 20s ./<build-dir>/bz3 --backend-render diligent \
   --strict-config=true \
   --config /tmp/bz3-vq1-user-config.json \
   -v -t engine.app,render.mesh,render.diligent
@@ -854,7 +829,7 @@ cd /home/karmak/dev/bz3-rewrite/m-rewrite
 ```
 
 Runner output contract:
-- uses only `build-sdl3-bgfx-physx-imgui-sdl3audio` and `build-sdl3-diligent-physx-imgui-sdl3audio`.
+- uses only assigned runtime-select `<build-dir>` plus explicit renderer backend override (`--backend-render bgfx|diligent`).
 - writes timestamped per-backend logs under `/tmp/vq2-renderer-evidence-<UTC_TIMESTAMP>/`.
 - prints explicit backend exit codes plus post-run child-process verification status.
 
@@ -885,8 +860,8 @@ Baseline failure case (`2026-02-11`, operator report):
 Corrective observability run commands (copy/paste):
 ```bash
 cd /home/karmak/dev/bz3-rewrite/m-rewrite
-timeout 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --backend-render bgfx --backend-ui imgui --strict-config=true --config /tmp/bz3-vq1-user-config.json -v -t engine.app,render.system,render.bgfx,render.mesh
-timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render diligent --backend-ui imgui --strict-config=true --config /tmp/bz3-vq1-user-config.json -v -t engine.app,render.system,render.diligent,render.mesh
+timeout 20s ./<build-dir>/bz3 --backend-render bgfx --strict-config=true --config /tmp/bz3-vq1-user-config.json -v -t engine.app,render.system,render.bgfx,render.mesh
+timeout 20s ./<build-dir>/bz3 --backend-render diligent --strict-config=true --config /tmp/bz3-vq1-user-config.json -v -t engine.app,render.system,render.diligent,render.mesh
 ```
 
 Corrective observability evidence (`2026-02-11`, latest corrective slice):
@@ -984,14 +959,12 @@ Constraints:
 - Preserve engine/game and backend exposure boundaries from AGENTS.md.
 - Use abuild.py only. Do not run raw cmake -S/-B directly.
 - Use only assigned build dirs:
-  - build-sdl3-bgfx-physx-imgui-sdl3audio
-  - build-sdl3-diligent-physx-imgui-sdl3audio
+  - <build-dir>
 
 Validation (required):
-- cd m-rewrite && ./abuild.py -c build-sdl3-bgfx-physx-imgui-sdl3audio
-- cd m-rewrite && ./abuild.py -c build-sdl3-diligent-physx-imgui-sdl3audio
-- cd m-rewrite && timeout 20s ./build-sdl3-bgfx-physx-imgui-sdl3audio/bz3 --backend-render bgfx --backend-ui imgui
-- cd m-rewrite && timeout 20s ./build-sdl3-diligent-physx-imgui-sdl3audio/bz3 --backend-render diligent --backend-ui imgui
+- cd m-rewrite && ./abuild.py -c -d <build-dir> -b bgfx,diligent
+- cd m-rewrite && timeout 20s ./<build-dir>/bz3 --backend-render bgfx
+- cd m-rewrite && timeout 20s ./<build-dir>/bz3 --backend-render diligent
 
 Docs updates (required):
 - Update docs/projects/renderer-parity.md Project Snapshot + status/handoff checklist.

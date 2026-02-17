@@ -136,7 +136,7 @@ Acceptance:
 1. A visible local tank entity is spawned from `assets.models.playerModel` when gameplay starts.
 2. Arrow-key movement (`moveForward/moveBackward/moveLeft/moveRight`) drives tank pose through rewrite-owned game logic.
 3. Follow camera tracks tank pose in gameplay mode.
-4. Movement math is proven by `tank_drive_controller_test` in both assigned build dirs.
+4. Movement math is proven by `tank_drive_controller_test` in the assigned multi-physics build profile.
 
 ## Validation
 From `m-rewrite/`:
@@ -158,10 +158,8 @@ From `m-rewrite/`:
 
 ## Build/Run Commands
 ```bash
-./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
-./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
-./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c -d <build-dir>
+./scripts/test-server-net.sh <build-dir>
 ```
 
 ## First Session Checklist
@@ -215,16 +213,12 @@ Constraints:
 - Use abuild.py only. Do not run raw cmake -S/-B directly.
 - Treat missing/unbootstrapped local `./vcpkg` as a hard blocker for delegated build/test execution.
 - Use only assigned build dirs:
-  - build-sdl3-bgfx-jolt-rmlui-miniaudio
-  - build-sdl3-bgfx-physx-rmlui-miniaudio
+  - <build-dir>
 
 Validation (required):
-- ./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-- ./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
-- ./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
-- ./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
-- ./build-sdl3-bgfx-jolt-rmlui-miniaudio/src/game/tank_drive_controller_test
-- ./build-sdl3-bgfx-physx-rmlui-miniaudio/src/game/tank_drive_controller_test
+- ./abuild.py -c -d <build-dir>
+- ./scripts/test-server-net.sh <build-dir>
+- ./<build-dir>/src/game/tank_drive_controller_test
 - ./docs/scripts/lint-project-docs.sh
 
 Docs updates (required):
@@ -244,9 +238,9 @@ Handoff must include:
 - `2026-02-13`: G1 discovery completed; migration ledger now has concrete `m-dev` source-to-rewrite target mapping for shots/hits/scoring/round lifecycle.
 - `2026-02-13`: identified engine/game leak in `m-dev` renderer backends (`shot.glb` special-casing), marked as explicit anti-pattern for rewrite migration.
 - `2026-02-13`: G2 implemented in rewrite server runtime/domain: active-shot tracking + deterministic expiry/remove broadcast path are now rewrite-owned.
-- `2026-02-13`: G2 validation passed in both assigned build dirs (`abuild.py -c` + `test-server-net.sh <build-dir>` on jolt/physx).
+- `2026-02-13`: G2 validation passed with assigned build profile (`abuild.py -c -d <build-dir>` + `test-server-net.sh <build-dir>`).
 - `2026-02-14`: D1 landed: rewrite client now has local drivable tank baseline (`tank_drive_controller` + in-game tank entity + follow camera).
-- `2026-02-14`: D1 movement proof passed in both assigned build dirs via `src/game/tank_drive_controller_test`.
+- `2026-02-14`: D1 movement proof passed with assigned build profile via `src/game/tank_drive_controller_test`.
 - `2026-02-14`: D1 hardening landed: reduced movement stutter via substep+visual smoothing, added FPS/chase camera modes (FPS default), and added startup-world collision blocking via engine-public geometry contract (`include/karma/geometry/mesh_loader.hpp`) with boundary-safe include usage in game paths.
 
 ## Open Questions

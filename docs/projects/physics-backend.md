@@ -66,8 +66,7 @@ Physics backend implementation and parity checks are mostly independent from UI,
 - Required parity expectation:
   - backend parity coverage must explicitly assert `BodyId` lifecycle + failure semantics across all compiled physics backends.
 - Required project-level backend validation commands:
-  - `./abuild.py -c --test-physics build-sdl3-bgfx-jolt-rmlui-sdl3audio`
-  - `./abuild.py -c --test-physics build-sdl3-bgfx-physx-rmlui-sdl3audio`
+  - `./abuild.py -c --test-physics -d <build-dir> -b jolt,physx`
 - Required wrapper-gate expectation for handoff:
   - `./scripts/test-engine-backends.sh <build-dir>` must pass for touched assigned physics build dirs.
 
@@ -80,8 +79,7 @@ Physics backend implementation and parity checks are mostly independent from UI,
 From `m-rewrite/`:
 
 ```bash
-./abuild.py -c --test-physics build-sdl3-bgfx-jolt-rmlui-sdl3audio
-./abuild.py -c --test-physics build-sdl3-bgfx-physx-rmlui-sdl3audio
+./abuild.py -c --test-physics -d <build-dir> -b jolt,physx
 ```
 
 ## Trace Channels
@@ -92,15 +90,14 @@ From `m-rewrite/`:
 
 ## Build/Run Commands
 ```bash
-./abuild.py -c --test-physics build-sdl3-bgfx-jolt-rmlui-sdl3audio
-./abuild.py -c --test-physics build-sdl3-bgfx-physx-rmlui-sdl3audio
+./abuild.py -c --test-physics -d <build-dir> -b jolt,physx
 ```
 
 ## First Session Checklist
 1. Read `docs/foundation/architecture/core-engine-contracts.md` physics sections.
 2. Confirm backend selection + lifecycle expectations.
 3. Implement smallest contract-safe change.
-4. Run both assigned isolated physics builds with `./abuild.py`.
+4. Run assigned multi-physics build profile with `./abuild.py` (`-b jolt,physx`).
 5. Update this file's status notes.
 
 ## Current Status
@@ -108,9 +105,8 @@ From `m-rewrite/`:
 - Contract/lifecycle scaffolding and backend selection are in place.
 - Physics backend parity tests are present and should remain the authoritative regression gate.
 - Real backend path is active for both compiled backends (`jolt`, `physx`) behind the same `PhysicsSystem` contract.
-- Immediate parity task verification passed in dedicated backend build dirs:
-  - `./abuild.py -c --test-physics build-sdl3-bgfx-jolt-rmlui-sdl3audio`
-  - `./abuild.py -c --test-physics build-sdl3-bgfx-physx-rmlui-sdl3audio`
+- Immediate parity task verification passed in assigned multi-physics build profile:
+  - `./abuild.py -c --test-physics -d <build-dir> -b jolt,physx`
 - Collision query parity slice is now implemented behind `PhysicsSystem`:
   - backend-agnostic closest-hit raycast API is exposed through engine physics contracts,
   - Jolt and PhysX implement matching closest-ray behavior under the same API,
@@ -134,10 +130,9 @@ From `m-rewrite/`:
   - current backend body-handle -> `BodyId` hit mapping uses linear scan and should be optimized if query load increases.
 - Remaining parity work is depth expansion under current boundaries (constraints + additional query depth), not stub replacement for current body lifecycle path.
 - Latest delegated validation (assigned build dirs):
-  - `./abuild.py -c --test-physics build-sdl3-bgfx-jolt-rmlui-sdl3audio` ✅ pass
-  - `./abuild.py -c --test-physics build-sdl3-bgfx-physx-rmlui-sdl3audio` ✅ pass
+  - `./abuild.py -c --test-physics -d <build-dir> -b jolt,physx` ✅ pass
 - Wrapper validation passed:
-  - `./scripts/test-engine-backends.sh build-sdl3-bgfx-jolt-rmlui-sdl3audio` ✅ pass (2/2)
+  - `./scripts/test-engine-backends.sh <build-dir>` ✅ pass (2/2)
 
 ## Open Questions
 - Should constraints exposure remain creation-time only for now, or add runtime lock mutation/getter APIs in the next parity slice?

@@ -255,10 +255,8 @@ Current twenty-eighth-slice boundary (`2026-02-11`):
 From `m-rewrite/`:
 
 ```bash
-./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
-./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio
-./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c -d <build-dir>
+./scripts/test-server-net.sh <build-dir>
 ```
 
 ## Trace Channels
@@ -268,8 +266,7 @@ From `m-rewrite/`:
 
 ## Build/Run Commands
 ```bash
-./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio
-./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio
+./abuild.py -c -d <build-dir>
 ```
 
 ## First Session Checklist
@@ -493,10 +490,9 @@ From `m-rewrite/`:
     - introducing a shared local bounded-probe option builder for reconnect phases.
   - Scope remained test-harness-only (no transport runtime behavior changes, no protocol/schema changes).
   - Required validation:
-    - `./abuild.py -c build-sdl3-bgfx-jolt-rmlui-miniaudio` -> success,
-    - `./abuild.py -c build-sdl3-bgfx-physx-rmlui-miniaudio` -> success,
-    - `./scripts/test-server-net.sh build-sdl3-bgfx-jolt-rmlui-miniaudio` -> PASS (`9/9`),
-    - `./scripts/test-server-net.sh build-sdl3-bgfx-physx-rmlui-miniaudio` -> transient `client_transport_contract_test` timeout-race/reconnect flakes observed on immediate retries, then PASS (`9/9`) in same session retry window.
+    - `./abuild.py -c -d <build-dir>` -> success,
+    - `./scripts/test-server-net.sh <build-dir>` -> PASS (`9/9`),
+    - `./scripts/test-server-net.sh <build-dir>` -> transient `client_transport_contract_test` timeout-race/reconnect flakes observed on immediate retries, then PASS (`9/9`) in same session retry window.
   - Residual risk/deferral:
     - `client_transport_contract_test` live reconnect/timeout race coverage remains scheduler/load sensitive in high-contention runs; slice 29 reduced harness duplication only and does not change runtime ENet behavior.
 
