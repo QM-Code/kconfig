@@ -339,6 +339,68 @@ class PhysXBackend final : public Backend {
         return true;
     }
 
+    bool setBodyLinearVelocity(BodyId body, const glm::vec3& velocity) override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        dynamic_actor->setLinearVelocity(ToPxVec3(velocity));
+        dynamic_actor->wakeUp();
+        return true;
+    }
+
+    bool getBodyLinearVelocity(BodyId body, glm::vec3& out_velocity) const override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        out_velocity = ToGlmVec3(dynamic_actor->getLinearVelocity());
+        return true;
+    }
+
+    bool setBodyAngularVelocity(BodyId body, const glm::vec3& velocity) override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        dynamic_actor->setAngularVelocity(ToPxVec3(velocity));
+        dynamic_actor->wakeUp();
+        return true;
+    }
+
+    bool getBodyAngularVelocity(BodyId body, glm::vec3& out_velocity) const override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        out_velocity = ToGlmVec3(dynamic_actor->getAngularVelocity());
+        return true;
+    }
+
     bool setBodyTrigger(BodyId body, bool enabled) override {
         const auto body_it = bodies_.find(body);
         if (body_it == bodies_.end() || !body_it->second) {
@@ -514,6 +576,10 @@ class PhysXBackendStub final : public Backend {
     bool getBodyTransform(BodyId, BodyTransform&) const override { return false; }
     bool setBodyGravityEnabled(BodyId, bool) override { return false; }
     bool getBodyGravityEnabled(BodyId, bool&) const override { return false; }
+    bool setBodyLinearVelocity(BodyId, const glm::vec3&) override { return false; }
+    bool getBodyLinearVelocity(BodyId, glm::vec3&) const override { return false; }
+    bool setBodyAngularVelocity(BodyId, const glm::vec3&) override { return false; }
+    bool getBodyAngularVelocity(BodyId, glm::vec3&) const override { return false; }
     bool setBodyTrigger(BodyId, bool) override { return false; }
     bool getBodyTrigger(BodyId, bool&) const override { return false; }
     bool setBodyCollisionMask(BodyId, const CollisionMask&) override { return false; }

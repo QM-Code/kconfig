@@ -45,7 +45,7 @@ From `m-rewrite/`:
 ```
 
 ## First Session Checklist
-1. Read `AGENTS.md`, then `docs/foundation/policy/execution-policy.md`, then this file.
+1. Read `docs/AGENTS.md`, then `docs/foundation/policy/execution-policy.md`, then this file.
 2. Confirm scope and known blockers.
 3. Implement a minimal vertical slice.
 4. Run required validation.

@@ -10,10 +10,10 @@ Execution command policy (for all specialists) is canonical in `docs/foundation/
 
 Mode note:
 - Standalone mode (default): `m-rewrite` only.
-- Integration mode (optional): `m-rewrite` + `m-dev` + `KARMA-REPO` via `docs/rewrite-overseer/BOOTSTRAP.md`.
+- Integration mode (optional): `m-rewrite` + `m-dev` + `KARMA-REPO` via `docs/overseer/BOOTSTRAP.md`.
 
 ## Overseer Responsibilities
-1. Keep direction aligned with `AGENTS.md`, `docs/foundation/policy/execution-policy.md`, and `docs/foundation/policy/decisions-log.md`.
+1. Keep direction aligned with `docs/AGENTS.md`, `docs/foundation/policy/execution-policy.md`, and `docs/foundation/policy/decisions-log.md`.
 2. Convert user goals into bounded specialist packets.
 3. Prevent overlap by enforcing owned paths and assigned build dirs from `docs/projects/ASSIGNMENTS.md`.
 4. Review specialist handoffs for scope, validation, risks, and boundary integrity.
@@ -129,7 +129,7 @@ Then:
 ```
 
 Integration-mode summon template is in:
-- `docs/rewrite-overseer/BOOTSTRAP.md`
+- `docs/overseer/BOOTSTRAP.md`
 
 ### Retire Specialist
 ```text

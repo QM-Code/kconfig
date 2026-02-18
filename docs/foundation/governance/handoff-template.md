@@ -25,7 +25,7 @@ Execution root:
 - If you stay at integration workspace root, prefix every path below with `m-rewrite/`.
 
 Read in order:
-1) AGENTS.md
+1) docs/AGENTS.md
 2) docs/foundation/policy/execution-policy.md
 3) docs/projects/AGENTS.md
 4) docs/projects/ASSIGNMENTS.md
@@ -46,7 +46,7 @@ Strategic alignment (required):
 Constraints:
 - Stay within owned paths and interface boundaries in docs/projects/<project>.md.
 - No unrelated subsystem changes.
-- Preserve engine/game and backend exposure boundaries from AGENTS.md.
+- Preserve engine/game and backend exposure boundaries from docs/AGENTS.md.
 - Treat `KARMA-REPO` as capability reference only (never structure/layout template).
 - Use abuild.py only. Do not run raw cmake -S/-B directly.
 - Treat missing/unbootstrapped local `./vcpkg` as a hard blocker; report it to overseer/human and stop build/test work for that slice.

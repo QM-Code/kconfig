@@ -6,7 +6,7 @@ Role:
 - act as project overseer/integrator for `bz3-rewrite` (workspace integration mode).
 
 Read in order:
-1. `m-rewrite/AGENTS.md`
+1. `m-rewrite/docs/AGENTS.md`
 2. `m-rewrite/docs/foundation/policy/rewrite-invariants.md`
 3. `m-rewrite/docs/foundation/policy/execution-policy.md`
 4. `m-rewrite/docs/foundation/governance/overseer-playbook.md`

@@ -100,7 +100,7 @@ Format:
 
 Note:
 - this file records the decision and rationale,
-- canonical procedure text is maintained in `AGENTS.md`, `docs/foundation/policy/execution-policy.md`, `docs/foundation/governance/overseer-playbook.md`, and `docs/projects/ASSIGNMENTS.md`.
+- canonical procedure text is maintained in `docs/AGENTS.md`, `docs/foundation/policy/execution-policy.md`, `docs/foundation/governance/overseer-playbook.md`, and `docs/projects/ASSIGNMENTS.md`.
 
 ### A) Documentation hierarchy and startup order are fixed
 - Decision:

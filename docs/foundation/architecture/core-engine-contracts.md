@@ -1100,4 +1100,4 @@ Ready for broad multi-agent parallelization when all are true:
 - Engine backend testing governance: `docs/foundation/governance/engine-backend-testing.md`
 - Testing/CI governance: `docs/foundation/governance/testing-ci-governance.md`
 - Delegation guidance: `docs/foundation/policy/execution-policy.md`
-- Root rewrite guide: `AGENTS.md`
+- Root rewrite guide: `docs/AGENTS.md`

@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <unordered_set>
 #include <vector>
 
@@ -86,14 +87,137 @@ bool RequiresRigidBodyRebuild(const scene::RigidBodyIntentComponent& previous,
     return false;
 }
 
+bool IsRejectedControllerCompatibility(scene::ControllerColliderCompatibility compatibility) {
+    return compatibility != scene::ControllerColliderCompatibility::Compatible
+           && compatibility != scene::ControllerColliderCompatibility::CompatibleControllerDisabled
+           && compatibility != scene::ControllerColliderCompatibility::EnabledControllerRequiresDynamicRigidBody;
+}
+
+bool ShouldRetainControllerRuntimeBinding(scene::ControllerColliderCompatibility compatibility) {
+    return compatibility == scene::ControllerColliderCompatibility::Compatible
+           || compatibility == scene::ControllerColliderCompatibility::CompatibleControllerDisabled;
+}
+
+bool ShouldUseControllerRuntimeGeometry(const scene::PlayerControllerIntentComponent* controller,
+                                        scene::ControllerColliderCompatibility compatibility) {
+    return controller != nullptr
+           && controller->enabled
+           && compatibility == scene::ControllerColliderCompatibility::Compatible;
+}
+
+void ResolveVelocityOwnership(const scene::RigidBodyIntentComponent& rigidbody,
+                              const scene::PlayerControllerIntentComponent* controller,
+                              scene::ControllerColliderCompatibility compatibility,
+                              scene::ControllerVelocityOwnership& out_ownership,
+                              glm::vec3& out_linear_velocity,
+                              glm::vec3& out_angular_velocity) {
+    out_ownership = scene::ClassifyControllerVelocityOwnership(controller, compatibility);
+    if (scene::IsControllerVelocityOwner(out_ownership) && controller) {
+        out_linear_velocity =
+            scene::ComposeControllerRuntimeLinearVelocity(rigidbody.linear_velocity, *controller, false);
+        out_angular_velocity = glm::vec3(0.0f, 0.0f, 0.0f);
+        return;
+    }
+
+    out_linear_velocity = rigidbody.linear_velocity;
+    out_angular_velocity = rigidbody.angular_velocity;
+}
+
+bool ApplyRuntimeVelocityPolicy(PhysicsSystem& physics_system,
+                                physics_backend::BodyId body,
+                                const scene::RigidBodyIntentComponent& rigidbody,
+                                scene::PlayerControllerIntentComponent* controller,
+                                scene::ControllerColliderCompatibility compatibility,
+                                scene::ControllerVelocityOwnership& out_ownership,
+                                glm::vec3& out_linear_velocity,
+                                glm::vec3& out_angular_velocity) {
+    ResolveVelocityOwnership(
+        rigidbody, controller, compatibility, out_ownership, out_linear_velocity, out_angular_velocity);
+    if (!rigidbody.dynamic) {
+        return true;
+    }
+
+    if (scene::IsControllerVelocityOwner(out_ownership) && controller) {
+        glm::vec3 runtime_linear_velocity{0.0f, 0.0f, 0.0f};
+        if (!physics_system.getBodyLinearVelocity(body, runtime_linear_velocity)) {
+            return false;
+        }
+
+        const bool consume_jump = scene::HasControllerJumpUpwardIntent(*controller);
+        out_linear_velocity = scene::ComposeControllerRuntimeLinearVelocity(
+            runtime_linear_velocity, *controller, consume_jump);
+        out_angular_velocity = glm::vec3(0.0f, 0.0f, 0.0f);
+
+        if (!physics_system.setBodyLinearVelocity(body, out_linear_velocity)
+            || !physics_system.setBodyAngularVelocity(body, out_angular_velocity)) {
+            return false;
+        }
+
+        if (consume_jump) {
+            controller->jump_requested = false;
+        }
+        return true;
+    }
+
+    return physics_system.setBodyLinearVelocity(body, out_linear_velocity)
+           && physics_system.setBodyAngularVelocity(body, out_angular_velocity);
+}
+
+struct PreservedRuntimeState {
+    physics_backend::BodyTransform transform{};
+    glm::vec3 linear_velocity{0.0f, 0.0f, 0.0f};
+    glm::vec3 angular_velocity{0.0f, 0.0f, 0.0f};
+};
+
+glm::vec3 AbsVec3(const glm::vec3& value) {
+    return glm::vec3(std::fabs(value.x), std::fabs(value.y), std::fabs(value.z));
+}
+
+glm::vec3 ResolveControllerBoxHalfExtents(const scene::PlayerControllerIntentComponent& controller) {
+    // Bounded mapping: controller center expands runtime extents around the body origin.
+    return controller.half_extents + AbsVec3(controller.center);
+}
+
+void ResolveControllerCapsuleShape(const scene::PlayerControllerIntentComponent& controller,
+                                   float& out_radius,
+                                   float& out_half_height) {
+    const glm::vec3 extents = ResolveControllerBoxHalfExtents(controller);
+    out_radius = std::max(extents.x, extents.z);
+    out_half_height = std::max(0.01f, extents.y - out_radius);
+}
+
+bool CaptureRuntimeStateForRebuild(PhysicsSystem& physics_system,
+                                   physics_backend::BodyId body,
+                                   const scene::RigidBodyIntentComponent& rigidbody,
+                                   PreservedRuntimeState& out_state) {
+    if (!physics_system.getBodyTransform(body, out_state.transform)) {
+        return false;
+    }
+
+    if (!rigidbody.dynamic) {
+        out_state.linear_velocity = rigidbody.linear_velocity;
+        out_state.angular_velocity = rigidbody.angular_velocity;
+        return true;
+    }
+
+    return physics_system.getBodyLinearVelocity(body, out_state.linear_velocity)
+           && physics_system.getBodyAngularVelocity(body, out_state.angular_velocity);
+}
+
 void BuildBodyDesc(const scene::RigidBodyIntentComponent& rigidbody,
                    const scene::ColliderIntentComponent& collider,
+                   const scene::PlayerControllerIntentComponent* controller,
+                   scene::ControllerColliderCompatibility controller_compatibility,
                    const physics_backend::BodyTransform& transform,
+                   const glm::vec3& linear_velocity,
+                   const glm::vec3& angular_velocity,
                    physics_backend::BodyDesc& out_desc) {
+    const bool use_controller_runtime_geometry =
+        ShouldUseControllerRuntimeGeometry(controller, controller_compatibility);
     out_desc = physics_backend::BodyDesc{};
     out_desc.transform = transform;
-    out_desc.linear_velocity = rigidbody.linear_velocity;
-    out_desc.angular_velocity = rigidbody.angular_velocity;
+    out_desc.linear_velocity = linear_velocity;
+    out_desc.angular_velocity = angular_velocity;
     out_desc.mass = rigidbody.dynamic ? rigidbody.mass : 0.0f;
     out_desc.is_static = !rigidbody.dynamic;
     out_desc.gravity_enabled = rigidbody.dynamic && rigidbody.gravity_enabled;
@@ -106,7 +230,10 @@ void BuildBodyDesc(const scene::RigidBodyIntentComponent& rigidbody,
     switch (collider.shape) {
         case scene::ColliderShapeKind::Box:
             out_desc.collider_shape.kind = physics_backend::ColliderShapeKind::Box;
-            out_desc.collider_shape.box_half_extents = collider.half_extents;
+            out_desc.collider_shape.box_half_extents =
+                (use_controller_runtime_geometry && controller)
+                    ? ResolveControllerBoxHalfExtents(*controller)
+                    : collider.half_extents;
             break;
         case scene::ColliderShapeKind::Sphere:
             out_desc.collider_shape.kind = physics_backend::ColliderShapeKind::Sphere;
@@ -114,8 +241,13 @@ void BuildBodyDesc(const scene::RigidBodyIntentComponent& rigidbody,
             break;
         case scene::ColliderShapeKind::Capsule:
             out_desc.collider_shape.kind = physics_backend::ColliderShapeKind::Capsule;
-            out_desc.collider_shape.capsule_radius = collider.radius;
-            out_desc.collider_shape.capsule_half_height = collider.half_height;
+            if (use_controller_runtime_geometry && controller) {
+                ResolveControllerCapsuleShape(
+                    *controller, out_desc.collider_shape.capsule_radius, out_desc.collider_shape.capsule_half_height);
+            } else {
+                out_desc.collider_shape.capsule_radius = collider.radius;
+                out_desc.collider_shape.capsule_half_height = collider.half_height;
+            }
             break;
         case scene::ColliderShapeKind::Mesh:
             // Bounded placeholder path: mesh intent maps to static box proxy until mesh ingestion lands.
@@ -240,13 +372,16 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
         auto* controller = world.tryGet<scene::PlayerControllerIntentComponent>(entity);
         scene::ControllerColliderCompatibility controller_compatibility =
             scene::ControllerColliderCompatibility::Compatible;
+        const bool has_controller_component = controller != nullptr;
         if (controller) {
-            controller_compatibility = scene::ClassifyControllerColliderCompatibility(*controller, collider);
-            if (!scene::IsControllerColliderCompatible(controller_compatibility)) {
+            controller_compatibility = scene::ClassifyControllerColliderCompatibility(*controller, collider, rigidbody);
+            if (IsRejectedControllerCompatibility(controller_compatibility)) {
                 teardown_entities.push_back(entity);
                 continue;
             }
         }
+        const bool retain_controller_binding =
+            has_controller_component && ShouldRetainControllerRuntimeBinding(controller_compatibility);
 
         physics_backend::BodyTransform scene_transform{};
         if (!ReadSceneTransform(*transform, scene_transform)) {
@@ -264,10 +399,36 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
                                      ownership,
                                      controller,
                                      controller_compatibility,
+                                     retain_controller_binding,
                                      &scene_transform,
-                                     &world]() -> bool {
+                                     &world](const PreservedRuntimeState* preserved_state = nullptr) -> bool {
+            scene::ControllerVelocityOwnership create_velocity_ownership =
+                scene::ControllerVelocityOwnership::RigidbodyIntent;
+            glm::vec3 create_linear_velocity{0.0f, 0.0f, 0.0f};
+            glm::vec3 create_angular_velocity{0.0f, 0.0f, 0.0f};
+            ResolveVelocityOwnership(*rigidbody,
+                                     controller,
+                                     controller_compatibility,
+                                     create_velocity_ownership,
+                                     create_linear_velocity,
+                                     create_angular_velocity);
+
+            physics_backend::BodyTransform create_transform = scene_transform;
+            if (preserved_state) {
+                create_transform = preserved_state->transform;
+                create_linear_velocity = preserved_state->linear_velocity;
+                create_angular_velocity = preserved_state->angular_velocity;
+            }
+
             physics_backend::BodyDesc desc{};
-            BuildBodyDesc(*rigidbody, *collider, scene_transform, desc);
+            BuildBodyDesc(*rigidbody,
+                          *collider,
+                          controller,
+                          controller_compatibility,
+                          create_transform,
+                          create_linear_velocity,
+                          create_angular_velocity,
+                          desc);
 
             const physics_backend::BodyId body = physics_system_.createBody(desc);
             if (body == physics_backend::kInvalidBodyId) {
@@ -279,15 +440,36 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
             binding.rigidbody_intent = *rigidbody;
             binding.collider_intent = *collider;
             binding.transform_ownership = *ownership;
-            binding.controller_runtime_bound = controller != nullptr;
-            if (controller) {
+            binding.controller_runtime_bound = retain_controller_binding;
+            if (retain_controller_binding && controller) {
                 binding.controller_intent = *controller;
                 binding.controller_compatibility = controller_compatibility;
+            } else {
+                binding.controller_intent = scene::PlayerControllerIntentComponent{};
+                binding.controller_compatibility = scene::ControllerColliderCompatibility::Compatible;
             }
-            binding.last_transform = scene_transform;
+            binding.velocity_ownership = create_velocity_ownership;
+            binding.runtime_linear_velocity = create_linear_velocity;
+            binding.runtime_angular_velocity = create_angular_velocity;
+            if (!preserved_state
+                && !ApplyRuntimeVelocityPolicy(physics_system_,
+                                               body,
+                                               *rigidbody,
+                                               controller,
+                                               controller_compatibility,
+                                               binding.velocity_ownership,
+                                               binding.runtime_linear_velocity,
+                                               binding.runtime_angular_velocity)) {
+                physics_system_.destroyBody(body);
+                return false;
+            }
+            if (retain_controller_binding && controller) {
+                binding.controller_intent = *controller;
+            }
+            binding.last_transform = create_transform;
             bindings_[entity] = binding;
 
-            if (scene::ShouldPushSceneTransformToPhysics(*ownership)) {
+            if (!preserved_state && scene::ShouldPushSceneTransformToPhysics(*ownership)) {
                 (void)physics_system_.setBodyTransform(body, scene_transform);
                 auto* mutable_ownership = world.tryGet<scene::PhysicsTransformOwnershipComponent>(entity);
                 if (mutable_ownership) {
@@ -308,8 +490,32 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
             scene::ClassifyColliderReconcileAction(binding.collider_intent, *collider);
         const bool rigidbody_rebuild = RequiresRigidBodyRebuild(binding.rigidbody_intent, *rigidbody);
         const bool collider_rebuild = collider_action == scene::ColliderReconcileAction::RebuildRuntimeShape;
+        const bool previous_controller_runtime_geometry =
+            binding.controller_runtime_bound
+            && binding.controller_compatibility == scene::ControllerColliderCompatibility::Compatible;
+        const bool current_controller_runtime_geometry =
+            retain_controller_binding
+            && controller_compatibility == scene::ControllerColliderCompatibility::Compatible;
+        const bool controller_geometry_source_changed =
+            previous_controller_runtime_geometry != current_controller_runtime_geometry;
+        scene::ControllerGeometryReconcileAction controller_geometry_action =
+            scene::ControllerGeometryReconcileAction::NoOp;
+        if (current_controller_runtime_geometry && controller) {
+            controller_geometry_action =
+                scene::ClassifyControllerGeometryReconcileAction(binding.controller_intent,
+                                                                 *controller,
+                                                                 controller_compatibility);
+        }
+        const bool controller_geometry_change_rebuild =
+            controller_geometry_action == scene::ControllerGeometryReconcileAction::RebuildRuntimeShape;
+        const bool controller_geometry_rebuild =
+            controller_geometry_source_changed || controller_geometry_change_rebuild;
 
         if (collider_action == scene::ColliderReconcileAction::RejectInvalidIntent) {
+            teardown_entities.push_back(entity);
+            continue;
+        }
+        if (controller_geometry_action == scene::ControllerGeometryReconcileAction::RejectInvalidIntent) {
             teardown_entities.push_back(entity);
             continue;
         }
@@ -320,10 +526,19 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
             continue;
         }
 
-        if (rigidbody_rebuild || collider_rebuild) {
+        if (rigidbody_rebuild || collider_rebuild || controller_geometry_rebuild) {
+            std::optional<PreservedRuntimeState> preserved_state{};
+            if (controller_geometry_change_rebuild && !rigidbody_rebuild && !collider_rebuild) {
+                PreservedRuntimeState captured_state{};
+                if (!CaptureRuntimeStateForRebuild(physics_system_, binding.body, *rigidbody, captured_state)) {
+                    teardown_entities.push_back(entity);
+                    continue;
+                }
+                preserved_state = captured_state;
+            }
             physics_system_.destroyBody(binding.body);
             bindings_.erase(binding_it);
-            (void)create_binding();
+            (void)create_binding(preserved_state ? &(*preserved_state) : nullptr);
             continue;
         }
 
@@ -360,9 +575,21 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
             binding.transform_ownership = *ownership;
         }
 
+        if (!ApplyRuntimeVelocityPolicy(physics_system_,
+                                        binding.body,
+                                        *rigidbody,
+                                        controller,
+                                        controller_compatibility,
+                                        binding.velocity_ownership,
+                                        binding.runtime_linear_velocity,
+                                        binding.runtime_angular_velocity)) {
+            teardown_entities.push_back(entity);
+            continue;
+        }
+
         binding.rigidbody_intent = *rigidbody;
         binding.collider_intent = *collider;
-        if (controller) {
+        if (retain_controller_binding && controller) {
             binding.controller_runtime_bound = true;
             binding.controller_intent = *controller;
             binding.controller_compatibility = controller_compatibility;

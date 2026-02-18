@@ -14,7 +14,7 @@ Use this setup when you need integration-level oversight across all three repos:
 4. Clone `m-rewrite`:
    - `git clone --branch m-rewrite https://github.com/QM-Code/bz3.git m-rewrite`
 5. Initialize workspace bootstrap:
-   - `cp m-rewrite/docs/rewrite-overseer/README.init README.md`
+   - `cp m-rewrite/docs/overseer/README.init README.md`
 6. Start Codex from `~/dev/bz3-rewrite/` and follow that README.
 
 For normal standalone `m-rewrite` development, use repository root `README.md` instead.

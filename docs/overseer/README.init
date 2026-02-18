@@ -1,0 +1,7 @@
+# BZ3 Rewrite Integration Workspace
+
+Start Codex from this directory, then paste:
+
+```text
+Follow the instructions in m-rewrite/docs/overseer/BOOTSTRAP.md.
+```

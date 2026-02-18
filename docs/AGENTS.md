@@ -1,11 +1,11 @@
-# AGENTS.md (bz3-rewrite)
+# AGENTS.md (m-rewrite)
 
 This file is a bootstrap pointer for rewrite work.
 
 Canonical long-lived docs are under `docs/foundation/`:
 - rewrite invariants: `docs/foundation/policy/rewrite-invariants.md`
 - execution policy: `docs/foundation/policy/execution-policy.md`
-- overseer workflow: `docs/foundation/governance/overseer-playbook.md`
+- manager workflow: `docs/foundation/governance/overseer-playbook.md`
 - durable decisions: `docs/foundation/policy/decisions-log.md`
 - architecture contracts/models: `docs/foundation/architecture/*`
 
@@ -22,7 +22,7 @@ Workspace guardrails:
   - specialists claim assigned `build-a*` slots with `./abuild.py --claim-lock -d <build-dir>`,
   - specialists release slots with `./abuild.py --release-lock -d <build-dir>` when retiring/transferring ownership.
 - In parallel work, use isolated build dirs and explicit wrapper build-dir args.
-- Local `./vcpkg` is mandatory for delegated build/test work; specialists treat missing/unbootstrapped local `./vcpkg` as a blocker and escalate to overseer/human.
+- Local `./vcpkg` is mandatory for delegated build/test work; specialists treat missing/unbootstrapped local `./vcpkg` as a blocker and escalate to manager/human.
 - Use `demo/` as the canonical tracked test-data root for local fixtures/state:
   - communities: `demo/communities/*`
   - user homes/config state: `demo/users/*`

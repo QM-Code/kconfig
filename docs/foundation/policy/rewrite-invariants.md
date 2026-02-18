@@ -61,7 +61,7 @@ Repository roles:
 - Do not move gameplay semantics into engine-core subsystems.
 
 ## Documentation Precedence
-1. `AGENTS.md` (rewrite invariants and ownership boundaries)
+1. `docs/AGENTS.md` (rewrite invariants and ownership boundaries)
 2. `docs/foundation/policy/execution-policy.md` (execution mechanics and validation policy)
 3. `docs/foundation/governance/overseer-playbook.md` (overseer-only coordination protocol)
 4. `docs/projects/<project>.md` (project-specific scope/spec/validation)
@@ -69,7 +69,7 @@ Repository roles:
 
 ## Startup Read Order
 1. `docs/BOOTSTRAP.md` (startup entrypoint)
-2. `AGENTS.md`
+2. `docs/AGENTS.md`
 3. `docs/foundation/policy/execution-policy.md`
 4. `docs/projects/AGENTS.md`
 5. `docs/projects/ASSIGNMENTS.md`

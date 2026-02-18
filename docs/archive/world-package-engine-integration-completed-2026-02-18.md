@@ -105,7 +105,7 @@ ctest --test-dir <build-dir> -R 'client_world_package_safety_integration_test|se
 ```
 
 ## First Session Checklist
-1. Read `AGENTS.md`, then `docs/foundation/policy/execution-policy.md`, then this file.
+1. Read `docs/AGENTS.md`, then `docs/foundation/policy/execution-policy.md`, then this file.
 2. Confirm overlap boundaries with `docs/projects/gameplay-migration.md`.
 3. Execute only W0/W1 bounded adapter-compaction slice.
 4. Run required validation with assigned build dir.

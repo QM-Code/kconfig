@@ -2,9 +2,9 @@
 
 ## Project Snapshot
 - Current owner: `specialist-physics-refactor`
-- Status: `in progress` (Phase 4a substrate slice landed: backend-neutral collider-shape + trigger/filter runtime property hooks are wired through PhysicsSystem and consumed by ECS sync)
+- Status: `in progress` (Phase 4e landed: controller runtime velocity ownership now preserves live vertical velocity, applies one-shot jump intent deterministically, and leaves disabled/incompatible controller jump intent untouched)
 - Supersedes: `docs/projects/physics-backend.md` (retired to `docs/archive/physics-backend-retired-2026-02-17.md`)
-- Immediate next task: execute next Phase 4 follow-up to deepen backend-native runtime behavior parity (trigger/filter semantics + shape/material/static-mesh/controller ingestion depth) and reduce fallback-only paths.
+- Immediate next task: execute a bounded Phase 4 follow-up to deepen controller-runtime parity beyond velocity/jump mutation handling while keeping backend-native controller objects out of scope.
 - Validation gate: `./scripts/test-engine-backends.sh <build-dir>`
 
 ## Mission
@@ -354,6 +354,96 @@ Explicit remaining deferrals after Phase 4a:
 - No engine loop integration in `src/engine/app/*`.
 - No gameplay migration wiring.
 
+## Phase 4b Controller Ingestion Depth Slice (2026-02-18)
+Landed in this bounded slice:
+- Extended substrate contracts in `include/karma/physics/backend.hpp` and `include/karma/physics/physics_system.hpp` with backend-neutral runtime velocity APIs:
+  - `set/get` linear velocity,
+  - `set/get` angular velocity,
+  - deterministic `false` on invalid/unknown/non-dynamic bodies.
+- Implemented `PhysicsSystem` passthrough methods in `src/engine/physics/physics_system.cpp` for the new runtime velocity APIs.
+- Implemented backend support in `backend_jolt_stub.cpp` and `backend_physx_stub.cpp`:
+  - valid dynamic bodies support linear/angular velocity set/get,
+  - static/invalid/unknown/destroyed bodies deterministically return failure.
+- Updated ECS sync (`src/engine/physics/ecs_sync_system.hpp/.cpp`) controller path:
+  - compatible controller entities now push `desired_velocity` to runtime linear velocity each pre-sim pass,
+  - `PlayerControllerIntentComponent.enabled == false` applies deterministic bounded behavior by pushing zero linear velocity effect while keeping controller metadata.
+- Added parity coverage in `physics_backend_parity_test.cpp` for:
+  - runtime velocity API roundtrip behavior,
+  - invalid/unknown/destroyed/static rejection behavior,
+  - ECS sync desired-velocity application for enabled vs disabled controller states.
+
+Explicit remaining deferrals after Phase 4b:
+- No backend-native player-controller runtime object.
+- No grounded/jump/controller collision behavior implementation.
+- No real static-mesh geometry ingestion pipeline.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
+## Phase 4c Controller-Runtime Parity Slice (2026-02-18)
+Landed in this bounded slice:
+- Extended scene component policy contracts in `include/karma/scene/physics_components.hpp`:
+  - added explicit controller velocity ownership policy helper (`ControllerVelocityOwnership` + classifier helpers),
+  - extended controller/collider compatibility classifier to reject enabled controller intent on non-dynamic rigidbodies (`EnabledControllerRequiresDynamicRigidBody`).
+- Updated ECS sync runtime behavior in `src/engine/physics/ecs_sync_system.hpp/.cpp`:
+  - unified create/update runtime velocity application through policy-driven ownership,
+  - enabled + compatible controller now owns runtime linear velocity (`desired_velocity`) and enforces zero runtime angular velocity,
+  - disabled or absent controller now defers linear+angular runtime velocity ownership to rigidbody intent,
+  - deterministic teardown/rebuild fallback remains in place when runtime velocity mutation fails,
+  - enabled-controller/non-dynamic-rigidbody policy-incompatible configurations no longer churn runtime bodies and do not retain controller runtime metadata bindings.
+- Added bounded parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp` for:
+  - enabled -> disabled -> enabled controller velocity ownership transitions,
+  - angular-velocity ownership expectations under controller vs rigidbody ownership,
+  - explicit incompatible classification for enabled controller + non-dynamic rigidbody,
+  - repeated pre-sim stability for rejected controller/non-dynamic configurations (no controller runtime binding retention).
+
+Explicit remaining deferrals after Phase 4c:
+- No backend-native player-controller runtime object.
+- No grounded/jump/controller collision behavior implementation.
+- No real static-mesh geometry ingestion pipeline.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
+## Phase 4d Controller-Geometry Reconcile Slice (2026-02-18)
+Landed in this bounded slice:
+- Extended scene policy contracts in `include/karma/scene/physics_components.hpp`:
+  - added controller-geometry reconcile contract helper (`NoOp` / `RebuildRuntimeShape` / `RejectInvalidIntent`).
+- Updated ECS sync behavior in `src/engine/physics/ecs_sync_system.hpp/.cpp`:
+  - controller geometry mutations (`half_extents`, `center`) now trigger deterministic runtime rebuild when required.
+  - enabled + compatible controllers now derive runtime collider geometry from controller dimensions for Box/Capsule runtime creation (bounded mapping), rather than stale collider dimensions.
+  - geometry-driven rebuilds preserve runtime transform and linear/angular velocity.
+  - deterministic fallback behavior for rebuild/update failure paths remains intact.
+- Added bounded parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp` for:
+  - rebuild on controller geometry mutation,
+  - no rebuild when geometry is unchanged,
+  - runtime transform/velocity preservation across controller-geometry rebuild.
+
+Explicit remaining deferrals after Phase 4d:
+- No backend-native player-controller runtime object.
+- No grounded/jump/controller collision behavior implementation.
+- No real static-mesh geometry ingestion pipeline.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
+## Phase 4e Controller Motion Parity Slice (2026-02-18)
+Landed in this bounded slice:
+- Reused scene contract helpers in `include/karma/scene/physics_components.hpp` for controller-runtime velocity composition and upward jump applicability (`HasControllerJumpUpwardIntent`, `ComposeControllerRuntimeLinearVelocity`) and added bounded contract assertions in parity tests.
+- Updated ECS sync controller velocity ownership behavior in `src/engine/physics/ecs_sync_system.cpp`:
+  - enabled + compatible controller now preserves current runtime linear `y`, applies controller `desired_velocity.xz`, and enforces zero angular velocity,
+  - one-shot jump is applied only when `jump_requested` is true with positive upward intent, and `jump_requested` is consumed only after successful runtime velocity writes,
+  - disabled/absent/incompatible controller paths remain rigidbody-owned for linear+angular velocity and do not consume jump intent,
+  - runtime linear-velocity read/write failure still maps to deterministic teardown behavior.
+- Added bounded parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp` for:
+  - enabled-controller vertical-velocity preservation (no per-frame `y` clobber),
+  - one-shot jump application + consumption,
+  - disabled/incompatible controller non-consumption of jump intent.
+
+Explicit remaining deferrals after Phase 4e:
+- No backend-native player-controller runtime object.
+- No grounded/controller collision response behavior (jump handling is velocity-intent only in this slice).
+- No real static-mesh geometry ingestion pipeline.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
 ## Current Status
 - `2026-02-17`: Project created as full replacement for backend-only parity track.
 - `2026-02-17`: `physics-backend.md` retired and subsumed into this plan.
@@ -406,7 +496,45 @@ Explicit remaining deferrals after Phase 4a:
   - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
   - `./scripts/test-engine-backends.sh build-a3` (pass)
   - `./docs/scripts/lint-project-docs.sh` (pass)
-- Next implementation slice: deepen backend-native parity for runtime trigger/filter semantics and advance static-mesh/controller ingestion depth.
+- `2026-02-18`: Phase 4b controller-ingestion depth slice landed:
+  - backend-neutral runtime linear/angular velocity APIs added to substrate and `PhysicsSystem`,
+  - Jolt/PhysX velocity runtime support landed with deterministic invalid/unknown/static rejection semantics,
+  - ECS sync now applies controller desired velocity to runtime bodies for compatible enabled controllers and pushes zero effect when disabled.
+- `2026-02-18`: Phase 4b validation completed in `build-a3`:
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+- `2026-02-18`: Phase 4c controller-runtime parity slice landed:
+  - controller velocity ownership policy helpers added to scene contracts,
+  - ECS sync now deterministically applies controller-vs-rigidbody velocity ownership (linear + angular) in both create/update paths,
+  - enabled-controller/non-dynamic-rigidbody combinations are now policy-incompatible without runtime churn.
+- `2026-02-18`: Phase 4c validation completed in `build-a3`:
+  - `if [ -x ./vcpkg/vcpkg ] || [ -x ./vcpkg/bootstrap-vcpkg.sh ] || [ -f ./vcpkg/.bootstrap-complete ]; then echo VCPKG_BOOTSTRAPPED; else echo VCPKG_MISSING; fi` (`VCPKG_BOOTSTRAPPED`)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- `2026-02-18`: Phase 4d controller-geometry reconcile slice landed:
+  - controller-geometry reconcile policy helper added (`NoOp`/`RebuildRuntimeShape`/`RejectInvalidIntent`),
+  - ECS sync now rebuilds deterministically on controller geometry mutation and derives runtime Box/Capsule geometry from controller dimensions for enabled compatible controllers,
+  - runtime transform and runtime linear/angular velocity are preserved across controller-geometry-triggered rebuilds.
+- `2026-02-18`: Phase 4d validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- `2026-02-18`: Phase 4e controller-motion parity slice landed:
+  - ECS sync controller-owned velocity updates now preserve runtime `y`, apply `desired_velocity.xz`, and keep angular velocity zero,
+  - one-shot upward jump intent is applied and consumed deterministically only on successful runtime writes,
+  - disabled/incompatible controller states keep rigidbody-owned runtime velocity and do not consume jump intent.
+- `2026-02-18`: Phase 4e validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- Next implementation slice: execute a bounded Phase 4 follow-up to deepen controller-runtime parity beyond velocity/jump mutation handling while keeping backend-native controller objects out of scope.
 
 ## Handoff Checklist
 - [x] `physics-refactor.md` remains the single active physics project doc in `docs/projects/`.

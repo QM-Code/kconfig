@@ -96,7 +96,19 @@ enum class ControllerColliderCompatibility {
     ColliderInvalid,
     ColliderDisabled,
     ColliderIsTrigger,
-    UnsupportedColliderShape
+    UnsupportedColliderShape,
+    EnabledControllerRequiresDynamicRigidBody
+};
+
+enum class ControllerVelocityOwnership {
+    RigidbodyIntent,
+    ControllerIntent
+};
+
+enum class ControllerGeometryReconcileAction {
+    NoOp,
+    RebuildRuntimeShape,
+    RejectInvalidIntent
 };
 
 inline bool IsFiniteScalar(float value) {
@@ -350,7 +362,8 @@ inline ColliderReconcileAction ClassifyColliderReconcileAction(const ColliderInt
 
 inline ControllerColliderCompatibility ClassifyControllerColliderCompatibility(
     const PlayerControllerIntentComponent& controller,
-    const ColliderIntentComponent* collider) {
+    const ColliderIntentComponent* collider,
+    const RigidBodyIntentComponent* rigidbody = nullptr) {
     if (!ValidatePlayerControllerIntent(controller)) {
         return ControllerColliderCompatibility::ControllerInvalid;
     }
@@ -369,6 +382,9 @@ inline ControllerColliderCompatibility ClassifyControllerColliderCompatibility(
     if (collider->is_trigger) {
         return ControllerColliderCompatibility::ColliderIsTrigger;
     }
+    if (rigidbody && !rigidbody->dynamic) {
+        return ControllerColliderCompatibility::EnabledControllerRequiresDynamicRigidBody;
+    }
     switch (collider->shape) {
         case ColliderShapeKind::Box:
         case ColliderShapeKind::Capsule:
@@ -384,6 +400,55 @@ inline ControllerColliderCompatibility ClassifyControllerColliderCompatibility(
 inline bool IsControllerColliderCompatible(ControllerColliderCompatibility compatibility) {
     return compatibility == ControllerColliderCompatibility::Compatible
            || compatibility == ControllerColliderCompatibility::CompatibleControllerDisabled;
+}
+
+inline ControllerVelocityOwnership ClassifyControllerVelocityOwnership(
+    const PlayerControllerIntentComponent* controller,
+    ControllerColliderCompatibility compatibility) {
+    if (!controller || !controller->enabled) {
+        return ControllerVelocityOwnership::RigidbodyIntent;
+    }
+    if (compatibility != ControllerColliderCompatibility::Compatible) {
+        return ControllerVelocityOwnership::RigidbodyIntent;
+    }
+    return ControllerVelocityOwnership::ControllerIntent;
+}
+
+inline bool IsControllerVelocityOwner(ControllerVelocityOwnership ownership) {
+    return ownership == ControllerVelocityOwnership::ControllerIntent;
+}
+
+inline bool HasControllerJumpUpwardIntent(const PlayerControllerIntentComponent& controller) {
+    return controller.jump_requested && controller.desired_velocity.y > 0.0f;
+}
+
+inline glm::vec3 ComposeControllerRuntimeLinearVelocity(const glm::vec3& runtime_linear_velocity,
+                                                        const PlayerControllerIntentComponent& controller,
+                                                        bool apply_jump_velocity = true) {
+    glm::vec3 composed = runtime_linear_velocity;
+    composed.x = controller.desired_velocity.x;
+    composed.z = controller.desired_velocity.z;
+    if (apply_jump_velocity && HasControllerJumpUpwardIntent(controller)) {
+        composed.y = controller.desired_velocity.y;
+    }
+    return composed;
+}
+
+inline ControllerGeometryReconcileAction ClassifyControllerGeometryReconcileAction(
+    const PlayerControllerIntentComponent& previous,
+    const PlayerControllerIntentComponent& desired,
+    ControllerColliderCompatibility compatibility) {
+    if (!ValidatePlayerControllerIntent(previous) || !ValidatePlayerControllerIntent(desired)) {
+        return ControllerGeometryReconcileAction::RejectInvalidIntent;
+    }
+    if (compatibility != ControllerColliderCompatibility::Compatible) {
+        return ControllerGeometryReconcileAction::NoOp;
+    }
+    if (!NearlyEqualVec3(previous.half_extents, desired.half_extents)
+        || !NearlyEqualVec3(previous.center, desired.center)) {
+        return ControllerGeometryReconcileAction::RebuildRuntimeShape;
+    }
+    return ControllerGeometryReconcileAction::NoOp;
 }
 
 } // namespace karma::scene

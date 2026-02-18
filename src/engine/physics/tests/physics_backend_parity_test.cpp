@@ -374,6 +374,121 @@ bool RunColliderShapeAndRuntimePropertyChecks(BackendKind backend) {
     return true;
 }
 
+bool RunBodyVelocityApiChecks(BackendKind backend) {
+    karma::physics::PhysicsSystem physics;
+    physics.setBackend(backend);
+    physics.init();
+
+    if (!physics.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to initialize (velocity-api check)\n";
+        return false;
+    }
+
+    BodyDesc dynamic_desc{};
+    dynamic_desc.is_static = false;
+    dynamic_desc.mass = 1.0f;
+    dynamic_desc.transform.position = glm::vec3(0.0f, 3.0f, 0.0f);
+    dynamic_desc.linear_velocity = glm::vec3(0.4f, 0.0f, -0.3f);
+    dynamic_desc.angular_velocity = glm::vec3(0.0f, 1.1f, 0.0f);
+    const BodyId dynamic_body = physics.createBody(dynamic_desc);
+    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create dynamic body (velocity-api check)\n";
+        physics.shutdown();
+        return false;
+    }
+
+    glm::vec3 observed_linear{};
+    glm::vec3 observed_angular{};
+    if (!physics.getBodyLinearVelocity(dynamic_body, observed_linear)
+        || !NearlyEqualVec3(observed_linear, dynamic_desc.linear_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " linear velocity read mismatch after dynamic create\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyAngularVelocity(dynamic_body, observed_angular)
+        || !NearlyEqualVec3(observed_angular, dynamic_desc.angular_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " angular velocity read mismatch after dynamic create\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+
+    const glm::vec3 updated_linear(1.25f, 0.0f, 0.5f);
+    const glm::vec3 updated_angular(0.0f, 0.0f, 2.0f);
+    if (!physics.setBodyLinearVelocity(dynamic_body, updated_linear)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyLinearVelocity failed for valid dynamic body\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.setBodyAngularVelocity(dynamic_body, updated_angular)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyAngularVelocity failed for valid dynamic body\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyLinearVelocity(dynamic_body, observed_linear)
+        || !NearlyEqualVec3(observed_linear, updated_linear, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " linear velocity roundtrip mismatch\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyAngularVelocity(dynamic_body, observed_angular)
+        || !NearlyEqualVec3(observed_angular, updated_angular, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " angular velocity roundtrip mismatch\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+
+    BodyDesc static_desc{};
+    static_desc.is_static = true;
+    const BodyId static_body = physics.createBody(static_desc);
+    if (static_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create static body (velocity-api check)\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyLinearVelocity(static_body, glm::vec3(0.1f, 0.0f, 0.0f))
+        || physics.getBodyLinearVelocity(static_body, observed_linear)
+        || physics.setBodyAngularVelocity(static_body, glm::vec3(0.0f, 0.2f, 0.0f))
+        || physics.getBodyAngularVelocity(static_body, observed_angular)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " velocity APIs unexpectedly succeeded on static body\n";
+        physics.destroyBody(static_body);
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.destroyBody(static_body);
+    physics.destroyBody(dynamic_body);
+    if (physics.setBodyLinearVelocity(dynamic_body, glm::vec3(0.0f, 0.0f, 0.0f))
+        || physics.getBodyLinearVelocity(dynamic_body, observed_linear)
+        || physics.setBodyAngularVelocity(dynamic_body, glm::vec3(0.0f, 0.0f, 0.0f))
+        || physics.getBodyAngularVelocity(dynamic_body, observed_angular)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " velocity APIs unexpectedly succeeded after body destroy\n";
+        physics.shutdown();
+        return false;
+    }
+
+    physics.shutdown();
+    return true;
+}
+
 bool RunGroundCollisionChecks(BackendKind backend) {
     karma::physics::PhysicsSystem physics;
     physics.setBackend(backend);
@@ -602,6 +717,31 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    glm::vec3 velocity_out{};
+    if (physics.setBodyLinearVelocity(karma::physics_backend::kInvalidBodyId, glm::vec3(0.0f, 0.0f, 0.0f))) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyLinearVelocity unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyLinearVelocity(karma::physics_backend::kInvalidBodyId, velocity_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyLinearVelocity unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyAngularVelocity(karma::physics_backend::kInvalidBodyId, glm::vec3(0.0f, 0.0f, 0.0f))) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyAngularVelocity unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyAngularVelocity(karma::physics_backend::kInvalidBodyId, velocity_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyAngularVelocity unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
     if (physics.setBodyTrigger(karma::physics_backend::kInvalidBodyId, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTrigger unexpectedly succeeded for invalid id\n";
@@ -666,6 +806,30 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    if (physics.setBodyLinearVelocity(bogus, glm::vec3(0.0f, 0.0f, 0.0f))) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyLinearVelocity unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyLinearVelocity(bogus, velocity_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyLinearVelocity unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyAngularVelocity(bogus, glm::vec3(0.0f, 0.0f, 0.0f))) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyAngularVelocity unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyAngularVelocity(bogus, velocity_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyAngularVelocity unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
     if (physics.setBodyTrigger(bogus, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTrigger unexpectedly succeeded for unknown id\n";
@@ -714,6 +878,30 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
     if (physics.setBodyGravityEnabled(body, false)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyGravityEnabled unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyLinearVelocity(body, glm::vec3(0.0f, 0.0f, 0.0f))) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyLinearVelocity unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyLinearVelocity(body, velocity_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyLinearVelocity unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyAngularVelocity(body, glm::vec3(0.0f, 0.0f, 0.0f))) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyAngularVelocity unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyAngularVelocity(body, velocity_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyAngularVelocity unexpectedly succeeded after destroy\n";
         physics.shutdown();
         return false;
     }
@@ -1738,6 +1926,8 @@ bool RunScenePhysicsComponentContractChecks() {
     using karma::scene::ColliderShapeKind;
     using karma::scene::CollisionMaskIntentComponent;
     using karma::scene::ControllerColliderCompatibility;
+    using karma::scene::ControllerGeometryReconcileAction;
+    using karma::scene::ControllerVelocityOwnership;
     using karma::scene::PhysicsTransformAuthority;
     using karma::scene::PhysicsTransformOwnershipComponent;
     using karma::scene::PhysicsComponentValidationError;
@@ -2035,6 +2225,105 @@ bool RunScenePhysicsComponentContractChecks() {
         return false;
     }
 
+    RigidBodyIntentComponent non_dynamic_rigidbody{};
+    non_dynamic_rigidbody.dynamic = false;
+    compatibility = karma::scene::ClassifyControllerColliderCompatibility(
+        default_controller, &default_collider, &non_dynamic_rigidbody);
+    if (compatibility != ControllerColliderCompatibility::EnabledControllerRequiresDynamicRigidBody
+        || karma::scene::IsControllerColliderCompatible(compatibility)) {
+        std::cerr << "scene physics component contract: non-dynamic rigidbody compatibility mismatch\n";
+        return false;
+    }
+
+    if (karma::scene::ClassifyControllerVelocityOwnership(&default_controller, ControllerColliderCompatibility::Compatible)
+        != ControllerVelocityOwnership::ControllerIntent
+        || !karma::scene::IsControllerVelocityOwner(ControllerVelocityOwnership::ControllerIntent)) {
+        std::cerr << "scene physics component contract: controller velocity ownership mismatch\n";
+        return false;
+    }
+    if (karma::scene::ClassifyControllerVelocityOwnership(
+            &controller_disabled, ControllerColliderCompatibility::CompatibleControllerDisabled)
+        != ControllerVelocityOwnership::RigidbodyIntent
+        || karma::scene::IsControllerVelocityOwner(ControllerVelocityOwnership::RigidbodyIntent)) {
+        std::cerr << "scene physics component contract: disabled-controller velocity ownership mismatch\n";
+        return false;
+    }
+    if (karma::scene::ClassifyControllerVelocityOwnership(
+            &default_controller, ControllerColliderCompatibility::EnabledControllerRequiresDynamicRigidBody)
+        != ControllerVelocityOwnership::RigidbodyIntent) {
+        std::cerr << "scene physics component contract: non-dynamic controller velocity ownership mismatch\n";
+        return false;
+    }
+    if (karma::scene::ClassifyControllerVelocityOwnership(nullptr, ControllerColliderCompatibility::Compatible)
+        != ControllerVelocityOwnership::RigidbodyIntent) {
+        std::cerr << "scene physics component contract: null-controller velocity ownership mismatch\n";
+        return false;
+    }
+    PlayerControllerIntentComponent jump_helper_controller = default_controller;
+    jump_helper_controller.jump_requested = true;
+    jump_helper_controller.desired_velocity = glm::vec3(0.6f, 4.5f, -0.4f);
+    if (!karma::scene::HasControllerJumpUpwardIntent(jump_helper_controller)) {
+        std::cerr << "scene physics component contract: jump upward intent helper mismatch\n";
+        return false;
+    }
+    const glm::vec3 seed_runtime_velocity(0.2f, -2.0f, 0.3f);
+    const glm::vec3 composed_no_jump =
+        karma::scene::ComposeControllerRuntimeLinearVelocity(seed_runtime_velocity, jump_helper_controller, false);
+    if (!NearlyEqualVec3(composed_no_jump, glm::vec3(0.6f, -2.0f, -0.4f), 1e-5f)) {
+        std::cerr << "scene physics component contract: controller runtime velocity compose no-jump mismatch\n";
+        return false;
+    }
+    const glm::vec3 composed_with_jump =
+        karma::scene::ComposeControllerRuntimeLinearVelocity(seed_runtime_velocity, jump_helper_controller, true);
+    if (!NearlyEqualVec3(composed_with_jump, glm::vec3(0.6f, 4.5f, -0.4f), 1e-5f)) {
+        std::cerr << "scene physics component contract: controller runtime velocity compose jump mismatch\n";
+        return false;
+    }
+    jump_helper_controller.desired_velocity.y = 0.0f;
+    if (karma::scene::HasControllerJumpUpwardIntent(jump_helper_controller)) {
+        std::cerr << "scene physics component contract: non-upward jump intent helper mismatch\n";
+        return false;
+    }
+
+    if (karma::scene::ClassifyControllerGeometryReconcileAction(
+            default_controller, default_controller, ControllerColliderCompatibility::Compatible)
+        != ControllerGeometryReconcileAction::NoOp) {
+        std::cerr << "scene physics component contract: controller geometry no-op reconcile mismatch\n";
+        return false;
+    }
+    PlayerControllerIntentComponent controller_half_extents_change = default_controller;
+    controller_half_extents_change.half_extents.x += 0.2f;
+    if (karma::scene::ClassifyControllerGeometryReconcileAction(
+            default_controller, controller_half_extents_change, ControllerColliderCompatibility::Compatible)
+        != ControllerGeometryReconcileAction::RebuildRuntimeShape) {
+        std::cerr << "scene physics component contract: controller half-extents reconcile mismatch\n";
+        return false;
+    }
+    PlayerControllerIntentComponent controller_center_change = default_controller;
+    controller_center_change.center.y += 0.3f;
+    if (karma::scene::ClassifyControllerGeometryReconcileAction(
+            default_controller, controller_center_change, ControllerColliderCompatibility::Compatible)
+        != ControllerGeometryReconcileAction::RebuildRuntimeShape) {
+        std::cerr << "scene physics component contract: controller center reconcile mismatch\n";
+        return false;
+    }
+    if (karma::scene::ClassifyControllerGeometryReconcileAction(default_controller,
+                                                                controller_center_change,
+                                                                ControllerColliderCompatibility::CompatibleControllerDisabled)
+        != ControllerGeometryReconcileAction::NoOp) {
+        std::cerr << "scene physics component contract: disabled-controller geometry reconcile mismatch\n";
+        return false;
+    }
+    PlayerControllerIntentComponent invalid_geometry_controller = default_controller;
+    invalid_geometry_controller.half_extents.y = 0.0f;
+    if (karma::scene::ClassifyControllerGeometryReconcileAction(default_controller,
+                                                                invalid_geometry_controller,
+                                                                ControllerColliderCompatibility::Compatible)
+        != ControllerGeometryReconcileAction::RejectInvalidIntent) {
+        std::cerr << "scene physics component contract: invalid controller geometry reconcile mismatch\n";
+        return false;
+    }
+
     karma::ecs::World world{};
     const auto entity_a = world.createEntity();
     const auto entity_b = world.createEntity();
@@ -2329,7 +2618,10 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     const auto entity_controller = world.createEntity();
     world.add<TransformComponent>(entity_controller, make_transform_component(glm::vec3(3.0f, 6.0f, 0.0f)));
-    world.add<RigidBodyIntentComponent>(entity_controller, RigidBodyIntentComponent{});
+    RigidBodyIntentComponent controller_rigidbody{};
+    controller_rigidbody.linear_velocity = glm::vec3(-0.25f, 0.0f, 0.4f);
+    controller_rigidbody.angular_velocity = glm::vec3(0.0f, 0.7f, 0.2f);
+    world.add<RigidBodyIntentComponent>(entity_controller, controller_rigidbody);
     world.add<ColliderIntentComponent>(entity_controller, ColliderIntentComponent{});
     world.add<PhysicsTransformOwnershipComponent>(entity_controller, PhysicsTransformOwnershipComponent{});
     world.add<PlayerControllerIntentComponent>(entity_controller, PlayerControllerIntentComponent{});
@@ -2350,7 +2642,247 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         return false;
     }
 
+    auto* controller_intent = world.tryGet<PlayerControllerIntentComponent>(entity_controller);
+    BodyId controller_body = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
+        || controller_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync lost controller body before desired-velocity check\n";
+        physics.shutdown();
+        return false;
+    }
+    const glm::vec3 controller_vertical_fixture(-0.35f, 3.25f, 0.15f);
+    if (!physics.setBodyLinearVelocity(controller_body, controller_vertical_fixture)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync controller vertical-preservation fixture setup failed\n";
+        physics.shutdown();
+        return false;
+    }
+
+    controller_intent->desired_velocity = glm::vec3(1.1f, 0.0f, -0.6f);
+    controller_intent->jump_requested = false;
+    sync.preSimulate(world);
+    if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
+        || controller_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync lost controller body during desired-velocity check\n";
+        physics.shutdown();
+        return false;
+    }
+    glm::vec3 controller_runtime_linear_velocity{};
+    const glm::vec3 expected_controller_no_jump_velocity(
+        controller_intent->desired_velocity.x,
+        controller_vertical_fixture.y,
+        controller_intent->desired_velocity.z);
+    if (!physics.getBodyLinearVelocity(controller_body, controller_runtime_linear_velocity)
+        || !NearlyEqualVec3(controller_runtime_linear_velocity, expected_controller_no_jump_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync enabled controller clobbered runtime vertical velocity\n";
+        physics.shutdown();
+        return false;
+    }
+    glm::vec3 controller_runtime_angular_velocity{};
+    if (!physics.getBodyAngularVelocity(controller_body, controller_runtime_angular_velocity)
+        || !NearlyEqualVec3(controller_runtime_angular_velocity, glm::vec3(0.0f, 0.0f, 0.0f), 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not enforce zero angular velocity for enabled controller ownership\n";
+        physics.shutdown();
+        return false;
+    }
+
+    controller_intent->desired_velocity = glm::vec3(0.25f, 5.5f, -0.45f);
+    controller_intent->jump_requested = true;
+    sync.preSimulate(world);
+    if (controller_intent->jump_requested) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not consume one-shot jump request for enabled compatible controller\n";
+        physics.shutdown();
+        return false;
+    }
+    const glm::vec3 expected_controller_jump_velocity(
+        controller_intent->desired_velocity.x,
+        controller_intent->desired_velocity.y,
+        controller_intent->desired_velocity.z);
+    if (!physics.getBodyLinearVelocity(controller_body, controller_runtime_linear_velocity)
+        || !NearlyEqualVec3(controller_runtime_linear_velocity, expected_controller_jump_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not apply one-shot jump velocity update\n";
+        physics.shutdown();
+        return false;
+    }
+
+    controller_intent->desired_velocity = glm::vec3(-0.8f, 9.0f, 0.35f);
+    sync.preSimulate(world);
+    const glm::vec3 expected_controller_post_jump_velocity(
+        controller_intent->desired_velocity.x,
+        expected_controller_jump_velocity.y,
+        controller_intent->desired_velocity.z);
+    if (!physics.getBodyLinearVelocity(controller_body, controller_runtime_linear_velocity)
+        || !NearlyEqualVec3(controller_runtime_linear_velocity, expected_controller_post_jump_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync reapplied jump vertical velocity without a new jump request\n";
+        physics.shutdown();
+        return false;
+    }
+
+    const BodyId controller_body_before_noop = controller_body;
+    sync.preSimulate(world);
+    BodyId controller_body_after_noop = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_controller, controller_body_after_noop)
+        || controller_body_after_noop != controller_body_before_noop) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync unexpectedly rebuilt controller body when geometry was unchanged\n";
+        physics.shutdown();
+        return false;
+    }
+
+    BodyTransform preserved_controller_transform{};
+    preserved_controller_transform.position = glm::vec3(3.4f, 6.7f, -0.2f);
+    preserved_controller_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+    const glm::vec3 preserved_controller_linear_velocity(0.9f, 0.0f, -0.45f);
+    const glm::vec3 preserved_controller_angular_velocity(0.0f, 0.0f, 0.0f);
+    if (!physics.setBodyTransform(controller_body_after_noop, preserved_controller_transform)
+        || !physics.setBodyLinearVelocity(controller_body_after_noop, preserved_controller_linear_velocity)
+        || !physics.setBodyAngularVelocity(controller_body_after_noop, preserved_controller_angular_velocity)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync controller geometry-rebuild fixture setup failed\n";
+        physics.shutdown();
+        return false;
+    }
+    controller_intent->desired_velocity = preserved_controller_linear_velocity;
     auto* controller_collider = world.tryGet<ColliderIntentComponent>(entity_controller);
+    controller_intent->half_extents.x += 0.12f;
+    sync.preSimulate(world);
+    BodyId controller_body_after_half_extents_rebuild = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_controller, controller_body_after_half_extents_rebuild)
+        || controller_body_after_half_extents_rebuild == controller_body_after_noop) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not rebuild controller body on controller half-extents mutation\n";
+        physics.shutdown();
+        return false;
+    }
+    BodyTransform rebuilt_controller_transform{};
+    if (!physics.getBodyTransform(controller_body_after_half_extents_rebuild, rebuilt_controller_transform)
+        || !NearlyEqualVec3(rebuilt_controller_transform.position, preserved_controller_transform.position, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not preserve runtime transform across controller geometry rebuild\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyLinearVelocity(controller_body_after_half_extents_rebuild, controller_runtime_linear_velocity)
+        || !NearlyEqualVec3(controller_runtime_linear_velocity, preserved_controller_linear_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not preserve runtime linear velocity across controller geometry rebuild\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyAngularVelocity(controller_body_after_half_extents_rebuild, controller_runtime_angular_velocity)
+        || !NearlyEqualVec3(controller_runtime_angular_velocity, preserved_controller_angular_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not preserve runtime angular velocity across controller geometry rebuild\n";
+        physics.shutdown();
+        return false;
+    }
+
+    sync.preSimulate(world);
+    BodyId controller_body_after_second_noop = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_controller, controller_body_after_second_noop)
+        || controller_body_after_second_noop != controller_body_after_half_extents_rebuild) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync unexpectedly rebuilt controller body after unchanged geometry update\n";
+        physics.shutdown();
+        return false;
+    }
+
+    controller_intent->center.y += 0.18f;
+    sync.preSimulate(world);
+    BodyId controller_body_after_center_rebuild = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_controller, controller_body_after_center_rebuild)
+        || controller_body_after_center_rebuild == controller_body_after_second_noop) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not rebuild controller body on controller center mutation\n";
+        physics.shutdown();
+        return false;
+    }
+    controller_body = controller_body_after_center_rebuild;
+
+    auto* controller_rigidbody_intent = world.tryGet<RigidBodyIntentComponent>(entity_controller);
+    controller_intent->enabled = false;
+    controller_intent->jump_requested = true;
+    controller_intent->desired_velocity.y = 6.5f;
+    controller_rigidbody_intent->linear_velocity = glm::vec3(0.55f, 0.0f, -0.35f);
+    controller_rigidbody_intent->angular_velocity = glm::vec3(0.0f, -0.6f, 0.1f);
+    sync.preSimulate(world);
+    if (!sync.hasControllerRuntimeBinding(entity_controller)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync unexpectedly removed controller metadata for controller-disabled compatible state\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
+        || controller_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync lost controller body for disabled-controller velocity check\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyLinearVelocity(controller_body, controller_runtime_linear_velocity)
+        || !NearlyEqualVec3(controller_runtime_linear_velocity, controller_rigidbody_intent->linear_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync disabled controller did not restore rigidbody linear velocity ownership\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyAngularVelocity(controller_body, controller_runtime_angular_velocity)
+        || !NearlyEqualVec3(controller_runtime_angular_velocity, controller_rigidbody_intent->angular_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync disabled controller did not restore rigidbody angular velocity ownership\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!sync.tryGetControllerCompatibility(entity_controller, controller_compatibility)
+        || controller_compatibility != ControllerColliderCompatibility::CompatibleControllerDisabled) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync controller-disabled compatibility metadata mismatch\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!controller_intent->jump_requested) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync unexpectedly consumed jump request while controller was disabled\n";
+        physics.shutdown();
+        return false;
+    }
+
+    controller_intent->enabled = true;
+    controller_intent->jump_requested = false;
+    controller_intent->desired_velocity = glm::vec3(-1.2f, 0.0f, 0.8f);
+    controller_rigidbody_intent->linear_velocity = glm::vec3(0.05f, 0.0f, 0.05f);
+    controller_rigidbody_intent->angular_velocity = glm::vec3(0.0f, 0.2f, 0.2f);
+    sync.preSimulate(world);
+    if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
+        || controller_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync lost controller body for re-enabled controller ownership check\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyLinearVelocity(controller_body, controller_runtime_linear_velocity)
+        || !NearlyEqualVec3(controller_runtime_linear_velocity, controller_intent->desired_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync re-enabled controller did not reclaim linear velocity ownership\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyAngularVelocity(controller_body, controller_runtime_angular_velocity)
+        || !NearlyEqualVec3(controller_runtime_angular_velocity, glm::vec3(0.0f, 0.0f, 0.0f), 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync re-enabled controller did not reclaim angular velocity ownership\n";
+        physics.shutdown();
+        return false;
+    }
+
+    controller_collider = world.tryGet<ColliderIntentComponent>(entity_controller);
     controller_collider->is_trigger = true;
     sync.preSimulate(world);
     if (sync.hasRuntimeBinding(entity_controller) || sync.hasControllerRuntimeBinding(entity_controller)) {
@@ -2369,21 +2901,64 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         return false;
     }
 
-    auto* controller_intent = world.tryGet<PlayerControllerIntentComponent>(entity_controller);
-    controller_intent->enabled = false;
-    sync.preSimulate(world);
-    if (!sync.hasControllerRuntimeBinding(entity_controller)) {
+    const auto entity_controller_static = world.createEntity();
+    world.add<TransformComponent>(entity_controller_static, make_transform_component(glm::vec3(3.0f, 8.0f, 0.0f)));
+    RigidBodyIntentComponent static_controller_rigidbody{};
+    static_controller_rigidbody.dynamic = false;
+    world.add<RigidBodyIntentComponent>(entity_controller_static, static_controller_rigidbody);
+    world.add<ColliderIntentComponent>(entity_controller_static, ColliderIntentComponent{});
+    world.add<PhysicsTransformOwnershipComponent>(entity_controller_static, PhysicsTransformOwnershipComponent{});
+    PlayerControllerIntentComponent static_controller_intent{};
+    static_controller_intent.enabled = true;
+    static_controller_intent.desired_velocity = glm::vec3(2.0f, 4.0f, 0.0f);
+    static_controller_intent.jump_requested = true;
+    world.add<PlayerControllerIntentComponent>(entity_controller_static, static_controller_intent);
+
+    auto* static_controller_component = world.tryGet<PlayerControllerIntentComponent>(entity_controller_static);
+    auto* static_controller_collider = world.tryGet<ColliderIntentComponent>(entity_controller_static);
+    auto* static_controller_rigidbody_intent = world.tryGet<RigidBodyIntentComponent>(entity_controller_static);
+    if (karma::scene::ClassifyControllerColliderCompatibility(
+            *static_controller_component, static_controller_collider, static_controller_rigidbody_intent)
+        != ControllerColliderCompatibility::EnabledControllerRequiresDynamicRigidBody) {
         std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync unexpectedly removed controller metadata for controller-disabled compatible state\n";
+                  << " ecs-sync controller/non-dynamic compatibility policy mismatch\n";
         physics.shutdown();
         return false;
     }
-    if (!sync.tryGetControllerCompatibility(entity_controller, controller_compatibility)
-        || controller_compatibility != ControllerColliderCompatibility::CompatibleControllerDisabled) {
+
+    sync.preSimulate(world);
+    BodyId static_controller_body = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_controller_static, static_controller_body)
+        || static_controller_body == karma::physics_backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync controller-disabled compatibility metadata mismatch\n";
+                  << " ecs-sync did not retain runtime body for controller/non-dynamic rejection path\n";
         physics.shutdown();
         return false;
+    }
+    if (sync.hasControllerRuntimeBinding(entity_controller_static)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync unexpectedly retained controller binding for non-dynamic rigidbody\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!static_controller_component->jump_requested) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync unexpectedly consumed jump request for incompatible controller intent\n";
+        physics.shutdown();
+        return false;
+    }
+    for (int i = 0; i < 3; ++i) {
+        sync.preSimulate(world);
+        BodyId observed_static_controller_body = karma::physics_backend::kInvalidBodyId;
+        if (!sync.tryGetRuntimeBody(entity_controller_static, observed_static_controller_body)
+            || observed_static_controller_body != static_controller_body
+            || sync.hasControllerRuntimeBinding(entity_controller_static)
+            || !static_controller_component->jump_requested) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " ecs-sync controller/non-dynamic rejection path was not stable across repeated pre-sim passes\n";
+            physics.shutdown();
+            return false;
+        }
     }
 
     world.remove<PlayerControllerIntentComponent>(entity_controller);
@@ -2391,6 +2966,27 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     if (!sync.hasRuntimeBinding(entity_controller) || sync.hasControllerRuntimeBinding(entity_controller)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync controller metadata lifecycle did not update after controller component removal\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
+        || controller_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync lost controller body after controller component removal\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyLinearVelocity(controller_body, controller_runtime_linear_velocity)
+        || !NearlyEqualVec3(controller_runtime_linear_velocity, controller_rigidbody_intent->linear_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not restore rigidbody linear velocity ownership after controller removal\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyAngularVelocity(controller_body, controller_runtime_angular_velocity)
+        || !NearlyEqualVec3(controller_runtime_angular_velocity, controller_rigidbody_intent->angular_velocity, 5e-2f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not restore rigidbody angular velocity ownership after controller removal\n";
         physics.shutdown();
         return false;
     }
@@ -2700,6 +3296,9 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
         if (!RunColliderShapeAndRuntimePropertyChecks(backend)) {
+            return EXIT_FAILURE;
+        }
+        if (!RunBodyVelocityApiChecks(backend)) {
             return EXIT_FAILURE;
         }
         if (!RunUninitializedApiChecks(backend)) {

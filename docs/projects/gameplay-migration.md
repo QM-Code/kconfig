@@ -180,7 +180,7 @@ From `m-rewrite/`:
 ```
 
 ## First Session Checklist
-1. Read `AGENTS.md`, then `docs/foundation/policy/execution-policy.md`, then this file.
+1. Read `docs/AGENTS.md`, then `docs/foundation/policy/execution-policy.md`, then this file.
 2. Build G1 extraction ledger from `m-dev` by domain and boundary category.
 3. Propose one smallest safe code slice (movement/authority seam or shots/hits) with owned rewrite paths only.
 4. Execute required validation for touched scope.
@@ -194,7 +194,7 @@ Execution root:
 - If you stay at integration workspace root, prefix every path below with `m-rewrite/`.
 
 Read in order:
-1) AGENTS.md
+1) docs/AGENTS.md
 2) docs/foundation/policy/execution-policy.md
 3) docs/projects/AGENTS.md
 4) docs/projects/ASSIGNMENTS.md
@@ -224,7 +224,7 @@ Strategic alignment (required):
 Constraints:
 - Stay within owned paths and interface boundaries in docs/projects/gameplay-migration.md.
 - No unrelated subsystem changes.
-- Preserve engine/game and backend exposure boundaries from AGENTS.md.
+- Preserve engine/game and backend exposure boundaries from docs/AGENTS.md.
 - Treat `KARMA-REPO` as capability reference only (never structure/layout template).
 - Use abuild.py only. Do not run raw cmake -S/-B directly.
 - Treat missing/unbootstrapped local `./vcpkg` as a hard blocker for delegated build/test execution.

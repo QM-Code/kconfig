@@ -46,6 +46,9 @@ class EcsSyncSystem {
         scene::PlayerControllerIntentComponent controller_intent{};
         scene::ControllerColliderCompatibility controller_compatibility =
             scene::ControllerColliderCompatibility::Compatible;
+        scene::ControllerVelocityOwnership velocity_ownership = scene::ControllerVelocityOwnership::RigidbodyIntent;
+        glm::vec3 runtime_linear_velocity{0.0f, 0.0f, 0.0f};
+        glm::vec3 runtime_angular_velocity{0.0f, 0.0f, 0.0f};
         physics_backend::BodyTransform last_transform{};
     };
 

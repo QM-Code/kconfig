@@ -138,6 +138,34 @@ bool PhysicsSystem::getBodyGravityEnabled(physics_backend::BodyId body, bool& ou
     return backend_->getBodyGravityEnabled(body, out_enabled);
 }
 
+bool PhysicsSystem::setBodyLinearVelocity(physics_backend::BodyId body, const glm::vec3& velocity) {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->setBodyLinearVelocity(body, velocity);
+}
+
+bool PhysicsSystem::getBodyLinearVelocity(physics_backend::BodyId body, glm::vec3& out_velocity) const {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->getBodyLinearVelocity(body, out_velocity);
+}
+
+bool PhysicsSystem::setBodyAngularVelocity(physics_backend::BodyId body, const glm::vec3& velocity) {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->setBodyAngularVelocity(body, velocity);
+}
+
+bool PhysicsSystem::getBodyAngularVelocity(physics_backend::BodyId body, glm::vec3& out_velocity) const {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->getBodyAngularVelocity(body, out_velocity);
+}
+
 bool PhysicsSystem::setBodyTrigger(physics_backend::BodyId body, bool enabled) {
     if (!backend_) {
         return false;

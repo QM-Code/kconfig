@@ -454,6 +454,72 @@ class JoltBackend final : public Backend {
         return true;
     }
 
+    bool setBodyLinearVelocity(BodyId body, const glm::vec3& velocity) override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end()) {
+            return false;
+        }
+
+        physics_system_->GetBodyInterface().SetLinearVelocity(it->second, ToJoltVec3(velocity));
+        return true;
+    }
+
+    bool getBodyLinearVelocity(BodyId body, glm::vec3& out_velocity) const override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end()) {
+            return false;
+        }
+
+        JPH::BodyLockRead lock(physics_system_->GetBodyLockInterface(), it->second);
+        if (!lock.Succeeded()) {
+            return false;
+        }
+
+        out_velocity = ToGlmVec3(lock.GetBody().GetLinearVelocity());
+        return true;
+    }
+
+    bool setBodyAngularVelocity(BodyId body, const glm::vec3& velocity) override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end()) {
+            return false;
+        }
+
+        physics_system_->GetBodyInterface().SetAngularVelocity(it->second, ToJoltVec3(velocity));
+        return true;
+    }
+
+    bool getBodyAngularVelocity(BodyId body, glm::vec3& out_velocity) const override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end()) {
+            return false;
+        }
+
+        JPH::BodyLockRead lock(physics_system_->GetBodyLockInterface(), it->second);
+        if (!lock.Succeeded()) {
+            return false;
+        }
+
+        out_velocity = ToGlmVec3(lock.GetBody().GetAngularVelocity());
+        return true;
+    }
+
     bool setBodyTrigger(BodyId body, bool enabled) override {
         if (!physics_system_) {
             return false;
@@ -600,6 +666,10 @@ class JoltBackendStub final : public Backend {
     bool getBodyTransform(BodyId, BodyTransform&) const override { return false; }
     bool setBodyGravityEnabled(BodyId, bool) override { return false; }
     bool getBodyGravityEnabled(BodyId, bool&) const override { return false; }
+    bool setBodyLinearVelocity(BodyId, const glm::vec3&) override { return false; }
+    bool getBodyLinearVelocity(BodyId, glm::vec3&) const override { return false; }
+    bool setBodyAngularVelocity(BodyId, const glm::vec3&) override { return false; }
+    bool getBodyAngularVelocity(BodyId, glm::vec3&) const override { return false; }
     bool setBodyTrigger(BodyId, bool) override { return false; }
     bool getBodyTrigger(BodyId, bool&) const override { return false; }
     bool setBodyCollisionMask(BodyId, const CollisionMask&) override { return false; }

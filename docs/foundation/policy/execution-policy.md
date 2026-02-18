@@ -7,19 +7,19 @@ This file is the canonical execution policy for delegated work:
 - conflict coordination,
 - handoff quality minimum.
 
-Rewrite-level strategy and boundaries live in `AGENTS.md`.
+Rewrite-level strategy and boundaries live in `docs/AGENTS.md`.
 Overseer-only coordination workflow lives in `docs/foundation/governance/overseer-playbook.md`.
 
 ## Canonical Document Ownership
 - `docs/BOOTSTRAP.md`: canonical startup entrypoint.
-- `AGENTS.md`: rewrite invariants and architecture ownership.
+- `docs/AGENTS.md`: rewrite invariants and architecture ownership.
 - `docs/foundation/policy/execution-policy.md` (this file): execution mechanics and validation policy.
 - `docs/foundation/governance/overseer-playbook.md`: overseer startup/rotation/checkpoint protocol.
 - `docs/projects/AGENTS.md` + `docs/projects/*.md`: project scopes and project-specific validation.
 - `docs/foundation/policy/decisions-log.md`: durable decisions and rationale.
 
 ## Execution Root (Required)
-- Standalone mode: if the current directory is the `m-rewrite` repository root (contains `abuild.py` and `docs/`), use unprefixed repo-relative paths (`AGENTS.md`, `docs/...`).
+- Standalone mode: if the current directory is the `m-rewrite` repository root (contains `abuild.py` and `docs/`), use unprefixed repo-relative paths (`docs/AGENTS.md`, `docs/...`).
 - Integration mode: if the current directory is workspace root (`bz3-rewrite/`), anchor first:
 
 ```bash

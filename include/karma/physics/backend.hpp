@@ -90,6 +90,13 @@ class Backend {
     // - Rotation/translation locks are currently creation-time only via BodyDesc.
     virtual bool setBodyGravityEnabled(BodyId body, bool enabled) = 0;
     virtual bool getBodyGravityEnabled(BodyId body, bool& out_enabled) const = 0;
+    // Runtime velocity contract:
+    // - get/set velocity applies only to dynamic bodies in this slice.
+    // - For invalid, unknown, or non-dynamic bodies, calls return false.
+    virtual bool setBodyLinearVelocity(BodyId body, const glm::vec3& velocity) = 0;
+    virtual bool getBodyLinearVelocity(BodyId body, glm::vec3& out_velocity) const = 0;
+    virtual bool setBodyAngularVelocity(BodyId body, const glm::vec3& velocity) = 0;
+    virtual bool getBodyAngularVelocity(BodyId body, glm::vec3& out_velocity) const = 0;
     // Collider runtime property contract:
     // - Returns false for invalid/unknown body ids.
     // - Backends may report false when a runtime mutation is unsupported; this is used by callers to apply deterministic

@@ -6,7 +6,7 @@ Durable policy/governance/architecture belongs in `docs/foundation/`.
 
 ## Agent Workflow
 Bootstrap workflow (first packet, explicit `refresh bootstrap`, ownership change, or after context compaction):
-1. Read `AGENTS.md`.
+1. Read `docs/AGENTS.md`.
 2. Read `docs/foundation/policy/execution-policy.md`.
 3. Read `docs/projects/ASSIGNMENTS.md` to identify active project docs and ownership.
 4. Work from one selected `docs/projects/<project>.md`.
