@@ -1,4 +1,4 @@
-#include "karma/app/engine_server_app.hpp"
+#include "karma/app/server/engine.hpp"
 
 #include "karma/common/logging.hpp"
 
@@ -8,7 +8,7 @@
 #include <string>
 #include <thread>
 
-namespace karma::app {
+namespace karma::app::server {
 namespace {
 
 std::string CompiledPhysicsBackendList() {
@@ -43,11 +43,11 @@ std::string CompiledAudioBackendList() {
 
 } // namespace
 
-EngineServerApp::~EngineServerApp() {
+Engine::~Engine() {
     shutdown();
 }
 
-void EngineServerApp::start(ServerGameInterface& game, const EngineServerConfig& config) {
+void Engine::start(GameInterface& game, const EngineConfig& config) {
     if (running_) {
         return;
     }
@@ -57,18 +57,18 @@ void EngineServerApp::start(ServerGameInterface& game, const EngineServerConfig&
     const float fixed_dt = (config_.target_tick_hz > 1e-6f) ? (1.0f / config_.target_tick_hz) : (1.0f / 60.0f);
     simulation_clock_.configure(fixed_dt, config_.max_delta_time, config_.max_substeps);
     KARMA_TRACE("engine.sim",
-                "EngineServerApp: simulation clock fixed_dt={:.4f} max_frame_dt={:.3f} max_steps={}",
+                "Engine: simulation clock fixed_dt={:.4f} max_frame_dt={:.3f} max_steps={}",
                 simulation_clock_.fixedDeltaTime(),
                 config_.max_delta_time,
                 config_.max_substeps);
     physics_system_.setBackend(config_.physics_backend);
     KARMA_TRACE("engine.server",
-                "EngineServerApp: creating physics backend (requested='{}', compiled='{}')",
+                "Engine: creating physics backend (requested='{}', compiled='{}')",
                 physics_backend::BackendKindName(config_.physics_backend),
                 CompiledPhysicsBackendList());
     physics_system_.init();
     if (!physics_system_.isInitialized()) {
-        spdlog::error("EngineServerApp: physics backend failed to initialize (requested='{}', compiled='{}')",
+        spdlog::error("Engine: physics backend failed to initialize (requested='{}', compiled='{}')",
                       physics_backend::BackendKindName(config_.physics_backend),
                       CompiledPhysicsBackendList());
         game_ = nullptr;
@@ -76,17 +76,17 @@ void EngineServerApp::start(ServerGameInterface& game, const EngineServerConfig&
         return;
     }
     KARMA_TRACE("engine.server",
-                "EngineServerApp: physics backend ready backend='{}'",
+                "Engine: physics backend ready backend='{}'",
                 physics_system_.selectedBackendName());
     if (config_.enable_audio) {
         audio_system_.setBackend(config_.audio_backend);
         KARMA_TRACE("engine.server",
-                    "EngineServerApp: creating audio backend (requested='{}', compiled='{}')",
+                    "Engine: creating audio backend (requested='{}', compiled='{}')",
                     audio_backend::BackendKindName(config_.audio_backend),
                     CompiledAudioBackendList());
         audio_system_.init();
         if (!audio_system_.isInitialized()) {
-            spdlog::error("EngineServerApp: audio backend failed to initialize (requested='{}', compiled='{}')",
+            spdlog::error("Engine: audio backend failed to initialize (requested='{}', compiled='{}')",
                           audio_backend::BackendKindName(config_.audio_backend),
                           CompiledAudioBackendList());
             physics_system_.shutdown();
@@ -95,28 +95,28 @@ void EngineServerApp::start(ServerGameInterface& game, const EngineServerConfig&
             return;
         }
         KARMA_TRACE("engine.server",
-                    "EngineServerApp: audio backend ready backend='{}'",
+                    "Engine: audio backend ready backend='{}'",
                     audio_system_.selectedBackendName());
     } else {
-        KARMA_TRACE("engine.server", "EngineServerApp: audio disabled (headless default)");
+        KARMA_TRACE("engine.server", "Engine: audio disabled (headless default)");
     }
     game_->bind(world_);
     last_tick_time_ = std::chrono::steady_clock::now();
     running_ = true;
 
     KARMA_TRACE("engine.server",
-                "EngineServerApp: start target_hz={:.2f} max_dt={:.3f} max_substeps={}",
+                "Engine: start target_hz={:.2f} max_dt={:.3f} max_substeps={}",
                 config_.target_tick_hz,
                 config_.max_delta_time,
                 config_.max_substeps);
     game_->onStart();
 }
 
-void EngineServerApp::requestStop() {
+void Engine::requestStop() {
     running_ = false;
 }
 
-void EngineServerApp::tick() {
+void Engine::tick() {
     if (!running_ || !game_) {
         return;
     }
@@ -140,7 +140,7 @@ void EngineServerApp::tick() {
 
     KARMA_TRACE_CHANGED("ecs.world",
                         std::to_string(world_.entities().size()),
-                        "EngineServerApp: world entities={}",
+                        "Engine: world entities={}",
                         world_.entities().size());
 
     const int sim_steps = simulation_clock_.beginFrame(dt);
@@ -148,7 +148,7 @@ void EngineServerApp::tick() {
         const float frame_ms = raw_dt * 1000.0f;
         const float fps = (raw_dt > 1e-6f) ? (1.0f / raw_dt) : 0.0f;
         KARMA_TRACE("engine.sim.frames",
-                    "EngineServerApp: dt_raw={:.4f}s frame_ms={:.2f} fps={:.1f} dt={:.4f} steps={} fixed_dt={:.4f} accumulator={:.4f}",
+                    "Engine: dt_raw={:.4f}s frame_ms={:.2f} fps={:.1f} dt={:.4f} steps={} fixed_dt={:.4f} accumulator={:.4f}",
                     raw_dt,
                     frame_ms,
                     fps,
@@ -160,13 +160,13 @@ void EngineServerApp::tick() {
     if (config_.max_delta_time > 0.0f &&
         raw_dt > config_.max_delta_time + 1e-6f) {
         KARMA_TRACE("engine.sim",
-                    "EngineServerApp: frame dt clamped raw={:.4f} max={:.4f}",
+                    "Engine: frame dt clamped raw={:.4f} max={:.4f}",
                     raw_dt,
                     config_.max_delta_time);
     }
     if (sim_steps != 1) {
         KARMA_TRACE("engine.sim",
-                    "EngineServerApp: simulation catch-up steps={} fixed_dt={:.4f} accumulator={:.4f}",
+                    "Engine: simulation catch-up steps={} fixed_dt={:.4f} accumulator={:.4f}",
                     sim_steps,
                     simulation_clock_.fixedDeltaTime(),
                     simulation_clock_.accumulator());
@@ -191,7 +191,7 @@ void EngineServerApp::tick() {
     }
 }
 
-void EngineServerApp::shutdown() {
+void Engine::shutdown() {
     if (!game_) {
         running_ = false;
         return;
@@ -203,11 +203,11 @@ void EngineServerApp::shutdown() {
     }
     physics_system_.shutdown();
     KARMA_TRACE("engine.server",
-                "EngineServerApp: shutdown world_entities={}",
+                "Engine: shutdown world_entities={}",
                 world_.entities().size());
 
     game_ = nullptr;
     running_ = false;
 }
 
-} // namespace karma::app
+} // namespace karma::app::server

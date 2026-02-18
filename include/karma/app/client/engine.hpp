@@ -3,7 +3,7 @@
 #include <memory>
 #include <optional>
 
-#include "karma/app/game_interface.hpp"
+#include "karma/app/client/game_interface.hpp"
 #include "karma/audio/audio_system.hpp"
 #include "karma/audio/backend.hpp"
 #include "karma/common/simulation_clock.hpp"
@@ -19,7 +19,7 @@
 #include "karma/scene/scene.hpp"
 #include "karma/scene/scene_bootstrap.hpp"
 
-namespace karma::app {
+namespace karma::app::client {
 
 struct EngineConfig {
     platform::WindowConfig window{};
@@ -43,10 +43,10 @@ struct EngineConfig {
     int simulation_max_steps = 4;
 };
 
-class EngineApp {
+class Engine {
  public:
-    EngineApp();
-    ~EngineApp();
+    Engine();
+    ~Engine();
 
     void start(GameInterface& game, const EngineConfig& config = {});
     void tick();
@@ -83,4 +83,4 @@ class EngineApp {
     int sim_trace_window_steps_max_ = 0;
 };
 
-} // namespace karma::app
+} // namespace karma::app::client

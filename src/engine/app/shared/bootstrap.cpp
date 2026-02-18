@@ -1,4 +1,4 @@
-#include "karma/app/bootstrap_scaffold.hpp"
+#include "karma/app/shared/bootstrap.hpp"
 
 #include "karma/cli/cli_parse_scaffold.hpp"
 #include "karma/common/config_helpers.hpp"
@@ -11,7 +11,7 @@
 #include <optional>
 #include <stdexcept>
 
-namespace karma::app {
+namespace karma::app::shared {
 
 namespace {
 
@@ -94,4 +94,4 @@ std::string ResolveConfiguredAppName(const std::string& fallback_name) {
     return configured.empty() ? fallback : configured;
 }
 
-} // namespace karma::app
+} // namespace karma::app::shared

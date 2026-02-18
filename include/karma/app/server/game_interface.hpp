@@ -2,11 +2,11 @@
 
 namespace karma::ecs { class World; }
 
-namespace karma::app {
+namespace karma::app::server {
 
-class ServerGameInterface {
+class GameInterface {
  public:
-    virtual ~ServerGameInterface() = default;
+    virtual ~GameInterface() = default;
     virtual void onStart() = 0;
     virtual void onTick(float dt) = 0;
     virtual void onShutdown() = 0;
@@ -15,8 +15,8 @@ class ServerGameInterface {
     ecs::World* world = nullptr;
 
  private:
-    friend class EngineServerApp;
+    friend class Engine;
     void bind(ecs::World& world_ref) { world = &world_ref; }
 };
 
-} // namespace karma::app
+} // namespace karma::app::server

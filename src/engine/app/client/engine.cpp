@@ -1,4 +1,4 @@
-#include "karma/app/engine_app.hpp"
+#include "karma/app/client/engine.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -9,7 +9,7 @@
 #include "karma/renderer/render_system.hpp"
 #include <glm/glm.hpp>
 
-namespace karma::app {
+namespace karma::app::client {
 namespace {
 
 std::string CompiledBackendList() {
@@ -59,9 +59,9 @@ std::string CompiledAudioBackendList() {
 
 } // namespace
 
-EngineApp::EngineApp() : scene_(world_) {}
+Engine::Engine() : scene_(world_) {}
 
-EngineApp::~EngineApp() {
+Engine::~Engine() {
     if (game_ && running_) {
         game_->onUiShutdown();
         game_->onShutdown();
@@ -69,11 +69,11 @@ EngineApp::~EngineApp() {
     shutdownSubsystems();
 }
 
-void EngineApp::initSubsystems() {
-    KARMA_TRACE("engine.app", "EngineApp: creating window");
+void Engine::initSubsystems() {
+    KARMA_TRACE("engine.app", "Engine: creating window");
     window_ = platform::CreateWindow(config_.window);
     if (!window_) {
-        KARMA_TRACE("engine.app", "EngineApp: window creation failed");
+        KARMA_TRACE("engine.app", "Engine: window creation failed");
         return;
     }
     window_->setVsync(config_.vsync);
@@ -85,55 +85,55 @@ void EngineApp::initSubsystems() {
     const float fixed_dt = (config_.simulation_fixed_hz > 1e-6f) ? (1.0f / config_.simulation_fixed_hz) : (1.0f / 60.0f);
     simulation_clock_.configure(fixed_dt, config_.simulation_max_frame_dt, config_.simulation_max_steps);
     KARMA_TRACE("engine.sim",
-                "EngineApp: simulation clock fixed_dt={:.4f} max_frame_dt={:.3f} max_steps={}",
+                "Engine: simulation clock fixed_dt={:.4f} max_frame_dt={:.3f} max_steps={}",
                 simulation_clock_.fixedDeltaTime(),
                 config_.simulation_max_frame_dt,
                 config_.simulation_max_steps);
     physics_system_.setBackend(config_.physics_backend);
     KARMA_TRACE("engine.app",
-                "EngineApp: creating physics backend (requested='{}', compiled='{}')",
+                "Engine: creating physics backend (requested='{}', compiled='{}')",
                 physics_backend::BackendKindName(config_.physics_backend),
                 CompiledPhysicsBackendList());
     physics_system_.init();
     if (!physics_system_.isInitialized()) {
-        spdlog::error("EngineApp: physics backend failed to initialize (requested='{}', compiled='{}')",
+        spdlog::error("Engine: physics backend failed to initialize (requested='{}', compiled='{}')",
                       physics_backend::BackendKindName(config_.physics_backend),
                       CompiledPhysicsBackendList());
         return;
     }
     KARMA_TRACE("engine.app",
-                "EngineApp: physics backend ready backend='{}'",
+                "Engine: physics backend ready backend='{}'",
                 physics_system_.selectedBackendName());
     if (config_.enable_audio) {
         audio_system_.setBackend(config_.audio_backend);
         KARMA_TRACE("engine.app",
-                    "EngineApp: creating audio backend (requested='{}', compiled='{}')",
+                    "Engine: creating audio backend (requested='{}', compiled='{}')",
                     audio_backend::BackendKindName(config_.audio_backend),
                     CompiledAudioBackendList());
         audio_system_.init();
         if (!audio_system_.isInitialized()) {
-            spdlog::error("EngineApp: audio backend failed to initialize (requested='{}', compiled='{}')",
+            spdlog::error("Engine: audio backend failed to initialize (requested='{}', compiled='{}')",
                           audio_backend::BackendKindName(config_.audio_backend),
                           CompiledAudioBackendList());
             return;
         }
         KARMA_TRACE("engine.app",
-                    "EngineApp: audio backend ready backend='{}'",
+                    "Engine: audio backend ready backend='{}'",
                     audio_system_.selectedBackendName());
     } else {
-        KARMA_TRACE("engine.app", "EngineApp: audio disabled by config");
+        KARMA_TRACE("engine.app", "Engine: audio disabled by config");
     }
     KARMA_TRACE("engine.app",
-                "EngineApp: creating graphics device (requested='{}', compiled='{}')",
+                "Engine: creating graphics device (requested='{}', compiled='{}')",
                 renderer_backend::BackendKindName(config_.render_backend),
                 CompiledBackendList());
     graphics_ = std::make_unique<renderer::GraphicsDevice>(*window_, config_.render_backend);
     if (graphics_ && graphics_->isValid()) {
         KARMA_TRACE("engine.app",
-                    "EngineApp: graphics device ready backend='{}'",
+                    "Engine: graphics device ready backend='{}'",
                     graphics_->backendName());
     } else {
-        spdlog::error("EngineApp: graphics device failed to initialize (requested='{}', compiled='{}')",
+        spdlog::error("Engine: graphics device failed to initialize (requested='{}', compiled='{}')",
                       renderer_backend::BackendKindName(config_.render_backend),
                       CompiledBackendList());
         graphics_.reset();
@@ -152,7 +152,7 @@ void EngineApp::initSubsystems() {
     }
 }
 
-void EngineApp::shutdownSubsystems() {
+void Engine::shutdownSubsystems() {
     if (graphics_) {
         ui_system_.shutdown(*graphics_);
     }
@@ -167,7 +167,7 @@ void EngineApp::shutdownSubsystems() {
     running_ = false;
 }
 
-void EngineApp::start(GameInterface& game, const EngineConfig& config) {
+void Engine::start(GameInterface& game, const EngineConfig& config) {
     if (running_) {
         return;
     }
@@ -180,7 +180,7 @@ void EngineApp::start(GameInterface& game, const EngineConfig& config) {
     if (!scene::PopulateStartupWorld(*graphics_,
                                      world_,
                                      startup_scene_resources_)) {
-        spdlog::error("EngineApp: startup scene bootstrap failed, aborting start");
+        spdlog::error("Engine: startup scene bootstrap failed, aborting start");
         shutdownSubsystems();
         return;
     }
@@ -189,7 +189,7 @@ void EngineApp::start(GameInterface& game, const EngineConfig& config) {
     game_->bind(*window_, *graphics_, *render_system_, world_, scene_, input_system_, audio_system_);
     game_->onStart();
     game_->onUiStart();
-    KARMA_TRACE("ecs.world", "EngineApp: world ready entities={}", world_.entities().size());
+    KARMA_TRACE("ecs.world", "Engine: world ready entities={}", world_.entities().size());
     sim_trace_window_seconds_ = 0.0f;
     sim_trace_window_dt_sum_ = 0.0f;
     sim_trace_window_max_dt_ = 0.0f;
@@ -199,11 +199,11 @@ void EngineApp::start(GameInterface& game, const EngineConfig& config) {
     running_ = true;
 }
 
-void EngineApp::requestStop() {
+void Engine::requestStop() {
     running_ = false;
 }
 
-void EngineApp::tick() {
+void Engine::tick() {
     if (!running_ || !game_) {
         return;
     }
@@ -223,7 +223,7 @@ void EngineApp::tick() {
     input_system_.update(window_->events());
     KARMA_TRACE_CHANGED("ecs.world",
                         std::to_string(world_.entities().size()),
-                        "EngineApp: world entities={}",
+                        "Engine: world entities={}",
                         world_.entities().size());
 
     game_->onUpdate(dt);
@@ -236,7 +236,7 @@ void EngineApp::tick() {
         const float frame_ms = raw_dt * 1000.0f;
         const float fps = (raw_dt > 1e-6f) ? (1.0f / raw_dt) : 0.0f;
         KARMA_TRACE("engine.sim.frames",
-                    "EngineApp: dt_raw={:.4f}s frame_ms={:.2f} fps={:.1f} steps={} fixed_dt={:.4f} accumulator={:.4f}",
+                    "Engine: dt_raw={:.4f}s frame_ms={:.2f} fps={:.1f} steps={} fixed_dt={:.4f} accumulator={:.4f}",
                     raw_dt,
                     frame_ms,
                     fps,
@@ -247,7 +247,7 @@ void EngineApp::tick() {
     if (config_.simulation_max_frame_dt > 0.0f &&
         raw_dt > config_.simulation_max_frame_dt + 1e-6f) {
         KARMA_TRACE("engine.sim",
-                    "EngineApp: frame dt clamped raw={:.4f} max={:.4f}",
+                    "Engine: frame dt clamped raw={:.4f} max={:.4f}",
                     raw_dt,
                     config_.simulation_max_frame_dt);
     }
@@ -267,7 +267,7 @@ void EngineApp::tick() {
             const float avg_steps =
                 static_cast<float>(sim_trace_window_steps_sum_) / static_cast<float>(sim_trace_window_frames_);
             KARMA_TRACE("engine.sim",
-                        "EngineApp: perf1s avg_fps={:.1f} avg_frame_ms={:.2f} max_frame_ms={:.2f} avg_steps={:.2f} max_steps={} frames={}",
+                        "Engine: perf1s avg_fps={:.1f} avg_frame_ms={:.2f} max_frame_ms={:.2f} avg_steps={:.2f} max_steps={} frames={}",
                         avg_fps,
                         avg_dt * 1000.0f,
                         sim_trace_window_max_dt_ * 1000.0f,
@@ -285,7 +285,7 @@ void EngineApp::tick() {
     if (physics_steps >= config_.simulation_max_steps) {
         KARMA_TRACE_CHANGED("engine.sim",
                             std::to_string(physics_steps),
-                            "EngineApp: simulation catch-up steps={} fixed_dt={:.4f} accumulator={:.4f}",
+                            "Engine: simulation catch-up steps={} fixed_dt={:.4f} accumulator={:.4f}",
                             physics_steps,
                             simulation_clock_.fixedDeltaTime(),
                             simulation_clock_.accumulator());
@@ -346,4 +346,4 @@ void EngineApp::tick() {
     }
 }
 
-} // namespace karma::app
+} // namespace karma::app::client

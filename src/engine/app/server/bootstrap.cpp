@@ -1,23 +1,23 @@
-#include "karma/app/server_bootstrap_runner.hpp"
+#include "karma/app/server/bootstrap.hpp"
 
-#include "karma/app/bootstrap_scaffold.hpp"
+#include "karma/app/shared/bootstrap.hpp"
 #include "karma/cli/server_runtime_options.hpp"
 
 #include <spdlog/spdlog.h>
 
 #include <string>
 
-namespace karma::app {
+namespace karma::app::server {
 
-void RunServerBootstrap(const karma::cli::ServerAppOptions& options,
-                        int argc,
-                        char** argv,
-                        std::string_view app_name) {
-    ConfigureLoggingFromOptions(options.timestamp_logging,
-                                options.trace_explicit,
-                                options.trace_channels);
+void RunBootstrap(const karma::cli::ServerAppOptions& options,
+                  int argc,
+                  char** argv,
+                  std::string_view app_name) {
+    shared::ConfigureLoggingFromOptions(options.timestamp_logging,
+                                        options.trace_explicit,
+                                        options.trace_channels);
 
-    BootstrapConfigSpec spec{};
+    shared::BootstrapConfigSpec spec{};
     spec.app_name = app_name.empty() ? std::string("app") : std::string(app_name);
     spec.data_dir_env_var = "BZ3_DATA_DIR";
     spec.required_data_marker = "server/config.json";
@@ -26,9 +26,9 @@ void RunServerBootstrap(const karma::cli::ServerAppOptions& options,
     spec.config_specs = {
         {"server/config.json", "data/server/config.json", spdlog::level::err, true, true}
     };
-    ConfigureDataAndConfigFromSpec(spec, argc, argv);
+    shared::ConfigureDataAndConfigFromSpec(spec, argc, argv);
 
     (void)karma::cli::ApplyServerConfigOverlay(options.server_config_path, options.server_config_explicit);
 }
 
-} // namespace karma::app
+} // namespace karma::app::server

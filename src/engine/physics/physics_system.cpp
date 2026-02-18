@@ -195,6 +195,34 @@ bool PhysicsSystem::getBodyAngularDamping(physics_backend::BodyId body, float& o
     return backend_->getBodyAngularDamping(body, out_damping);
 }
 
+bool PhysicsSystem::setBodyRotationLocked(physics_backend::BodyId body, bool locked) {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->setBodyRotationLocked(body, locked);
+}
+
+bool PhysicsSystem::getBodyRotationLocked(physics_backend::BodyId body, bool& out_locked) const {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->getBodyRotationLocked(body, out_locked);
+}
+
+bool PhysicsSystem::setBodyTranslationLocked(physics_backend::BodyId body, bool locked) {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->setBodyTranslationLocked(body, locked);
+}
+
+bool PhysicsSystem::getBodyTranslationLocked(physics_backend::BodyId body, bool& out_locked) const {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->getBodyTranslationLocked(body, out_locked);
+}
+
 bool PhysicsSystem::setBodyTrigger(physics_backend::BodyId body, bool enabled) {
     if (!backend_) {
         return false;

@@ -8,7 +8,7 @@ namespace karma::scene { class Scene; }
 namespace karma::ui { class UiDrawContext; }
 namespace karma::audio { class AudioSystem; }
 
-namespace karma::app {
+namespace karma::app::client {
 
 class GameInterface {
  public:
@@ -33,7 +33,7 @@ class GameInterface {
     audio::AudioSystem* audio = nullptr;
 
  private:
-    friend class EngineApp;
+    friend class Engine;
     void bind(platform::Window& w, renderer::GraphicsDevice& g, renderer::RenderSystem& r, ecs::World& world_ref, scene::Scene& s,
               input::InputContext& in, audio::AudioSystem& audio_system) {
         window = &w;
@@ -46,4 +46,4 @@ class GameInterface {
     }
 };
 
-} // namespace karma::app
+} // namespace karma::app::client

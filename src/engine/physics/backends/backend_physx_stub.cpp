@@ -498,6 +498,100 @@ class PhysXBackend final : public Backend {
         return true;
     }
 
+    bool setBodyRotationLocked(BodyId body, bool locked) override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        physx::PxRigidDynamicLockFlags lock_flags = dynamic_actor->getRigidDynamicLockFlags();
+        const physx::PxRigidDynamicLockFlags rotation_mask =
+            physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X
+            | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Y
+            | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+        if (locked) {
+            lock_flags |= rotation_mask;
+        } else {
+            lock_flags &= ~rotation_mask;
+        }
+
+        dynamic_actor->setRigidDynamicLockFlags(lock_flags);
+        dynamic_actor->wakeUp();
+        return true;
+    }
+
+    bool getBodyRotationLocked(BodyId body, bool& out_locked) const override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        const physx::PxRigidDynamicLockFlags lock_flags = dynamic_actor->getRigidDynamicLockFlags();
+        const physx::PxRigidDynamicLockFlags rotation_mask =
+            physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X
+            | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Y
+            | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+        out_locked = (lock_flags & rotation_mask) == rotation_mask;
+        return true;
+    }
+
+    bool setBodyTranslationLocked(BodyId body, bool locked) override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        physx::PxRigidDynamicLockFlags lock_flags = dynamic_actor->getRigidDynamicLockFlags();
+        const physx::PxRigidDynamicLockFlags translation_mask =
+            physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_X
+            | physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Y
+            | physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Z;
+        if (locked) {
+            lock_flags |= translation_mask;
+        } else {
+            lock_flags &= ~translation_mask;
+        }
+
+        dynamic_actor->setRigidDynamicLockFlags(lock_flags);
+        dynamic_actor->wakeUp();
+        return true;
+    }
+
+    bool getBodyTranslationLocked(BodyId body, bool& out_locked) const override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        const physx::PxRigidDynamicLockFlags lock_flags = dynamic_actor->getRigidDynamicLockFlags();
+        const physx::PxRigidDynamicLockFlags translation_mask =
+            physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_X
+            | physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Y
+            | physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Z;
+        out_locked = (lock_flags & translation_mask) == translation_mask;
+        return true;
+    }
+
     bool setBodyTrigger(BodyId body, bool enabled) override {
         const auto body_it = bodies_.find(body);
         if (body_it == bodies_.end() || !body_it->second) {
@@ -683,6 +777,10 @@ class PhysXBackendStub final : public Backend {
     bool getBodyLinearDamping(BodyId, float&) const override { return false; }
     bool setBodyAngularDamping(BodyId, float) override { return false; }
     bool getBodyAngularDamping(BodyId, float&) const override { return false; }
+    bool setBodyRotationLocked(BodyId, bool) override { return false; }
+    bool getBodyRotationLocked(BodyId, bool&) const override { return false; }
+    bool setBodyTranslationLocked(BodyId, bool) override { return false; }
+    bool getBodyTranslationLocked(BodyId, bool&) const override { return false; }
     bool setBodyTrigger(BodyId, bool) override { return false; }
     bool getBodyTrigger(BodyId, bool&) const override { return false; }
     bool setBodyCollisionMask(BodyId, const CollisionMask&) override { return false; }

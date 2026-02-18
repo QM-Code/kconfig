@@ -2,9 +2,9 @@
 
 ## Project Snapshot
 - Current owner: `specialist-physics-refactor`
-- Status: `in progress` (Phase 4g landed: engine-generic runtime linear/angular damping mutation parity is now wired across scene intent, substrate/backends, and ECS sync)
+- Status: `in progress` (Phase 4h implemented: runtime motion-lock mutation parity is wired across substrate/backends/ECS sync; full validation currently blocked by unrelated `src/engine/app/*` compile failures)
 - Supersedes: `docs/projects/physics-backend.md` (retired to `docs/archive/physics-backend-retired-2026-02-17.md`)
-- Immediate next task: execute a bounded Phase 4 follow-up to deepen remaining engine-generic runtime mutation parity (rigidbody/collider/controller contracts) while keeping backend-native controller objects out of scope.
+- Immediate next task: resolve/route around unrelated `src/engine/app/*` compile blockers, then rerun Phase 4h validation and proceed with the next bounded Phase 4 runtime-mutation parity follow-up.
 - Validation gate: `./scripts/test-engine-backends.sh <build-dir>`
 
 ## Mission
@@ -29,7 +29,7 @@ The goal is behavioral and architectural alignment, not literal file-for-file co
 - `m-rewrite/include/karma/physics/*`
 - `m-rewrite/src/engine/physics/*`
 - `m-rewrite/src/engine/physics/tests/*`
-- `m-rewrite/include/karma/app/*` and `m-rewrite/src/engine/app/*` (physics-facing lifecycle hooks)
+- `m-rewrite/include/karma/app/{client,server,shared}/*` and `m-rewrite/src/engine/app/{client,server,shared}/*` (physics-facing lifecycle hooks)
 - `m-rewrite/include/karma/scene/*` and `m-rewrite/src/engine/scene/*` (if physics components/sync hooks land here)
 - `m-rewrite/src/engine/CMakeLists.txt`
 - `m-rewrite/docs/projects/physics-refactor.md`
@@ -513,6 +513,30 @@ Explicit remaining deferrals after Phase 4g:
 - No engine loop integration in `src/engine/app/*`.
 - No gameplay migration wiring.
 
+## Phase 4h Runtime Motion-Lock Mutation Parity Slice (2026-02-18)
+Landed in this bounded slice:
+- Extended backend-neutral substrate contracts in `include/karma/physics/backend.hpp` + `include/karma/physics/physics_system.hpp`:
+  - added runtime motion-lock APIs (`set/get` rotation lock, `set/get` translation lock).
+- Implemented `PhysicsSystem` passthroughs in `src/engine/physics/physics_system.cpp` for motion-lock APIs.
+- Implemented backend runtime behavior:
+  - `src/engine/physics/backends/backend_physx_stub.cpp`: true runtime lock mutation for dynamic bodies using PhysX lock flags.
+  - `src/engine/physics/backends/backend_jolt_stub.cpp`: deterministic unsupported runtime mutation for lock changes (`false`), with coherent lock-state query support for current runtime state.
+- Updated ECS sync in `src/engine/physics/ecs_sync_system.cpp`:
+  - lock transitions are no longer unconditional rebuild triggers,
+  - runtime lock mutation is attempted first,
+  - deterministic rebuild fallback is applied on unsupported/failure paths (no silent no-op).
+- Added bounded parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp`:
+  - runtime motion-lock API behavior (roundtrip where supported, deterministic unsupported semantics where not),
+  - invalid/unknown/non-dynamic rejection checks,
+  - ECS lock-mutation behavior (runtime update on supported backend, deterministic rebuild fallback on unsupported backend).
+
+Explicit remaining deferrals after Phase 4h:
+- No backend-native player-controller runtime object.
+- No grounded/controller movement gameplay semantics in engine physics contracts.
+- No real static-mesh geometry ingestion pipeline.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
 ## Current Status
 - `2026-02-17`: Project created as full replacement for backend-only parity track.
 - `2026-02-17`: `physics-backend.md` retired and subsumed into this plan.
@@ -631,7 +655,16 @@ Explicit remaining deferrals after Phase 4g:
   - `./scripts/test-engine-backends.sh build-a3` (pass)
   - `./docs/scripts/lint-project-docs.sh` (pass)
   - `./abuild.py --lock-status -d build-a3` (owner verified)
-- Next implementation slice: execute a bounded Phase 4 follow-up to close remaining engine-generic runtime mutation parity gaps while keeping backend-native controller objects out of scope.
+- `2026-02-18`: Phase 4h runtime motion-lock mutation parity slice implemented:
+  - substrate/backends/`PhysicsSystem` runtime lock APIs added,
+  - ECS sync lock-mutation runtime-first + deterministic rebuild fallback path landed,
+  - parity tests extended for motion-lock API and ECS fallback behavior.
+- `2026-02-18`: Phase 4h validation attempt in `build-a3` hit unrelated compile blockers outside owned slice:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (failed: unrelated `src/engine/app/server/bootstrap.cpp` compile errors)
+  - `./scripts/test-engine-backends.sh build-a3` (failed: same unrelated `src/engine/app/server/bootstrap.cpp` compile errors)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- Next implementation slice: clear/route around unrelated app-layer compile blockers, re-run Phase 4h validation, then execute the next bounded Phase 4 runtime-mutation parity follow-up.
 
 ## Handoff Checklist
 - [x] `physics-refactor.md` remains the single active physics project doc in `docs/projects/`.

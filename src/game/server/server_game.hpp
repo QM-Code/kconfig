@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "karma/app/server_game_interface.hpp"
+#include "karma/app/server/game_interface.hpp"
 
 #include "server/domain/actor_system.hpp"
 #include "server/domain/match_system.hpp"
@@ -21,7 +21,7 @@ struct SessionSnapshot {
     std::string session_name{};
 };
 
-class ServerGame final : public karma::app::ServerGameInterface {
+class ServerGame final : public karma::app::server::GameInterface {
  public:
     explicit ServerGame(std::string worldName);
 

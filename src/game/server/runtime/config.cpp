@@ -1,6 +1,6 @@
 #include "server/runtime/internal.hpp"
 
-#include "karma/app/backend_resolution.hpp"
+#include "karma/app/shared/backend_resolution.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
 #include "karma/common/logging.hpp"
@@ -15,7 +15,7 @@ namespace bz3::server::runtime_detail {
 
 void BuildRuntimeConfig(const karma::cli::ServerAppOptions& options,
                         std::string_view world_name,
-                        karma::app::EngineServerConfig* engine_config,
+                        karma::app::server::EngineConfig* engine_config,
                         uint16_t* listen_port,
                         karma::network::ServerPreAuthConfig* pre_auth_config,
                         karma::network::CommunityHeartbeat* community_heartbeat) {
@@ -32,9 +32,9 @@ void BuildRuntimeConfig(const karma::cli::ServerAppOptions& options,
         static_cast<int>(karma::config::ReadUInt16Config({"simulation.maxSubsteps"},
                                                           static_cast<uint16_t>(engine_config->max_substeps)));
     engine_config->physics_backend =
-        karma::app::ResolvePhysicsBackendFromOption(options.backend_physics, options.backend_physics_explicit);
+        karma::app::shared::ResolvePhysicsBackendFromOption(options.backend_physics, options.backend_physics_explicit);
     engine_config->audio_backend =
-        karma::app::ResolveAudioBackendFromOption(options.backend_audio, options.backend_audio_explicit);
+        karma::app::shared::ResolveAudioBackendFromOption(options.backend_audio, options.backend_audio_explicit);
     engine_config->enable_audio = options.backend_audio_explicit
         || karma::config::ReadBoolConfig({"audio.serverEnabled"}, false);
 

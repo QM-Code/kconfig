@@ -245,6 +245,8 @@ class JoltBackend final : public Backend {
             collision_masks_.clear();
             linear_damping_.clear();
             angular_damping_.clear();
+            rotation_locked_.clear();
+            translation_locked_.clear();
         }
 
         physics_system_.reset();
@@ -396,6 +398,8 @@ class JoltBackend final : public Backend {
         if (is_dynamic) {
             linear_damping_.emplace(id, desc.linear_damping);
             angular_damping_.emplace(id, desc.angular_damping);
+            rotation_locked_.emplace(id, desc.rotation_locked);
+            translation_locked_.emplace(id, desc.translation_locked);
         }
         body_interface.SetIsSensor(body->GetID(), desc.is_trigger);
         return id;
@@ -422,6 +426,8 @@ class JoltBackend final : public Backend {
         collision_masks_.erase(body);
         linear_damping_.erase(body);
         angular_damping_.erase(body);
+        rotation_locked_.erase(body);
+        translation_locked_.erase(body);
         bodies_.erase(it);
     }
 
@@ -689,6 +695,68 @@ class JoltBackend final : public Backend {
         return true;
     }
 
+    bool setBodyRotationLocked(BodyId body, bool locked) override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+        const auto body_it = bodies_.find(body);
+        if (body_it == bodies_.end()) {
+            return false;
+        }
+        const auto lock_it = rotation_locked_.find(body);
+        if (lock_it == rotation_locked_.end()) {
+            return false;
+        }
+        if (lock_it->second == locked) {
+            return true;
+        }
+        // Runtime DOF mutation is not exposed cleanly in this bounded Jolt path.
+        return false;
+    }
+
+    bool getBodyRotationLocked(BodyId body, bool& out_locked) const override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+        const auto it = rotation_locked_.find(body);
+        if (it == rotation_locked_.end()) {
+            return false;
+        }
+        out_locked = it->second;
+        return true;
+    }
+
+    bool setBodyTranslationLocked(BodyId body, bool locked) override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+        const auto body_it = bodies_.find(body);
+        if (body_it == bodies_.end()) {
+            return false;
+        }
+        const auto lock_it = translation_locked_.find(body);
+        if (lock_it == translation_locked_.end()) {
+            return false;
+        }
+        if (lock_it->second == locked) {
+            return true;
+        }
+        // Runtime DOF mutation is not exposed cleanly in this bounded Jolt path.
+        return false;
+    }
+
+    bool getBodyTranslationLocked(BodyId body, bool& out_locked) const override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+        const auto it = translation_locked_.find(body);
+        if (it == translation_locked_.end()) {
+            return false;
+        }
+        out_locked = it->second;
+        return true;
+    }
+
     bool getBodyTrigger(BodyId body, bool& out_enabled) const override {
         const auto it = trigger_enabled_.find(body);
         if (it == trigger_enabled_.end()) {
@@ -792,6 +860,8 @@ class JoltBackend final : public Backend {
     std::unordered_map<BodyId, CollisionMask> collision_masks_{};
     std::unordered_map<BodyId, float> linear_damping_{};
     std::unordered_map<BodyId, float> angular_damping_{};
+    std::unordered_map<BodyId, bool> rotation_locked_{};
+    std::unordered_map<BodyId, bool> translation_locked_{};
     BodyId next_body_id_ = 1;
     float frame_dt_ = 0.0f;
     bool initialized_ = false;
@@ -825,6 +895,10 @@ class JoltBackendStub final : public Backend {
     bool getBodyLinearDamping(BodyId, float&) const override { return false; }
     bool setBodyAngularDamping(BodyId, float) override { return false; }
     bool getBodyAngularDamping(BodyId, float&) const override { return false; }
+    bool setBodyRotationLocked(BodyId, bool) override { return false; }
+    bool getBodyRotationLocked(BodyId, bool&) const override { return false; }
+    bool setBodyTranslationLocked(BodyId, bool) override { return false; }
+    bool getBodyTranslationLocked(BodyId, bool&) const override { return false; }
     bool setBodyTrigger(BodyId, bool) override { return false; }
     bool getBodyTrigger(BodyId, bool&) const override { return false; }
     bool setBodyCollisionMask(BodyId, const CollisionMask&) override { return false; }

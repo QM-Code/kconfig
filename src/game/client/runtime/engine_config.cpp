@@ -1,6 +1,7 @@
 #include "client/runtime/internal.hpp"
 
-#include "karma/app/backend_resolution.hpp"
+#include "karma/app/client/backend_resolution.hpp"
+#include "karma/app/shared/backend_resolution.hpp"
 #include "karma/common/config_helpers.hpp"
 
 #include <stdexcept>
@@ -29,12 +30,12 @@ glm::vec4 ReadRequiredColor(const char* path) {
     throw std::runtime_error(std::string("Config '") + path + "' must have 3 or 4 elements");
 }
 
-karma::app::EngineConfig BuildEngineConfig(const karma::cli::ClientAppOptions& options) {
-    karma::app::EngineConfig config;
+karma::app::client::EngineConfig BuildEngineConfig(const karma::cli::ClientAppOptions& options) {
+    karma::app::client::EngineConfig config;
     config.window.title = karma::config::ReadRequiredStringConfig("platform.WindowTitle");
     config.window.width = karma::config::ReadRequiredUInt16Config("platform.WindowWidth");
     config.window.height = karma::config::ReadRequiredUInt16Config("platform.WindowHeight");
-    config.window.preferredVideoDriver = karma::app::ReadPreferredVideoDriverFromConfig();
+    config.window.preferredVideoDriver = karma::app::client::ReadPreferredVideoDriverFromConfig();
     config.window.fullscreen = karma::config::ReadRequiredBoolConfig("platform.Fullscreen");
     config.window.wayland_libdecor = karma::config::ReadRequiredBoolConfig("platform.WaylandLibdecor");
     config.vsync = karma::config::ReadRequiredBoolConfig("platform.VSync");
@@ -136,18 +137,18 @@ karma::app::EngineConfig BuildEngineConfig(const karma::cli::ClientAppOptions& o
         config.default_light.shadow.execution_mode = shadow_execution_mode;
     }
     config.render_backend =
-        karma::app::ResolveRenderBackendFromOption(options.backend_render, options.backend_render_explicit);
+        karma::app::client::ResolveRenderBackendFromOption(options.backend_render, options.backend_render_explicit);
     config.physics_backend =
-        karma::app::ResolvePhysicsBackendFromOption(options.backend_physics, options.backend_physics_explicit);
+        karma::app::shared::ResolvePhysicsBackendFromOption(options.backend_physics, options.backend_physics_explicit);
     config.audio_backend =
-        karma::app::ResolveAudioBackendFromOption(options.backend_audio, options.backend_audio_explicit);
+        karma::app::shared::ResolveAudioBackendFromOption(options.backend_audio, options.backend_audio_explicit);
     config.enable_audio = karma::config::ReadBoolConfig({"audio.enabled"}, true);
     config.simulation_fixed_hz = karma::config::ReadFloatConfig({"simulation.fixedHz"}, 60.0f);
     config.simulation_max_frame_dt = karma::config::ReadFloatConfig({"simulation.maxFrameDeltaTime"}, 0.25f);
     config.simulation_max_steps =
         static_cast<int>(karma::config::ReadUInt16Config({"simulation.maxSubsteps"}, 4));
     config.ui_backend_override =
-        karma::app::ResolveUiBackendOverrideFromOption(options.backend_ui, options.backend_ui_explicit);
+        karma::app::client::ResolveUiBackendOverrideFromOption(options.backend_ui, options.backend_ui_explicit);
     return config;
 }
 

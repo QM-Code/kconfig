@@ -1,7 +1,7 @@
-#include "karma/app/client_bootstrap_runner.hpp"
+#include "karma/app/client/bootstrap.hpp"
 
-#include "karma/app/backend_resolution.hpp"
-#include "karma/app/bootstrap_scaffold.hpp"
+#include "karma/app/client/backend_resolution.hpp"
+#include "karma/app/shared/bootstrap.hpp"
 #include "karma/common/config_validation.hpp"
 #include "karma/common/logging.hpp"
 
@@ -11,17 +11,17 @@
 #include <string>
 #include <stdexcept>
 
-namespace karma::app {
+namespace karma::app::client {
 
-void RunClientBootstrap(const karma::cli::ClientAppOptions& options,
-                        int argc,
-                        char** argv,
-                        std::string_view app_name) {
-    ConfigureLoggingFromOptions(options.timestamp_logging,
-                                options.trace_explicit,
-                                options.trace_channels);
+void RunBootstrap(const karma::cli::ClientAppOptions& options,
+                  int argc,
+                  char** argv,
+                  std::string_view app_name) {
+    shared::ConfigureLoggingFromOptions(options.timestamp_logging,
+                                        options.trace_explicit,
+                                        options.trace_channels);
 
-    BootstrapConfigSpec spec{};
+    shared::BootstrapConfigSpec spec{};
     spec.app_name = app_name.empty() ? std::string("app") : std::string(app_name);
     spec.data_dir_env_var = "BZ3_DATA_DIR";
     spec.required_data_marker = "client/config.json";
@@ -29,7 +29,7 @@ void RunClientBootstrap(const karma::cli::ClientAppOptions& options,
     spec.config_specs = {
         {"client/config.json", "data/client/config.json", spdlog::level::debug, false, true}
     };
-    ConfigureDataAndConfigFromSpec(spec, argc, argv);
+    shared::ConfigureDataAndConfigFromSpec(spec, argc, argv);
 
     if (options.backend_platform_explicit) {
         ValidatePlatformBackendFromOption(options.backend_platform, options.backend_platform_explicit);
@@ -49,7 +49,7 @@ void RunClientBootstrap(const karma::cli::ClientAppOptions& options,
     }
 
     const auto issues = config::ValidateRequiredKeys(config::ClientRequiredKeys());
-    if (!ReportRequiredConfigIssues(issues, options.strict_config)) {
+    if (!shared::ReportRequiredConfigIssues(issues, options.strict_config)) {
         throw std::runtime_error("Client required config validation failed.");
     }
 
@@ -64,4 +64,4 @@ void RunClientBootstrap(const karma::cli::ClientAppOptions& options,
     }
 }
 
-} // namespace karma::app
+} // namespace karma::app::client

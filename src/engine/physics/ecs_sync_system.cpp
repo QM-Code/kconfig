@@ -78,12 +78,6 @@ bool RequiresRigidBodyRebuild(const scene::RigidBodyIntentComponent& previous,
     if (desired.dynamic && !scene::NearlyEqualFloat(previous.mass, desired.mass)) {
         return true;
     }
-    if (previous.rotation_locked != desired.rotation_locked) {
-        return true;
-    }
-    if (previous.translation_locked != desired.translation_locked) {
-        return true;
-    }
     return false;
 }
 
@@ -545,6 +539,26 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
             if (!physics_system_.setBodyLinearDamping(binding.body, rigidbody->linear_damping)
                 || !physics_system_.setBodyAngularDamping(binding.body, rigidbody->angular_damping)) {
                 teardown_entities.push_back(entity);
+                continue;
+            }
+        }
+        if (rigidbody->dynamic
+            && (binding.rigidbody_intent.rotation_locked != rigidbody->rotation_locked
+                || binding.rigidbody_intent.translation_locked != rigidbody->translation_locked)) {
+            bool rotation_lock_ok = true;
+            bool translation_lock_ok = true;
+            if (binding.rigidbody_intent.rotation_locked != rigidbody->rotation_locked) {
+                rotation_lock_ok = physics_system_.setBodyRotationLocked(binding.body, rigidbody->rotation_locked);
+            }
+            if (binding.rigidbody_intent.translation_locked != rigidbody->translation_locked) {
+                translation_lock_ok = physics_system_.setBodyTranslationLocked(
+                    binding.body, rigidbody->translation_locked);
+            }
+            if (!rotation_lock_ok || !translation_lock_ok) {
+                // Deterministic fallback path for unsupported runtime lock mutation: rebuild runtime object.
+                physics_system_.destroyBody(binding.body);
+                bindings_.erase(binding_it);
+                (void)create_binding();
                 continue;
             }
         }

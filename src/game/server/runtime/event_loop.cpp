@@ -11,7 +11,7 @@
 
 namespace bz3::server::runtime_detail {
 
-void RunEventLoop(karma::app::EngineServerApp* app,
+void RunEventLoop(karma::app::server::Engine* app,
                   ServerGame* game,
                   net::ServerEventSource* event_source,
                   domain::ShotSystem* shot_system,

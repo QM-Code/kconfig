@@ -1,4 +1,4 @@
-#include "karma/app/backend_resolution.hpp"
+#include "karma/app/client/backend_resolution.hpp"
 
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <stdexcept>
 
-namespace karma::app {
+namespace karma::app::client {
 
 renderer_backend::BackendKind ResolveRenderBackendFromOption(const std::string& option_value,
                                                              bool option_explicit) {
@@ -82,4 +82,4 @@ std::optional<ui::Backend> ResolveUiBackendOverrideFromOption(const std::string&
                              + option_value + "' (expected: imgui|rmlui)");
 }
 
-} // namespace karma::app
+} // namespace karma::app::client

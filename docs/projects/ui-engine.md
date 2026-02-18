@@ -41,7 +41,7 @@ Port and stabilize BZ3 UI behavior in `m-rewrite` while preserving engine owners
   - `m-rewrite/src/game/client/game/*` and related game UI call sites
 
 ## Current State (Implemented)
-1. Engine-owned UI system lifecycle is integrated in `EngineApp` tick flow.
+1. Engine-owned UI system lifecycle is integrated in client engine tick flow (`karma::app::client::Engine`).
 2. Runtime UI backend selection via config + CLI is working.
 3. ImGui and RmlUi software bridge paths are integrated.
 4. Cross-backend overlay behavior is functioning on BGFX/Diligent baseline paths.

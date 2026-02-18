@@ -748,6 +748,133 @@ bool RunBodyDampingApiChecks(BackendKind backend) {
     return true;
 }
 
+bool RunBodyMotionLockApiChecks(BackendKind backend) {
+    karma::physics::PhysicsSystem physics;
+    physics.setBackend(backend);
+    physics.init();
+
+    if (!physics.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to initialize (motion-lock-api check)\n";
+        return false;
+    }
+
+    BodyDesc dynamic_desc{};
+    dynamic_desc.is_static = false;
+    dynamic_desc.mass = 1.0f;
+    dynamic_desc.transform.position = glm::vec3(0.0f, 3.0f, 0.0f);
+    dynamic_desc.rotation_locked = false;
+    dynamic_desc.translation_locked = false;
+    const BodyId dynamic_body = physics.createBody(dynamic_desc);
+    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create dynamic body (motion-lock-api check)\n";
+        physics.shutdown();
+        return false;
+    }
+
+    bool rotation_locked = false;
+    bool translation_locked = false;
+    if (!physics.getBodyRotationLocked(dynamic_body, rotation_locked)
+        || !physics.getBodyTranslationLocked(dynamic_body, translation_locked)
+        || rotation_locked
+        || translation_locked) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " motion-lock default state mismatch after dynamic create\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+
+    const bool set_rotation_locked = physics.setBodyRotationLocked(dynamic_body, true);
+    const bool set_translation_locked = physics.setBodyTranslationLocked(dynamic_body, true);
+    if (backend == BackendKind::PhysX) {
+        if (!set_rotation_locked || !set_translation_locked) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " motion-lock runtime mutation unexpectedly failed\n";
+            physics.destroyBody(dynamic_body);
+            physics.shutdown();
+            return false;
+        }
+        if (!physics.getBodyRotationLocked(dynamic_body, rotation_locked)
+            || !physics.getBodyTranslationLocked(dynamic_body, translation_locked)
+            || !rotation_locked
+            || !translation_locked) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " motion-lock runtime mutation roundtrip mismatch\n";
+            physics.destroyBody(dynamic_body);
+            physics.shutdown();
+            return false;
+        }
+    } else {
+        if (set_rotation_locked || set_translation_locked) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " motion-lock runtime mutation unexpectedly succeeded in unsupported backend\n";
+            physics.destroyBody(dynamic_body);
+            physics.shutdown();
+            return false;
+        }
+        if (!physics.getBodyRotationLocked(dynamic_body, rotation_locked)
+            || !physics.getBodyTranslationLocked(dynamic_body, translation_locked)
+            || rotation_locked
+            || translation_locked) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " motion-lock state changed despite unsupported runtime mutation\n";
+            physics.destroyBody(dynamic_body);
+            physics.shutdown();
+            return false;
+        }
+    }
+
+    BodyDesc static_desc{};
+    static_desc.is_static = true;
+    const BodyId static_body = physics.createBody(static_desc);
+    if (static_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create static body (motion-lock-api check)\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+
+    if (physics.setBodyRotationLocked(static_body, true)
+        || physics.getBodyRotationLocked(static_body, rotation_locked)
+        || physics.setBodyTranslationLocked(static_body, true)
+        || physics.getBodyTranslationLocked(static_body, translation_locked)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " motion-lock APIs unexpectedly succeeded on static body\n";
+        physics.destroyBody(static_body);
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.destroyBody(static_body);
+    physics.destroyBody(dynamic_body);
+    if (physics.setBodyRotationLocked(dynamic_body, false)
+        || physics.getBodyRotationLocked(dynamic_body, rotation_locked)
+        || physics.setBodyTranslationLocked(dynamic_body, false)
+        || physics.getBodyTranslationLocked(dynamic_body, translation_locked)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " motion-lock APIs unexpectedly succeeded after body destroy\n";
+        physics.shutdown();
+        return false;
+    }
+
+    if (physics.setBodyRotationLocked(karma::physics_backend::kInvalidBodyId, false)
+        || physics.getBodyRotationLocked(karma::physics_backend::kInvalidBodyId, rotation_locked)
+        || physics.setBodyTranslationLocked(karma::physics_backend::kInvalidBodyId, false)
+        || physics.getBodyTranslationLocked(karma::physics_backend::kInvalidBodyId, translation_locked)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " motion-lock APIs unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+
+    physics.shutdown();
+    return true;
+}
+
 bool RunGroundCollisionChecks(BackendKind backend) {
     karma::physics::PhysicsSystem physics;
     physics.setBackend(backend);
@@ -1026,6 +1153,31 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    bool lock_out = false;
+    if (physics.setBodyRotationLocked(karma::physics_backend::kInvalidBodyId, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyRotationLocked unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyRotationLocked(karma::physics_backend::kInvalidBodyId, lock_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyRotationLocked unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyTranslationLocked(karma::physics_backend::kInvalidBodyId, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyTranslationLocked unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyTranslationLocked(karma::physics_backend::kInvalidBodyId, lock_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyTranslationLocked unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
     if (physics.setBodyTrigger(karma::physics_backend::kInvalidBodyId, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTrigger unexpectedly succeeded for invalid id\n";
@@ -1138,6 +1290,30 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    if (physics.setBodyRotationLocked(bogus, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyRotationLocked unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyRotationLocked(bogus, lock_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyRotationLocked unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyTranslationLocked(bogus, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyTranslationLocked unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyTranslationLocked(bogus, lock_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyTranslationLocked unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
     if (physics.setBodyTrigger(bogus, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTrigger unexpectedly succeeded for unknown id\n";
@@ -1234,6 +1410,30 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
     if (physics.getBodyAngularDamping(body, damping_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyAngularDamping unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyRotationLocked(body, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyRotationLocked unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyRotationLocked(body, lock_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyRotationLocked unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyTranslationLocked(body, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyTranslationLocked unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyTranslationLocked(body, lock_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyTranslationLocked unexpectedly succeeded after destroy\n";
         physics.shutdown();
         return false;
     }
@@ -1996,6 +2196,7 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     BodyTransform out{};
     RaycastHit hit{};
     bool gravity_enabled = false;
+    bool lock_enabled = false;
 
     const BodyId before_init = physics.createBody(desc);
     if (before_init != karma::physics_backend::kInvalidBodyId) {
@@ -2021,6 +2222,26 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     if (physics.setBodyGravityEnabled(1, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyGravityEnabled succeeded before init\n";
+        return false;
+    }
+    if (physics.getBodyRotationLocked(1, lock_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyRotationLocked succeeded before init\n";
+        return false;
+    }
+    if (physics.setBodyRotationLocked(1, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyRotationLocked succeeded before init\n";
+        return false;
+    }
+    if (physics.getBodyTranslationLocked(1, lock_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyTranslationLocked succeeded before init\n";
+        return false;
+    }
+    if (physics.setBodyTranslationLocked(1, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyTranslationLocked succeeded before init\n";
         return false;
     }
     if (physics.raycastClosest(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), 5.0f, hit)) {
@@ -2070,6 +2291,26 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     if (physics.setBodyGravityEnabled(body, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyGravityEnabled succeeded after shutdown\n";
+        return false;
+    }
+    if (physics.getBodyRotationLocked(body, lock_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyRotationLocked succeeded after shutdown\n";
+        return false;
+    }
+    if (physics.setBodyRotationLocked(body, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyRotationLocked succeeded after shutdown\n";
+        return false;
+    }
+    if (physics.getBodyTranslationLocked(body, lock_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyTranslationLocked succeeded after shutdown\n";
+        return false;
+    }
+    if (physics.setBodyTranslationLocked(body, true)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyTranslationLocked succeeded after shutdown\n";
         return false;
     }
     if (physics.raycastClosest(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f), 5.0f, hit)) {
@@ -3007,6 +3248,114 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         return false;
     }
 
+    const auto entity_motion_lock = world.createEntity();
+    world.add<TransformComponent>(entity_motion_lock, make_transform_component(glm::vec3(-7.0f, 6.0f, 0.0f)));
+    RigidBodyIntentComponent motion_lock_rigidbody{};
+    motion_lock_rigidbody.rotation_locked = false;
+    motion_lock_rigidbody.translation_locked = false;
+    world.add<RigidBodyIntentComponent>(entity_motion_lock, motion_lock_rigidbody);
+    world.add<ColliderIntentComponent>(entity_motion_lock, ColliderIntentComponent{});
+    world.add<PhysicsTransformOwnershipComponent>(entity_motion_lock, PhysicsTransformOwnershipComponent{});
+
+    sync.preSimulate(world);
+    BodyId motion_lock_body_before = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_motion_lock, motion_lock_body_before)
+        || motion_lock_body_before == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync failed to create motion-lock fixture runtime body\n";
+        physics.shutdown();
+        return false;
+    }
+    bool runtime_rotation_locked = true;
+    bool runtime_translation_locked = true;
+    if (!physics.getBodyRotationLocked(motion_lock_body_before, runtime_rotation_locked)
+        || !physics.getBodyTranslationLocked(motion_lock_body_before, runtime_translation_locked)
+        || runtime_rotation_locked
+        || runtime_translation_locked) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync motion-lock fixture did not start unlocked\n";
+        physics.shutdown();
+        return false;
+    }
+
+    auto* motion_lock_rigidbody_mut = world.tryGet<RigidBodyIntentComponent>(entity_motion_lock);
+    motion_lock_rigidbody_mut->rotation_locked = true;
+    motion_lock_rigidbody_mut->translation_locked = true;
+    sync.preSimulate(world);
+
+    BodyId motion_lock_body_after_enable = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_motion_lock, motion_lock_body_after_enable)
+        || motion_lock_body_after_enable == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync lost motion-lock fixture after lock-enable transition\n";
+        physics.shutdown();
+        return false;
+    }
+    if (backend == BackendKind::PhysX && motion_lock_body_after_enable != motion_lock_body_before) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync unexpectedly rebuilt body for supported runtime lock mutation\n";
+        physics.shutdown();
+        return false;
+    }
+    if (backend == BackendKind::Jolt && motion_lock_body_after_enable == motion_lock_body_before) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync expected deterministic rebuild fallback for unsupported runtime lock mutation\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyRotationLocked(motion_lock_body_after_enable, runtime_rotation_locked)
+        || !physics.getBodyTranslationLocked(motion_lock_body_after_enable, runtime_translation_locked)
+        || !runtime_rotation_locked
+        || !runtime_translation_locked) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync lock-enable transition did not converge to locked runtime state\n";
+        physics.shutdown();
+        return false;
+    }
+
+    sync.preSimulate(world);
+    BodyId motion_lock_body_after_noop = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_motion_lock, motion_lock_body_after_noop)
+        || motion_lock_body_after_noop != motion_lock_body_after_enable) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync motion-lock fixture was not stable after lock-enable transition\n";
+        physics.shutdown();
+        return false;
+    }
+
+    motion_lock_rigidbody_mut->rotation_locked = false;
+    motion_lock_rigidbody_mut->translation_locked = false;
+    sync.preSimulate(world);
+    BodyId motion_lock_body_after_disable = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_motion_lock, motion_lock_body_after_disable)
+        || motion_lock_body_after_disable == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync lost motion-lock fixture after lock-disable transition\n";
+        physics.shutdown();
+        return false;
+    }
+    if (backend == BackendKind::PhysX && motion_lock_body_after_disable != motion_lock_body_after_enable) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync unexpectedly rebuilt body for supported lock-disable runtime mutation\n";
+        physics.shutdown();
+        return false;
+    }
+    if (backend == BackendKind::Jolt && motion_lock_body_after_disable == motion_lock_body_after_enable) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync expected deterministic rebuild fallback for unsupported lock-disable runtime mutation\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyRotationLocked(motion_lock_body_after_disable, runtime_rotation_locked)
+        || !physics.getBodyTranslationLocked(motion_lock_body_after_disable, runtime_translation_locked)
+        || runtime_rotation_locked
+        || runtime_translation_locked) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync lock-disable transition did not converge to unlocked runtime state\n";
+        physics.shutdown();
+        return false;
+    }
+
     const auto entity_controller = world.createEntity();
     world.add<TransformComponent>(entity_controller, make_transform_component(glm::vec3(3.0f, 6.0f, 0.0f)));
     RigidBodyIntentComponent controller_rigidbody{};
@@ -3667,6 +4016,9 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
         if (!RunBodyDampingApiChecks(backend)) {
+            return EXIT_FAILURE;
+        }
+        if (!RunBodyMotionLockApiChecks(backend)) {
             return EXIT_FAILURE;
         }
         if (!RunUninitializedApiChecks(backend)) {

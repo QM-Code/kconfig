@@ -90,7 +90,8 @@ class Backend {
     // Body flag/constraint contract:
     // - Gravity enablement currently applies only to dynamic bodies.
     // - For invalid, unknown, or non-dynamic bodies, calls return false.
-    // - Rotation/translation locks are currently creation-time only via BodyDesc.
+    // - Rotation/translation lock runtime mutation support is backend-dependent;
+    //   unsupported transitions return false so callers can apply deterministic fallback behavior.
     virtual bool setBodyGravityEnabled(BodyId body, bool enabled) = 0;
     virtual bool getBodyGravityEnabled(BodyId body, bool& out_enabled) const = 0;
     // Runtime velocity contract:
@@ -108,6 +109,15 @@ class Backend {
     virtual bool getBodyLinearDamping(BodyId body, float& out_damping) const = 0;
     virtual bool setBodyAngularDamping(BodyId body, float damping) = 0;
     virtual bool getBodyAngularDamping(BodyId body, float& out_damping) const = 0;
+    // Runtime motion-lock contract:
+    // - get/set lock state applies only to dynamic bodies in this slice.
+    // - For invalid, unknown, or non-dynamic bodies, calls return false.
+    // - set* may return false when runtime lock mutation is unsupported by the backend;
+    //   callers use this to drive deterministic fallback behavior (for example rebuild).
+    virtual bool setBodyRotationLocked(BodyId body, bool locked) = 0;
+    virtual bool getBodyRotationLocked(BodyId body, bool& out_locked) const = 0;
+    virtual bool setBodyTranslationLocked(BodyId body, bool locked) = 0;
+    virtual bool getBodyTranslationLocked(BodyId body, bool& out_locked) const = 0;
     // Collider runtime property contract:
     // - Returns false for invalid/unknown body ids.
     // - Backends may report false when a runtime mutation is unsupported; this is used by callers to apply deterministic

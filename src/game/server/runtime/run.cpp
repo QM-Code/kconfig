@@ -5,8 +5,8 @@
 #include "server/runtime/internal.hpp"
 #include "server/server_game.hpp"
 
-#include "karma/app/bootstrap_scaffold.hpp"
-#include "karma/app/engine_server_app.hpp"
+#include "karma/app/shared/bootstrap.hpp"
+#include "karma/app/server/engine.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_validation.hpp"
 #include <algorithm>
@@ -21,7 +21,7 @@ namespace bz3::server {
 
 int RunRuntime(const karma::cli::ServerAppOptions& options) {
     const auto issues = karma::config::ValidateRequiredKeys(karma::config::ServerRequiredKeys());
-    if (!karma::app::ReportRequiredConfigIssues(issues, options.strict_config)) {
+    if (!karma::app::shared::ReportRequiredConfigIssues(issues, options.strict_config)) {
         return 1;
     }
 
@@ -31,7 +31,7 @@ int RunRuntime(const karma::cli::ServerAppOptions& options) {
     }
 
     runtime_detail::InstallSignalHandlers(options.app_name.empty() ? std::string("server") : options.app_name);
-    karma::app::EngineServerConfig engine_config{};
+    karma::app::server::EngineConfig engine_config{};
     uint16_t listen_port = 0;
     karma::network::ServerPreAuthConfig pre_auth_config{};
     karma::network::CommunityHeartbeat community_heartbeat{};
@@ -55,7 +55,7 @@ int RunRuntime(const karma::cli::ServerAppOptions& options) {
             ? (1.0f / engine_config.target_tick_hz)
             : (1.0f / 60.0f);
 
-    karma::app::EngineServerApp app{};
+    karma::app::server::Engine app{};
     app.start(game, engine_config);
 
     std::vector<karma::network::ServerWorldManifestEntry> world_manifest{};

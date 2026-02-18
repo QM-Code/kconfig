@@ -4,7 +4,7 @@
 #include "server/net/event_source.hpp"
 #include "server/server_game.hpp"
 
-#include "karma/app/engine_server_app.hpp"
+#include "karma/app/server/engine.hpp"
 #include "karma/cli/server_app_options.hpp"
 #include "karma/network/community/heartbeat.hpp"
 #include "karma/network/server/auth/preauth.hpp"
@@ -22,7 +22,7 @@ bool ShouldKeepRunning();
 
 void BuildRuntimeConfig(const karma::cli::ServerAppOptions& options,
                         std::string_view world_name,
-                        karma::app::EngineServerConfig* engine_config,
+                        karma::app::server::EngineConfig* engine_config,
                         uint16_t* listen_port,
                         karma::network::ServerPreAuthConfig* pre_auth_config,
                         karma::network::CommunityHeartbeat* community_heartbeat);
@@ -34,7 +34,7 @@ std::vector<net::WorldManifestEntry> ToNetWorldManifest(
 void EmitJoinResultToEventSource(net::ServerEventSource& event_source,
                                  const karma::network::ServerJoinResultPayload& payload);
 
-void RunEventLoop(karma::app::EngineServerApp* app,
+void RunEventLoop(karma::app::server::Engine* app,
                   ServerGame* game,
                   net::ServerEventSource* event_source,
                   domain::ShotSystem* shot_system,

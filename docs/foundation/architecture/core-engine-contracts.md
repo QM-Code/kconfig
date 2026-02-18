@@ -938,7 +938,7 @@ Validation gate for this slice:
 ## 1) Physics Infrastructure
 
 ## Current state
-- Contract/lifecycle is in place and wired in `EngineApp` + `EngineServerApp`.
+- Contract/lifecycle is in place and wired in `karma::app::client::Engine` + `karma::app::server::Engine`.
 - Minimal body-oriented API surface exists.
 - Selection and diagnostics are stable.
 
@@ -957,7 +957,7 @@ Validation gate for this slice:
 ## 2) Audio Infrastructure
 
 ## Current state
-- Contract/lifecycle is in place and wired in `EngineApp` + `EngineServerApp`.
+- Contract/lifecycle is in place and wired in `karma::app::client::Engine` + `karma::app::server::Engine`.
 - Listener update hooks exist in client path.
 - Selection and diagnostics are stable.
 

@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace karma::app {
+namespace karma::app::shared {
 
 struct BootstrapConfigSpec {
     std::string app_name;
@@ -28,4 +28,4 @@ void ConfigureDataAndConfigFromSpec(const BootstrapConfigSpec& spec, int argc, c
 bool ReportRequiredConfigIssues(const std::vector<config::ValidationIssue>& issues, bool strict_config);
 std::string ResolveConfiguredAppName(const std::string& fallback_name);
 
-} // namespace karma::app
+} // namespace karma::app::shared

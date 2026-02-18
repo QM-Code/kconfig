@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-#include "karma/app/server_game_interface.hpp"
+#include "karma/app/server/game_interface.hpp"
 #include "karma/audio/audio_system.hpp"
 #include "karma/audio/backend.hpp"
 #include "karma/common/simulation_clock.hpp"
@@ -10,9 +10,9 @@
 #include "karma/physics/backend.hpp"
 #include "karma/physics/physics_system.hpp"
 
-namespace karma::app {
+namespace karma::app::server {
 
-struct EngineServerConfig {
+struct EngineConfig {
     float target_tick_hz = 60.0f;
     float max_delta_time = 0.25f;
     int max_substeps = 4;
@@ -21,12 +21,12 @@ struct EngineServerConfig {
     bool enable_audio = false;
 };
 
-class EngineServerApp {
+class Engine {
  public:
-    EngineServerApp() = default;
-    ~EngineServerApp();
+    Engine() = default;
+    ~Engine();
 
-    void start(ServerGameInterface& game, const EngineServerConfig& config = {});
+    void start(GameInterface& game, const EngineConfig& config = {});
     void tick();
     bool isRunning() const { return running_; }
     void requestStop();
@@ -34,8 +34,8 @@ class EngineServerApp {
  private:
     void shutdown();
 
-    ServerGameInterface* game_ = nullptr;
-    EngineServerConfig config_{};
+    GameInterface* game_ = nullptr;
+    EngineConfig config_{};
     ecs::World world_{};
     audio::AudioSystem audio_system_{};
     physics::PhysicsSystem physics_system_{};
@@ -44,4 +44,4 @@ class EngineServerApp {
     std::chrono::steady_clock::time_point last_tick_time_{};
 };
 
-} // namespace karma::app
+} // namespace karma::app::server

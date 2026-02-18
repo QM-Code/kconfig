@@ -1,6 +1,6 @@
 #pragma once
 
-#include "karma/app/game_interface.hpp"
+#include "karma/app/client/game_interface.hpp"
 #include "karma/ecs/entity.hpp"
 #include "karma/renderer/types.hpp"
 
@@ -30,7 +30,7 @@ struct GameStartupOptions {
     bool connect_on_start = false;
 };
 
-class Game final : public karma::app::GameInterface {
+class Game final : public karma::app::client::GameInterface {
  public:
     explicit Game(GameStartupOptions options = {});
     ~Game() override;

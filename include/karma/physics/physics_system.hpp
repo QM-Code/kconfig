@@ -36,6 +36,10 @@ class PhysicsSystem {
     bool getBodyLinearDamping(physics_backend::BodyId body, float& out_damping) const;
     bool setBodyAngularDamping(physics_backend::BodyId body, float damping);
     bool getBodyAngularDamping(physics_backend::BodyId body, float& out_damping) const;
+    bool setBodyRotationLocked(physics_backend::BodyId body, bool locked);
+    bool getBodyRotationLocked(physics_backend::BodyId body, bool& out_locked) const;
+    bool setBodyTranslationLocked(physics_backend::BodyId body, bool locked);
+    bool getBodyTranslationLocked(physics_backend::BodyId body, bool& out_locked) const;
     bool setBodyTrigger(physics_backend::BodyId body, bool enabled);
     bool getBodyTrigger(physics_backend::BodyId body, bool& out_enabled) const;
     bool setBodyCollisionMask(physics_backend::BodyId body, const physics_backend::CollisionMask& mask);
