@@ -1,9 +1,9 @@
 # Engine Network Module Hygiene
 
 ## Project Snapshot
-- Current owner: `unassigned`
-- Status: `queued (taxonomy and migration plan drafted; execution not started)`
-- Immediate next task: execute Phase N0 by locking module taxonomy + target directories and landing compatibility-wrapper scaffolding for one bounded transport header/source pair.
+- Current owner: `specialist-network-hygiene-n0`
+- Status: `closeout-ready (N6 wrapper retirement complete: canonical include migration done and compatibility wrappers/shims removed)`
+- Immediate next task: `shared unblocker`: decide project closeout/archive handoff and retire this active track after overseer confirmation.
 - Validation gate: `./abuild.py -c -d <build-dir>` + `./scripts/test-server-net.sh <build-dir>` + `ctest --test-dir <build-dir> -R 'client_transport_contract_test|server_transport_contract_test' --output-on-failure` + `./docs/scripts/lint-project-docs.sh`.
 
 ## Mission
@@ -49,7 +49,7 @@ This is structural hygiene for engine network ownership and naming, not gameplay
   - `src/game/net/protocol.hpp`
   - `src/game/net/protocol_codec.*`
   - `src/game/protos/messages.proto`
-  - `docs/projects/gameplay-netcode.md`
+  - `docs/projects/gameplay-migration.md`
   - `docs/archive/engine-game-boundary-hygiene-retired-2026-02-18.md`
 
 ## Non-Goals
@@ -169,33 +169,33 @@ Compatibility rule:
 - move `client_transport`, `server_transport`, and `transport_pump_normalizer`,
 - keep legacy wrapper headers in `include/karma/network/` during transition.
 
-3. N2 config/policy migration:
+3. N2 config/policy migration (completed 2026-02-18):
 - move `transport_config_mapping` + `client_reconnect_policy` under `network/config`,
 - keep compatibility wrappers for legacy include paths.
 
-4. N3 server auth/session migration:
+4. N3 server auth/session migration (completed 2026-02-18):
 - move `server_preauth` to `network/server/auth`,
 - move join/leave/session hooks helpers to `network/server/session`.
 
-5. N4 community heartbeat migration:
+5. N4 community heartbeat migration (completed 2026-02-18):
 - move heartbeat files to `network/community`,
 - preserve API behavior while clarifying server-oriented ownership.
 
-6. N4.5 content transfer-integrity helper extraction:
+6. N4.5 content transfer-integrity helper extraction (completed 2026-02-18):
 - introduce `include/karma/network/content/transfer_integrity.hpp` and `src/engine/network/content/transfer_integrity.cpp`.
 - move transfer-coupled helper subset from `common/content/primitives` (chunk bounds, buffered-chunk match, chunk-chain helpers) behind compatibility forwarding wrappers during migration.
 - keep generic hash/path helpers in `common/content/primitives`.
 
-7. N4.6 curl-global relocation:
+7. N4.6 curl-global relocation (completed 2026-02-18):
 - move curl-global init helper from `common/curl_global.*` to `network/http/curl_global.*`.
 - keep temporary compatibility forwarding header/source at legacy `common/curl_global.*` path until wrapper retirement.
 
-8. N5 tests layout migration:
+8. N5 tests layout migration (completed 2026-02-18):
 - move fixtures/sinks into `tests/support`,
 - move contract tests into `tests/contracts`,
 - keep `network_test_support` and contract test targets behavior-identical.
 
-9. N6 wrapper retirement:
+9. N6 wrapper retirement (completed 2026-02-18):
 - once all callsites are updated, remove legacy flat wrappers,
 - finalize docs and board status.
 
@@ -234,6 +234,15 @@ ctest --test-dir <build-dir> -R 'client_transport_contract_test|server_transport
 - `2026-02-17`: execution not started; N0 scaffolding is next.
 - `2026-02-18`: mapping table refreshed against current `src/engine/network` inventory; added explicit accounting rows for `network/content/transfer_{sender,receiver}` and `tests/loopback_transport_fixture.hpp`.
 - `2026-02-18`: boundary recheck promoted to concrete goals: add `network/content/transfer_integrity` from transfer-only primitive subset and relocate `curl_global` to `network/http`.
+- `2026-02-18`: N0 completed and validated: created `include/karma/network/transport/` + `src/engine/network/transport/`, migrated `client_transport` to `include/karma/network/transport/client.hpp` + `src/engine/network/transport/client.cpp`, kept `include/karma/network/client_transport.hpp` as forwarding wrapper, and updated `src/engine/CMakeLists.txt` to the new source path.
+- `2026-02-18`: N1 completed and validated: migrated `server_transport` to `include/karma/network/transport/server.hpp` + `src/engine/network/transport/server.cpp`, migrated `transport_pump_normalizer.hpp` to `src/engine/network/transport/pump_normalizer.hpp`, kept compatibility wrappers at legacy paths, and updated `src/engine/CMakeLists.txt` to the new server transport source path.
+- `2026-02-18`: N2 completed and validated: moved `transport_config_mapping.*` and `client_reconnect_policy.*` to `include/karma/network/config/*` + `src/engine/network/config/*`, kept legacy header wrappers, and updated `src/engine/CMakeLists.txt` to new config source paths.
+- `2026-02-18`: N3 completed and validated: moved preauth and session runtime helpers to `include/karma/network/server/{auth,session}/*` + `src/engine/network/server/{auth,session}/*`, kept legacy header wrappers, and updated `src/engine/CMakeLists.txt` to new server auth/session source paths.
+- `2026-02-18`: N4 completed and validated: moved community heartbeat files to `include/karma/network/community/*` + `src/engine/network/community/*`, kept legacy header wrappers, and updated `src/engine/CMakeLists.txt` to new community source paths.
+- `2026-02-18`: N4.5 completed and validated: added `include/karma/network/content/transfer_integrity.hpp` + `src/engine/network/content/transfer_integrity.cpp`, moved transfer-specific chunk-chain/bounds/buffer helpers there, kept `karma::content` compatibility forwarding wrappers in `common/content/primitives.*`, and updated transfer receiver usage to canonical `network/content/transfer_integrity` calls.
+- `2026-02-18`: N4.6 completed and validated: added `include/karma/network/http/curl_global.hpp` + `src/engine/network/http/curl_global.cpp`, moved `EnsureCurlGlobalInit` implementation there, converted `include/karma/common/curl_global.hpp` to forwarding include wrapper and `src/engine/common/curl_global.cpp` to compatibility shim, updated network heartbeat/preauth callsites to canonical network/http header, and updated `src/engine/CMakeLists.txt` with the new source.
+- `2026-02-18`: N5 completed and validated: moved network test fixtures/sinks into `src/engine/network/tests/support/*`, moved contract tests into `src/engine/network/tests/contracts/*`, kept forwarding headers at legacy `src/engine/network/tests/*.hpp` paths, and updated `src/engine/CMakeLists.txt` test source paths while preserving target names.
+- `2026-02-18`: N6 completed and validated: migrated remaining game/test includes to canonical network paths, removed retired wrapper headers/shims (`network/*` legacy forwarders, `common/curl_global.*`, `transport_pump_normalizer.hpp`, and legacy test forwarding headers), kept `src/engine/CMakeLists.txt` aligned to canonical moved sources only, and verified wrapper-retirement proof query returns no matches.
 
 ## Open Questions
 - Should server community heartbeat remain under `network/community/*`, or move to `network/server/community/*` for stricter server-only ownership?
@@ -245,7 +254,13 @@ ctest --test-dir <build-dir> -R 'client_transport_contract_test|server_transport
 - [x] Current file inventory mapped to target locations.
 - [x] Non-goals and boundary constraints documented.
 - [x] Additional network move goals recorded with concrete target names/paths.
-- [ ] N0 scaffolding slice implemented and validated.
-- [ ] N4.5 transfer-integrity helper extraction implemented and validated.
-- [ ] N4.6 curl-global relocation implemented and validated.
-- [ ] ASSIGNMENTS row updated with active owner/status once execution starts.
+- [x] N0 scaffolding slice implemented and validated.
+- [x] N1 transport migration (`server_transport.*` + `transport_pump_normalizer.hpp`) implemented with compatibility wrappers and validated.
+- [x] N2 config/policy migration (`transport_config_mapping.*` + `client_reconnect_policy.*`) implemented with compatibility wrappers and validated.
+- [x] N3 server auth/session migration (`server_preauth.*`, `server_session_hooks.*`, `server_join_runtime.*`, `server_session_runtime.*`) implemented with compatibility wrappers and validated.
+- [x] N4 community migration (`community_heartbeat.*` + `heartbeat_client.*`) implemented with compatibility wrappers and validated.
+- [x] N4.5 transfer-integrity helper extraction implemented and validated.
+- [x] N4.6 curl-global relocation implemented and validated.
+- [x] N5 test layout migration (`tests/support/*` + `tests/contracts/*`) implemented with compatibility wrappers and validated.
+- [x] N6 wrapper retirement completed (canonical include migration + wrapper/shim deletion + no-match wrapper-proof validation).
+- [x] ASSIGNMENTS row updated with active owner/status once execution starts.

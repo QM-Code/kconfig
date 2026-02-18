@@ -3,7 +3,7 @@
 #include "server/net/transport_event_source.hpp"
 
 #include "karma/common/config_store.hpp"
-#include "network/tests/loopback_transport_fixture.hpp"
+#include "network/tests/support/loopback_transport_fixture.hpp"
 
 #include <algorithm>
 #include <chrono>

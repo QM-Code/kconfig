@@ -12,6 +12,8 @@
 
 namespace karma::content {
 
+inline constexpr uint64_t kMinDeltaSelectionSavingsBytes = 32 * 1024;
+
 struct ServerCachedContentState {
     std::string world_hash{};
     std::string world_id{};
@@ -48,6 +50,10 @@ struct ServerContentSyncPlan {
     bool send_manifest_entries = false;
     std::string transfer_mode{"none"};
     uint64_t transfer_bytes = 0;
+    uint64_t transfer_full_bytes = 0;
+    uint64_t transfer_delta_bytes = 0;
+    uint64_t transfer_saved_bytes = 0;
+    std::string transfer_selection_reason{"none"};
     bool transfer_is_delta = false;
     std::string transfer_delta_base_world_id{};
     std::string transfer_delta_base_world_revision{};

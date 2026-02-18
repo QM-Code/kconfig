@@ -1,4 +1,4 @@
-#include "karma/network/server_join_runtime.hpp"
+#include "karma/network/server/session/join_runtime.hpp"
 
 #include <cstddef>
 #include <iostream>

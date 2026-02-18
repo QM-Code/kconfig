@@ -13,11 +13,11 @@
 #include "karma/common/config_store.hpp"
 #include "karma/common/config_validation.hpp"
 #include "karma/common/logging.hpp"
-#include "karma/network/community_heartbeat.hpp"
-#include "karma/network/server_join_runtime.hpp"
-#include "karma/network/server_preauth.hpp"
-#include "karma/network/server_session_hooks.hpp"
-#include "karma/network/server_session_runtime.hpp"
+#include "karma/network/community/heartbeat.hpp"
+#include "karma/network/server/session/join_runtime.hpp"
+#include "karma/network/server/auth/preauth.hpp"
+#include "karma/network/server/session/hooks.hpp"
+#include "karma/network/server/session/leave_runtime.hpp"
 
 #include <spdlog/spdlog.h>
 

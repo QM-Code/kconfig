@@ -2,6 +2,7 @@
 
 #include "karma/common/content/primitives.hpp"
 #include "karma/common/logging.hpp"
+#include "karma/network/content/transfer_integrity.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -194,10 +195,10 @@ bool HandleTransferChunk(const TransferChunkPacket& packet,
                       packet.transfer_id);
         return false;
     }
-    if (!karma::content::IsChunkInTransferBounds(state->total_bytes_expected,
-                                                 state->chunk_size,
-                                                 packet.transfer_chunk_index,
-                                                 chunk_data.size())) {
+    if (!karma::network::content::IsChunkInTransferBounds(state->total_bytes_expected,
+                                                          state->chunk_size,
+                                                          packet.transfer_chunk_index,
+                                                          chunk_data.size())) {
         spdlog::error("{}: world transfer chunk bounds mismatch transfer_id='{}' chunk_index={} chunk_bytes={} total_bytes={} chunk_size={}",
                       log_prefix,
                       state->transfer_id,
@@ -212,9 +213,9 @@ bool HandleTransferChunk(const TransferChunkPacket& packet,
         static_cast<uint64_t>(packet.transfer_chunk_index) * state->chunk_size;
     const size_t chunk_offset = static_cast<size_t>(chunk_offset_u64);
     if (packet.transfer_chunk_index < state->next_chunk_index) {
-        if (!karma::content::ChunkMatchesBufferedPayload(state->payload,
-                                                         chunk_offset,
-                                                         chunk_data)) {
+        if (!karma::network::content::ChunkMatchesBufferedPayload(state->payload,
+                                                                  chunk_offset,
+                                                                  chunk_data)) {
             spdlog::error("{}: world transfer chunk retry mismatch transfer_id='{}' chunk_index={} buffered_bytes={} chunk_bytes={}",
                           log_prefix,
                           state->transfer_id,
@@ -251,9 +252,9 @@ bool HandleTransferChunk(const TransferChunkPacket& packet,
     }
 
     karma::content::HashBytesFNV1a(state->payload_hash, chunk_data.data(), chunk_data.size());
-    karma::content::HashChunkChainFNV1a(state->chunk_chain_hash,
-                                        packet.transfer_chunk_index,
-                                        chunk_data);
+    karma::network::content::HashChunkChainFNV1a(state->chunk_chain_hash,
+                                                 packet.transfer_chunk_index,
+                                                 chunk_data);
     state->payload.insert(state->payload.end(), chunk_data.begin(), chunk_data.end());
     ++state->next_chunk_index;
     return true;

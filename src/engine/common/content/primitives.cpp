@@ -1,6 +1,6 @@
 #include "karma/common/content/primitives.hpp"
+#include "karma/network/content/transfer_integrity.hpp"
 
-#include <algorithm>
 #include <iomanip>
 #include <sstream>
 #include <string>
@@ -46,39 +46,22 @@ std::string Hash64Hex(uint64_t hash) {
 void HashChunkChainFNV1a(uint64_t& hash,
                          uint32_t chunk_index,
                          const std::vector<std::byte>& chunk_data) {
-    HashBytesFNV1a(hash, std::to_string(chunk_index));
-    HashSeparatorFNV1a(hash);
-    HashBytesFNV1a(hash, chunk_data.data(), chunk_data.size());
-    HashSeparatorFNV1a(hash);
+    karma::network::content::HashChunkChainFNV1a(hash, chunk_index, chunk_data);
 }
 
 bool IsChunkInTransferBounds(uint64_t total_bytes,
                              uint32_t chunk_size,
                              uint32_t chunk_index,
                              size_t chunk_bytes) {
-    if (chunk_size == 0) {
-        return false;
-    }
-    const uint64_t chunk_offset = static_cast<uint64_t>(chunk_index) * chunk_size;
-    if (chunk_offset > total_bytes) {
-        return false;
-    }
-    const uint64_t remaining_bytes = total_bytes - chunk_offset;
-    return static_cast<uint64_t>(chunk_bytes) <= remaining_bytes;
+    return karma::network::content::IsChunkInTransferBounds(
+        total_bytes, chunk_size, chunk_index, chunk_bytes);
 }
 
 bool ChunkMatchesBufferedPayload(const std::vector<std::byte>& payload,
                                  size_t chunk_offset,
                                  const std::vector<std::byte>& chunk_data) {
-    if (chunk_offset > payload.size()) {
-        return false;
-    }
-    if (chunk_data.size() > (payload.size() - chunk_offset)) {
-        return false;
-    }
-    return std::equal(chunk_data.begin(),
-                      chunk_data.end(),
-                      payload.begin() + static_cast<std::ptrdiff_t>(chunk_offset));
+    return karma::network::content::ChunkMatchesBufferedPayload(
+        payload, chunk_offset, chunk_data);
 }
 
 bool NormalizeRelativePath(std::string_view raw_path, std::filesystem::path* out) {

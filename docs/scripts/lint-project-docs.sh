@@ -45,7 +45,6 @@ fi
 
 retired_patterns=(
   'docs/projects/content-mount-abstraction-playbook.md'
-  'docs/projects/core-engine-infrastructure-playbook.md'
   'docs/projects/engine-backend-testing-playbook.md'
   'docs/projects/netcode-responsiveness-playbook.md'
   'docs/projects/server-testing-playbook.md'

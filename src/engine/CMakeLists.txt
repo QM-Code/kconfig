@@ -2,7 +2,7 @@ set(ENGINE_CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/common/config_helpers.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/config_store.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/config_validation.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/common/curl_global.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/http/curl_global.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/data_dir_override.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/data_path_resolver.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/file_utils.cpp
@@ -27,18 +27,19 @@ set(ENGINE_CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/cli/server_app_options.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/cli/server_runtime_options.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/app/engine_server_app.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/network/client_reconnect_policy.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/network/community_heartbeat.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/network/heartbeat_client.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/config/reconnect_policy.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/community/heartbeat.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/community/heartbeat_client.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/content/transfer_integrity.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/content/transfer_receiver.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/content/transfer_sender.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/network/server_join_runtime.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/network/server_preauth.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/network/server_session_hooks.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/network/server_session_runtime.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/network/client_transport.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/network/server_transport.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/network/transport_config_mapping.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/server/session/join_runtime.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/server/auth/preauth.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/server/session/hooks.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/server/session/leave_runtime.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/transport/client.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/transport/server.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/network/config/transport_mapping.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/audio/backend_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/audio/audio_system.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/audio/backends/backend_sdl3audio_stub.cpp
@@ -296,9 +297,9 @@ set_target_properties(renderer_shadow_sandbox PROPERTIES
 
 if(BUILD_TESTING)
     add_library(network_test_support STATIC
-        ${PROJECT_SOURCE_DIR}/src/engine/network/tests/loopback_endpoint_alloc.cpp
-        ${PROJECT_SOURCE_DIR}/src/engine/network/tests/loopback_enet_fixture.cpp
-        ${PROJECT_SOURCE_DIR}/src/engine/network/tests/structured_log_event_sink.cpp
+        ${PROJECT_SOURCE_DIR}/src/engine/network/tests/support/loopback_endpoint_alloc.cpp
+        ${PROJECT_SOURCE_DIR}/src/engine/network/tests/support/loopback_enet_fixture.cpp
+        ${PROJECT_SOURCE_DIR}/src/engine/network/tests/support/structured_log_event_sink.cpp
     )
     target_include_directories(network_test_support PRIVATE ${PROJECT_SOURCE_DIR}/src/engine)
     target_link_libraries(network_test_support PRIVATE spdlog::spdlog)
@@ -309,7 +310,7 @@ if(BUILD_TESTING)
     endif()
 
     add_executable(client_transport_contract_test
-        ${PROJECT_SOURCE_DIR}/src/engine/network/tests/client_transport_contract_test.cpp
+        ${PROJECT_SOURCE_DIR}/src/engine/network/tests/contracts/client_transport_contract_test.cpp
     )
     target_link_libraries(client_transport_contract_test PRIVATE
         karma_engine_core
@@ -318,7 +319,7 @@ if(BUILD_TESTING)
     target_include_directories(client_transport_contract_test PRIVATE ${PROJECT_SOURCE_DIR}/src/engine)
 
     add_executable(server_transport_contract_test
-        ${PROJECT_SOURCE_DIR}/src/engine/network/tests/server_transport_contract_test.cpp
+        ${PROJECT_SOURCE_DIR}/src/engine/network/tests/contracts/server_transport_contract_test.cpp
     )
     target_link_libraries(server_transport_contract_test PRIVATE
         karma_engine_core

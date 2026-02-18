@@ -13,6 +13,23 @@ namespace karma::content {
 
 namespace {
 
+void LogServerTransferSelectionDecision(const ServerContentSyncRequest& request,
+                                        const ServerContentSyncPlan& plan,
+                                        std::string_view log_prefix) {
+    KARMA_TRACE(
+        "net.server",
+        "{}: world transfer selection world='{}' id='{}' rev='{}' full_bytes={} delta_bytes={} saved_bytes={} selected_mode={} reason={}",
+        log_prefix,
+        request.world_name.empty() ? "-" : request.world_name,
+        request.world_id.empty() ? "-" : request.world_id,
+        request.world_revision.empty() ? "-" : request.world_revision,
+        plan.transfer_full_bytes,
+        plan.transfer_delta_bytes,
+        plan.transfer_saved_bytes,
+        plan.transfer_mode,
+        plan.transfer_selection_reason);
+}
+
 void LogClientManifestDiffPlan(std::string_view world_name,
                                const std::vector<ManifestEntry>& cached_manifest,
                                const std::vector<ManifestEntry>& incoming_manifest,
@@ -188,17 +205,32 @@ ServerContentSyncPlan BuildDefaultServerContentSyncPlan(const ServerContentSyncR
                                                request.world_manifest);
     plan.send_world_package = !request.world_package.empty() && !plan.cache_hit;
     plan.send_manifest_entries = !plan.cache_hit || !plan.cache_manifest_match;
+    plan.transfer_full_bytes = request.world_package.size();
     if (!plan.send_world_package) {
+        plan.transfer_selection_reason = plan.cache_hit ? "cache_hit" : "world_package_missing";
+        LogServerTransferSelectionDecision(request, plan, log_prefix);
         return plan;
     }
 
     plan.transfer_mode = "chunked_full";
-    plan.transfer_bytes = request.world_package.size();
-    const bool can_try_delta = plan.manifest_diff.incoming_manifest_available &&
-                               request.cached_state.world_id == request.world_id &&
-                               !request.cached_state.world_revision.empty() &&
-                               (plan.manifest_diff.reused_bytes > 0 || plan.manifest_diff.removed_entries > 0);
+    plan.transfer_bytes = plan.transfer_full_bytes;
+    const bool same_world_base_identity = !request.world_id.empty() &&
+                                          request.cached_state.world_id == request.world_id &&
+                                          !request.cached_state.world_revision.empty();
+    const bool has_manifest_diff = plan.manifest_diff.incoming_manifest_available;
+    const bool has_delta_reuse_signal =
+        plan.manifest_diff.reused_bytes > 0 || plan.manifest_diff.removed_entries > 0;
+    const bool can_try_delta =
+        has_manifest_diff && same_world_base_identity && has_delta_reuse_signal;
     if (!can_try_delta) {
+        if (!has_manifest_diff) {
+            plan.transfer_selection_reason = "manifest_diff_unavailable";
+        } else if (!same_world_base_identity) {
+            plan.transfer_selection_reason = "base_identity_mismatch";
+        } else {
+            plan.transfer_selection_reason = "manifest_diff_no_reuse";
+        }
+        LogServerTransferSelectionDecision(request, plan, log_prefix);
         return plan;
     }
 
@@ -208,19 +240,42 @@ ServerContentSyncPlan BuildDefaultServerContentSyncPlan(const ServerContentSyncR
                                                                  request.world_revision,
                                                                  request.cached_state.world_revision,
                                                                  log_prefix);
-    if (!delta_archive.has_value() || delta_archive->empty() ||
-        delta_archive->size() >= request.world_package.size()) {
+    if (!delta_archive.has_value()) {
+        plan.transfer_selection_reason = "delta_build_failed";
+        LogServerTransferSelectionDecision(request, plan, log_prefix);
+        return plan;
+    }
+
+    plan.transfer_delta_bytes = delta_archive->size();
+    if (plan.transfer_delta_bytes == 0) {
+        plan.transfer_selection_reason = "delta_empty";
+        LogServerTransferSelectionDecision(request, plan, log_prefix);
+        return plan;
+    }
+
+    if (plan.transfer_delta_bytes >= plan.transfer_full_bytes) {
+        plan.transfer_selection_reason = "delta_not_smaller";
+        LogServerTransferSelectionDecision(request, plan, log_prefix);
+        return plan;
+    }
+
+    plan.transfer_saved_bytes = plan.transfer_full_bytes - plan.transfer_delta_bytes;
+    if (plan.transfer_saved_bytes < kMinDeltaSelectionSavingsBytes) {
+        plan.transfer_selection_reason = "delta_savings_below_minimum";
+        LogServerTransferSelectionDecision(request, plan, log_prefix);
         return plan;
     }
 
     plan.delta_world_package = *delta_archive;
-    plan.transfer_bytes = plan.delta_world_package.size();
+    plan.transfer_bytes = plan.transfer_delta_bytes;
     plan.transfer_is_delta = true;
     plan.transfer_mode = "chunked_delta";
     plan.transfer_delta_base_world_id = request.cached_state.world_id;
     plan.transfer_delta_base_world_revision = request.cached_state.world_revision;
     plan.transfer_delta_base_world_hash = request.cached_state.world_hash;
     plan.transfer_delta_base_world_content_hash = request.cached_state.world_content_hash;
+    plan.transfer_selection_reason = "delta_selected";
+    LogServerTransferSelectionDecision(request, plan, log_prefix);
     return plan;
 }
 

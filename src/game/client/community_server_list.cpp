@@ -1,6 +1,6 @@
 #include "client/community_server_list.hpp"
 
-#include "karma/common/curl_global.hpp"
+#include "karma/network/http/curl_global.hpp"
 #include "karma/common/json.hpp"
 
 #include <curl/curl.h>

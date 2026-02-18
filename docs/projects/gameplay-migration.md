@@ -2,7 +2,7 @@
 
 ## Project Snapshot
 - Current owner: `overseer`
-- Status: `in progress (G2 + D1 landed + D1 hardening landed; D2 next)`
+- Status: `in progress (G2 + D1 landed + D1 hardening landed; D2 next; gameplay-netcode lane consolidated)`
 - Immediate next task: execute D2 movement-replication slice by wiring client `PlayerLocation` intent and server-authoritative tank drive state updates.
 - Validation gate: `./docs/scripts/lint-project-docs.sh` for planning/doc slices; for code slices, run `./scripts/test-server-net.sh <build-dir>` with assigned build-dir args.
 
@@ -16,7 +16,6 @@ Port game-specific behavior from `m-dev` into `m-rewrite` under rewrite-owned ar
 - `docs/foundation/policy/rewrite-invariants.md`
 - `docs/foundation/policy/execution-policy.md`
 - `docs/foundation/architecture/core-engine-contracts.md`
-- `docs/projects/gameplay-netcode.md`
 - `docs/projects/ui-integration.md`
 
 ## Why This Is Separate
@@ -56,6 +55,7 @@ This migration is cross-cutting and risk-heavy:
 1. Track A (blocked until UI completion): HUD/console/chat/scoreboard presentation migration from `m-dev/src/game/ui/*` after `docs/projects/ui-integration.md` closeout.
 2. Track B (active now): gameplay-rule extraction and migration (shots, hit attribution, scoring/scoreboard triggers, round state) from `m-dev` into rewrite game-owned modules.
 3. Track C (shared unblocker): drivable-tank baseline and movement replication seam before expanding hit/score semantics.
+4. Track D (merged netcode lane): preserve local responsiveness under latency via predicted shot/reconciliation flow while keeping server authority.
 
 Strategic alignment:
 - Primary track label: `m-dev parity`.
@@ -66,10 +66,27 @@ Strategic alignment:
 2. G2 shot lifecycle migration: move shot creation/ownership/lifecycle semantics into explicit rewrite game-owned modules.
 3. D1 drivable-tank baseline slice: stand up rewrite-owned local tank drive controller + visible tank entity + follow camera in client gameplay loop.
 4. D2 movement replication slice: add client `PlayerLocation` intent + server authoritative movement/event handling seam for tank state.
-5. G3 hit attribution migration: migrate authoritative hit resolution and attacker/victim attribution rules.
-6. G4 scoring and scoreboard trigger migration: migrate kill/score events and scoreboard state transitions.
-7. G5 round lifecycle migration: migrate round start/end/spawn/respawn control flow.
-8. G6 UI migration track: once `ui-integration.md` closes, port HUD/console/chat/scoreboard UI behaviors from `m-dev/src/game/ui/*`.
+5. D3 predicted-shot reconciliation slice: add local predicted-shot lifecycle + `local_shot_id` reconciliation + deterministic smoothing telemetry.
+6. G3 hit attribution migration: migrate authoritative hit resolution and attacker/victim attribution rules.
+7. G4 scoring and scoreboard trigger migration: migrate kill/score events and scoreboard state transitions.
+8. G5 round lifecycle migration: migrate round start/end/spawn/respawn control flow.
+9. G6 UI migration track: once `ui-integration.md` closes, port HUD/console/chat/scoreboard UI behaviors from `m-dev/src/game/ui/*`.
+
+## Netcode Parity Lane (Merged 2026-02-18)
+Goal:
+- preserve responsive local gameplay feel under latency while keeping server authority for world truth.
+
+Canonical fire flow:
+1. Local input edge detected.
+2. Client immediately plays local shot feedback.
+3. Client sends `create_shot` intent to server.
+4. Server validates and broadcasts authoritative shot event.
+5. Shooter suppresses self-echo SFX and reconciles predicted shot to authoritative state.
+6. Remote clients render authoritative shot feedback.
+
+Current state:
+- implemented: immediate local fire SFX path, server `source_client_id` tagging for echo suppression, client self-echo suppression.
+- not implemented: full predicted local shot simulation path, robust reconciliation/smoothing, lag-compensated hit validation, deterministic net-sim regression suite.
 
 ## Migration Ledger (G1 Populated)
 | Domain | Legacy source path(s) in `m-dev` | Rewrite target path(s) | Boundary type | Status |
@@ -182,7 +199,6 @@ Read in order:
 3) docs/projects/AGENTS.md
 4) docs/projects/ASSIGNMENTS.md
 5) docs/projects/gameplay-migration.md
-6) docs/projects/gameplay-netcode.md
 
 Take ownership of: docs/projects/gameplay-migration.md
 
@@ -242,6 +258,7 @@ Handoff must include:
 - `2026-02-14`: D1 landed: rewrite client now has local drivable tank baseline (`tank_drive_controller` + in-game tank entity + follow camera).
 - `2026-02-14`: D1 movement proof passed with assigned build profile via `src/game/tank_drive_controller_test`.
 - `2026-02-14`: D1 hardening landed: reduced movement stutter via substep+visual smoothing, added FPS/chase camera modes (FPS default), and added startup-world collision blocking via engine-public geometry contract (`include/karma/geometry/mesh_loader.hpp`) with boundary-safe include usage in game paths.
+- `2026-02-18`: consolidated gameplay netcode track into this project as Track D (netcode parity lane); standalone project retired to `docs/archive/gameplay-netcode-retired-2026-02-18.md`.
 
 ## Open Questions
 - Should D2 keep player movement state as transport-side events first, or immediately establish a server-domain movement system owning authoritative player pose?

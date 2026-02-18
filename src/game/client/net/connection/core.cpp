@@ -1,8 +1,8 @@
 #include "client/net/connection.hpp"
 
-#include "karma/network/client_reconnect_policy.hpp"
-#include "karma/network/client_transport.hpp"
-#include "karma/network/transport_config_mapping.hpp"
+#include "karma/network/config/reconnect_policy.hpp"
+#include "karma/network/transport/client.hpp"
+#include "karma/network/config/transport_mapping.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/logging.hpp"
 

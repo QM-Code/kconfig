@@ -8,7 +8,7 @@
 #include "karma/common/content/manifest.hpp"
 #include "karma/common/content/primitives.hpp"
 #include "karma/common/data_path_resolver.hpp"
-#include "network/tests/loopback_transport_fixture.hpp"
+#include "network/tests/support/loopback_transport_fixture.hpp"
 
 #include <algorithm>
 #include <array>

@@ -1,7 +1,7 @@
 #include "client/net/connection.hpp"
 
 #include "karma/common/logging.hpp"
-#include "karma/network/client_transport.hpp"
+#include "karma/network/transport/client.hpp"
 #include "net/protocol_codec.hpp"
 
 #include <vector>

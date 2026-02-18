@@ -2,7 +2,8 @@
 
 This is the canonical long-lived architecture contract for core engine sequencing and layered API boundaries.
 
-Transient execution state belongs in `docs/projects/core-engine-infrastructure.md`.
+Execution coordination guidance for this contract lives in
+`docs/foundation/architecture/engine-defaults-program.md`.
 
 ## Scope
 - Scheduler/system orchestration contracts.
@@ -1095,7 +1096,7 @@ Ready for broad multi-agent parallelization when all are true:
 
 ## References
 - UI integration project: `docs/projects/ui-integration.md`
-- Gameplay netcode project: `docs/projects/gameplay-netcode.md`
+- Gameplay migration project (includes netcode lane): `docs/projects/gameplay-migration.md`
 - Engine backend testing governance: `docs/foundation/governance/engine-backend-testing.md`
 - Testing/CI governance: `docs/foundation/governance/testing-ci-governance.md`
 - Delegation guidance: `docs/foundation/policy/execution-policy.md`

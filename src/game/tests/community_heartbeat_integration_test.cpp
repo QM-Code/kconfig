@@ -1,7 +1,7 @@
 #include "karma/cli/server_app_options.hpp"
 #include "karma/common/json.hpp"
-#include "karma/network/community_heartbeat.hpp"
-#include "karma/network/heartbeat_client.hpp"
+#include "karma/network/community/heartbeat.hpp"
+#include "karma/network/community/heartbeat_client.hpp"
 
 #include <iostream>
 #include <memory>

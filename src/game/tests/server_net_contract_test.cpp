@@ -4,15 +4,20 @@
 #include "server/net/event_source.hpp"
 
 #include "karma/cli/server_app_options.hpp"
-#include "karma/network/server_preauth.hpp"
-#include "karma/network/server_transport.hpp"
+#include "karma/common/content/archive.hpp"
+#include "karma/common/content/manifest.hpp"
+#include "karma/common/content/sync_facade.hpp"
+#include "karma/network/server/auth/preauth.hpp"
+#include "karma/network/transport/server.hpp"
 #include "karma/common/config_store.hpp"
 #include "karma/common/json.hpp"
+#include "karma/common/logging.hpp"
 
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -39,6 +44,48 @@ std::filesystem::path MakeTestConfigPath(const char* suffix) {
         std::chrono::steady_clock::now().time_since_epoch().count());
     return std::filesystem::temp_directory_path() /
            ("bz3-server-net-contract-" + std::string(suffix) + "-" + std::to_string(nonce) + ".json");
+}
+
+std::filesystem::path MakeTempWorldDirPath(const char* suffix) {
+    const auto nonce = static_cast<unsigned long long>(
+        std::chrono::steady_clock::now().time_since_epoch().count());
+    return std::filesystem::temp_directory_path() /
+           ("bz3-server-net-content-sync-" + std::string(suffix) + "-" + std::to_string(nonce));
+}
+
+bool WriteTextFile(const std::filesystem::path& path, std::string_view content) {
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (ec) {
+        return false;
+    }
+
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        return false;
+    }
+    out.write(content.data(), static_cast<std::streamsize>(content.size()));
+    return out.good();
+}
+
+bool WriteDeterministicBinaryFile(const std::filesystem::path& path, size_t size, uint8_t seed) {
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    if (ec) {
+        return false;
+    }
+
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        return false;
+    }
+
+    std::vector<char> bytes(size, '\0');
+    for (size_t i = 0; i < size; ++i) {
+        bytes[i] = static_cast<char>((static_cast<uint32_t>(seed) + static_cast<uint32_t>(i * 31U)) & 0xFFU);
+    }
+    out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    return out.good();
 }
 
 bool InitializeConfigForEvents(const karma::json::Value& startup_events, const char* suffix) {
@@ -244,6 +291,106 @@ bool TestWorldTransferBeginRoundTrip() {
                      "world_transfer_begin delta_base_world_hash mismatch")
            && Expect(decoded->transfer_delta_base_world_content_hash == "content-hash-0",
                      "world_transfer_begin delta_base_world_content_hash mismatch");
+}
+
+bool TestDeltaSelectionFallsBackToFullWhenSavingsBelowMinimum() {
+    const std::filesystem::path temp_root = MakeTempWorldDirPath("delta-min-savings");
+    const std::filesystem::path base_dir = temp_root / "base";
+    const std::filesystem::path incoming_dir = temp_root / "incoming";
+    auto cleanup = [&]() {
+        std::error_code cleanup_ec;
+        std::filesystem::remove_all(temp_root, cleanup_ec);
+    };
+    auto fail = [&](const std::string& message) {
+        cleanup();
+        return Fail(message);
+    };
+
+    std::error_code ec;
+    std::filesystem::remove_all(temp_root, ec);
+    ec.clear();
+    std::filesystem::create_directories(base_dir, ec);
+    std::filesystem::create_directories(incoming_dir, ec);
+    if (ec) {
+        return fail("failed to create temp world directories for delta fallback test");
+    }
+
+    if (!WriteTextFile(base_dir / "config.json", "{\n  \"worldName\": \"delta-world\",\n  \"rev\": 1\n}\n")) {
+        return fail("failed to write base config.json");
+    }
+    if (!WriteDeterministicBinaryFile(base_dir / "shared.bin", 24 * 1024, 0x11)) {
+        return fail("failed to write base shared.bin");
+    }
+    if (!WriteDeterministicBinaryFile(base_dir / "payload.bin", 256 * 1024, 0x44)) {
+        return fail("failed to write base payload.bin");
+    }
+
+    std::filesystem::copy_file(base_dir / "shared.bin",
+                               incoming_dir / "shared.bin",
+                               std::filesystem::copy_options::overwrite_existing,
+                               ec);
+    if (ec) {
+        return fail("failed to copy shared.bin into incoming world");
+    }
+    if (!WriteTextFile(incoming_dir / "config.json", "{\n  \"worldName\": \"delta-world\",\n  \"rev\": 2\n}\n")) {
+        return fail("failed to write incoming config.json");
+    }
+    if (!WriteDeterministicBinaryFile(incoming_dir / "payload.bin", 256 * 1024, 0x99)) {
+        return fail("failed to write incoming payload.bin");
+    }
+
+    const auto base_summary = karma::content::ComputeDirectoryManifestSummary(base_dir);
+    const auto incoming_summary = karma::content::ComputeDirectoryManifestSummary(incoming_dir);
+    if (!base_summary.has_value() || !incoming_summary.has_value()) {
+        return fail("failed to compute manifest summaries");
+    }
+
+    const auto incoming_world_package = karma::content::BuildWorldArchive(incoming_dir);
+    if (incoming_world_package.empty()) {
+        return fail("failed to build incoming world archive");
+    }
+
+    karma::logging::EnableTraceChannels("net.server");
+    const karma::content::ServerContentSyncRequest request{
+        .world_dir = incoming_dir,
+        .world_name = "delta-world",
+        .world_id = "delta-world-id",
+        .world_revision = "rev-2",
+        .world_package_hash = "pkg-rev-2",
+        .world_content_hash = incoming_summary->content_hash,
+        .world_manifest_hash = incoming_summary->manifest_hash,
+        .world_manifest_file_count = static_cast<uint32_t>(incoming_summary->entries.size()),
+        .world_manifest = incoming_summary->entries,
+        .world_package = incoming_world_package,
+        .cached_state =
+            karma::content::ServerCachedContentState{
+                .world_hash = "pkg-rev-1",
+                .world_id = "delta-world-id",
+                .world_revision = "rev-1",
+                .world_content_hash = base_summary->content_hash,
+                .world_manifest_hash = base_summary->manifest_hash,
+                .world_manifest_file_count = static_cast<uint32_t>(base_summary->entries.size()),
+                .world_manifest = base_summary->entries}};
+    const auto plan = karma::content::BuildDefaultServerContentSyncPlan(request, "server-net-contract");
+
+    const bool ok =
+        Expect(plan.send_world_package, "expected send_world_package for delta fallback test") &&
+        Expect(!plan.cache_hit, "expected cache miss for delta fallback test") &&
+        Expect(plan.transfer_mode == "chunked_full", "expected full transfer mode when delta savings are too small") &&
+        Expect(!plan.transfer_is_delta, "expected full transfer (not delta) when savings are below minimum") &&
+        Expect(plan.transfer_selection_reason == "delta_savings_below_minimum",
+               "unexpected transfer selection reason for small-savings delta fallback") &&
+        Expect(plan.transfer_full_bytes > 0, "expected non-zero full_bytes for delta fallback test") &&
+        Expect(plan.transfer_delta_bytes > 0, "expected available delta candidate bytes for fallback test") &&
+        Expect(plan.transfer_delta_bytes < plan.transfer_full_bytes,
+               "expected available delta candidate to be smaller than full payload") &&
+        Expect(plan.transfer_saved_bytes > 0, "expected positive saved_bytes for fallback test") &&
+        Expect(plan.transfer_saved_bytes < karma::content::kMinDeltaSelectionSavingsBytes,
+               "expected saved_bytes below minimum threshold for fallback test") &&
+        Expect(plan.transfer_bytes == plan.transfer_full_bytes,
+               "expected transfer_bytes to remain full payload size after fallback");
+    cleanup();
+    return ok;
 }
 
 bool TestCreateShotRoundTrip() {
@@ -557,6 +704,9 @@ int main() {
         return 1;
     }
     if (!TestWorldTransferBeginRoundTrip()) {
+        return 1;
+    }
+    if (!TestDeltaSelectionFallsBackToFullWhenSavingsBelowMinimum()) {
         return 1;
     }
     if (!TestScriptedSourceParsesSpawnAndShot()) {

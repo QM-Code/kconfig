@@ -4,7 +4,7 @@
 
 #include "karma/common/content/delta_builder.hpp"
 #include "karma/common/content/manifest.hpp"
-#include "karma/network/server_transport.hpp"
+#include "karma/network/transport/server.hpp"
 
 #include <cstddef>
 #include <cstdint>

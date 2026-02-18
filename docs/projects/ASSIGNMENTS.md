@@ -13,11 +13,8 @@ Strategic tracking:
 
 | Project | Owner | Status | Next Task | Last Update |
 |---|---|---|---|---|
-| `content-mount.md` | `unassigned` | `queued (handoff-ready; shared unblocker slices landed)` | `shared unblocker`: harden delta-selection policy with trace-backed tuning and one bounded regression. | `2026-02-16` |
-| `core-engine-infrastructure.md` | `overseer` | `in progress` | Keep implementation sequencing aligned to `docs/foundation/architecture/core-engine-contracts.md` as active tracks land. | `2026-02-12` |
-| `engine-network-module-hygiene.md` | `unassigned` | `queued (taxonomy locked; execution not started)` | `shared unblocker`: execute N0 by landing one bounded transport move with compatibility wrappers to validate the migration pattern. | `2026-02-17` |
-| `gameplay-migration.md` | `overseer` | `in progress (D1 hardening landed)` | Execute D2 movement replication slice: wire client `PlayerLocation` intent path to rewrite server authority for tank drive state. | `2026-02-14` |
-| `gameplay-netcode.md` | `unassigned` | `queued` | Prepare next predicted-shot reconciliation slice (`local_shot_id`) behind current P0 renderer priorities. | `2026-02-12` |
+| `engine-network-module-hygiene.md` | `specialist-network-hygiene-n0` | `closeout-ready (N6 wrapper retirement complete: canonical include migration and wrapper/shim deletion validated)` | `shared unblocker`: finalize closeout/archive decision and retire the active project track after overseer confirmation. | `2026-02-18` |
+| `gameplay-migration.md` | `overseer` | `in progress (D1 hardening landed; netcode lane consolidated)` | Execute D2 movement replication slice: wire client `PlayerLocation` intent path to rewrite server authority for tank drive state. | `2026-02-18` |
 | `physics-refactor.md` | `codex` | `in progress (new KARMA-alignment foundation track)` | `KARMA intake`: execute Phase 0/1 contract reset and scaffold KARMA-style world/controller/collider API layers. | `2026-02-17` |
 | `karma-lighting-shadow-parity.md` | `unassigned` | `priority/on hold (close-out snapshot captured; awaiting external revisions)` | `KARMA intake`: after external revisions, rerun canonical BGFX/Diligent baseline, resolve/characterize shared seam artifact, then resume bounded P0-S3 re-intake. | `2026-02-17` |
 | `ui-integration.md` | `codex` | `in progress` | Execute one bounded console focus-release parity follow-up slice without backend leakage. | `2026-02-12` |
