@@ -11,7 +11,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace bz3::server::runtime_detail {
+namespace bz3::server::runtime::detail {
 
 void BuildRuntimeConfig(const karma::cli::server::AppOptions& options,
                         std::string_view world_name,
@@ -70,4 +70,4 @@ void BuildRuntimeConfig(const karma::cli::server::AppOptions& options,
                 pre_auth_config->community_url.empty() ? "disabled" : "enabled");
 }
 
-} // namespace bz3::server::runtime_detail
+} // namespace bz3::server::runtime::detail

@@ -44,7 +44,7 @@
 #include "ui/config/input_mapping.hpp"
 #include "ui/config/render_scale.hpp"
 
-namespace ui_backend {
+namespace ui::backend {
 namespace {
 
 std::string tabLabelForSpec(const ui::ConsoleTabSpec &spec) {
@@ -371,7 +371,7 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
     for (const auto &event : events) {
         switch (event.type) {
             case platform::EventType::KeyDown: {
-                const int mods = ui::input_mapping::RmlModsForEvent(event, windowRef);
+                const int mods = ui::input::mapping::RmlModsForEvent(event, windowRef);
                 if (event.key == platform::Key::R && (mods & Rml::Input::KM_CTRL)) {
                     state->reloadRequested = true;
                     state->reloadArmed = true;
@@ -383,15 +383,15 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 if (!isUiInputEnabled()) {
                     break;
                 }
-                state->context->ProcessKeyDown(ui::input_mapping::ToRmlKey(event.key), mods);
+                state->context->ProcessKeyDown(ui::input::mapping::ToRmlKey(event.key), mods);
                 break;
             }
             case platform::EventType::KeyUp: {
                 if (!isUiInputEnabled()) {
                     break;
                 }
-                const int mods = ui::input_mapping::RmlModsForEvent(event, windowRef);
-                state->context->ProcessKeyUp(ui::input_mapping::ToRmlKey(event.key), mods);
+                const int mods = ui::input::mapping::RmlModsForEvent(event, windowRef);
+                state->context->ProcessKeyUp(ui::input::mapping::ToRmlKey(event.key), mods);
                 break;
             }
             case platform::EventType::TextInput: {
@@ -408,23 +408,23 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 if (!(consoleVisible || hudVisible)) {
                     break;
                 }
-                const int mods = ui::input_mapping::RmlModsForEvent(event, windowRef);
-                state->context->ProcessMouseButtonDown(ui::input_mapping::ToRmlMouseButton(event.mouseButton), mods);
+                const int mods = ui::input::mapping::RmlModsForEvent(event, windowRef);
+                state->context->ProcessMouseButtonDown(ui::input::mapping::ToRmlMouseButton(event.mouseButton), mods);
                 break;
             }
             case platform::EventType::MouseButtonUp: {
                 if (!(consoleVisible || hudVisible)) {
                     break;
                 }
-                const int mods = ui::input_mapping::RmlModsForEvent(event, windowRef);
-                state->context->ProcessMouseButtonUp(ui::input_mapping::ToRmlMouseButton(event.mouseButton), mods);
+                const int mods = ui::input::mapping::RmlModsForEvent(event, windowRef);
+                state->context->ProcessMouseButtonUp(ui::input::mapping::ToRmlMouseButton(event.mouseButton), mods);
                 break;
             }
             case platform::EventType::MouseMove: {
                 if (!(consoleVisible || hudVisible)) {
                     break;
                 }
-                const int mods = ui::input_mapping::RmlModsForEvent(event, windowRef);
+                const int mods = ui::input::mapping::RmlModsForEvent(event, windowRef);
                 const int x = static_cast<int>(std::lround(event.x * renderScale));
                 const int y = static_cast<int>(std::lround(event.y * renderScale));
                 state->context->ProcessMouseMove(x, y, mods);
@@ -434,7 +434,7 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 if (!(consoleVisible || hudVisible)) {
                     break;
                 }
-                const int mods = ui::input_mapping::RmlModsForEvent(event, windowRef);
+                const int mods = ui::input::mapping::RmlModsForEvent(event, windowRef);
                 state->context->ProcessMouseWheel(-static_cast<float>(event.scrollY), mods);
                 break;
             }

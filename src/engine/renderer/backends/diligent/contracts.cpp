@@ -4,7 +4,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 
 DiligentDirectSamplerContractState EvaluateDiligentDirectSamplerContractState(
     const std::array<detail::SamplerVariableAvailability, detail::kDiligentMaterialVariantCount>&
@@ -34,4 +34,4 @@ DiligentDirectSamplerContractState EvaluateDiligentDirectSamplerContractState(
     return state;
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

@@ -6,9 +6,22 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <string_view>
 #include <vector>
 
-namespace karma::ui {
+namespace karma::ui::backend {
+
+enum class BackendKind {
+    Auto,
+    ImGui,
+    RmlUi,
+    Software
+};
+
+const char* BackendKindName(BackendKind kind);
+std::optional<BackendKind> ParseBackendKind(std::string_view name);
+std::vector<BackendKind> CompiledBackends();
 
 struct OverlayFrame {
     const renderer::MeshData::TextureData* texture = nullptr;
@@ -34,8 +47,7 @@ class BackendDriver {
                        OverlayFrame& out) = 0;
 };
 
-std::unique_ptr<BackendDriver> CreateSoftwareBackend();
-std::unique_ptr<BackendDriver> CreateImGuiBackend();
-std::unique_ptr<BackendDriver> CreateRmlUiBackend();
+std::unique_ptr<BackendDriver> CreateBackend(BackendKind preferred = BackendKind::Auto,
+                                             BackendKind* out_selected = nullptr);
 
-} // namespace karma::ui
+} // namespace karma::ui::backend

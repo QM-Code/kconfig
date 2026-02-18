@@ -18,7 +18,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace karma::ui::rmlui {
+namespace karma::ui::backend::rmlui {
 namespace {
 
 class AdapterReal final : public Adapter {
@@ -252,6 +252,6 @@ std::unique_ptr<Adapter> CreateAdapter() {
     return std::make_unique<AdapterReal>();
 }
 
-} // namespace karma::ui::rmlui
+} // namespace karma::ui::backend::rmlui
 
 #endif // defined(KARMA_HAS_RMLUI)

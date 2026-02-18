@@ -15,7 +15,7 @@
 #include <string_view>
 #include <vector>
 
-namespace bz3::server::runtime_detail {
+namespace bz3::server::runtime::detail {
 
 void InstallSignalHandlers(std::string app_name);
 bool ShouldKeepRunning();
@@ -43,4 +43,4 @@ void RunEventLoop(karma::app::server::Engine* app,
                   const karma::network::ServerJoinWorldState& world_state,
                   karma::network::CommunityHeartbeat* community_heartbeat);
 
-} // namespace bz3::server::runtime_detail
+} // namespace bz3::server::runtime::detail

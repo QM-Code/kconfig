@@ -1,20 +1,20 @@
 #include "karma/renderer/device.hpp"
 
 #include "karma/common/logging/logging.hpp"
-#include "karma/geometry/mesh_loader.hpp"
+#include "karma/renderer/assets/mesh_loader.hpp"
 
 namespace karma::renderer {
 
 GraphicsDevice::GraphicsDevice(karma::platform::Window& window,
-                               renderer_backend::BackendKind preferred_backend)
+                               renderer::backend::BackendKind preferred_backend)
 {
-    renderer_backend::BackendKind selected_backend = renderer_backend::BackendKind::Auto;
-    backend_ = renderer_backend::CreateBackend(window, preferred_backend, &selected_backend);
+    renderer::backend::BackendKind selected_backend = renderer::backend::BackendKind::Auto;
+    backend_ = renderer::backend::CreateBackend(window, preferred_backend, &selected_backend);
     backend_kind_ = selected_backend;
     if (backend_ && !backend_->isValid()) {
         spdlog::error("GraphicsDevice: backend failed to initialize");
         backend_.reset();
-        backend_kind_ = renderer_backend::BackendKind::Auto;
+        backend_kind_ = renderer::backend::BackendKind::Auto;
     }
 }
 
@@ -38,7 +38,7 @@ MeshId GraphicsDevice::createMesh(const MeshData& mesh) {
 
 MeshId GraphicsDevice::createMeshFromFile(const std::filesystem::path& path) {
     MeshData mesh{};
-    if (!karma::geometry::LoadMesh(path, mesh)) {
+    if (!karma::renderer::assets::LoadMesh(path, mesh)) {
         spdlog::error("Failed to load mesh {}", path.string());
         return kInvalidMesh;
     }

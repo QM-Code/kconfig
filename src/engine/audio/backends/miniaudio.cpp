@@ -1,4 +1,4 @@
-#include "audio/backends/backend_factory_internal.hpp"
+#include "audio/backends/factory_internal.hpp"
 #include "audio/backends/spatialization_internal.hpp"
 
 #include "karma/common/config/store.hpp"
@@ -24,7 +24,7 @@
 #include <mutex>
 #endif
 
-namespace karma::audio_backend {
+namespace karma::audio::backend {
 namespace {
 
 #if defined(KARMA_HAS_AUDIO_MINIAUDIO)
@@ -642,37 +642,14 @@ class MiniaudioBackend final : public Backend {
     bool using_null_backend_ = false;
 };
 
-#else
-
-class MiniaudioBackendStub final : public Backend {
- public:
-    const char* name() const override { return "miniaudio"; }
-
-    bool init() override {
-        KARMA_TRACE("audio.miniaudio", "AudioBackend[miniaudio]: unavailable (not compiled)");
-        return false;
-    }
-
-    void shutdown() override {}
-    void beginFrame(float) override {}
-    void update(float) override {}
-    void endFrame() override {}
-    void setListener(const ListenerState&) override {}
-    void playOneShot(const PlayRequest&) override {}
-    VoiceId startVoice(const PlayRequest&) override { return kInvalidVoiceId; }
-    void stopVoice(VoiceId) override {}
-};
-
 #endif
 
 } // namespace
 
-std::unique_ptr<Backend> CreateMiniaudioBackend() {
 #if defined(KARMA_HAS_AUDIO_MINIAUDIO)
+std::unique_ptr<Backend> CreateMiniaudioBackend() {
     return std::make_unique<MiniaudioBackend>();
-#else
-    return std::make_unique<MiniaudioBackendStub>();
-#endif
 }
+#endif
 
-} // namespace karma::audio_backend
+} // namespace karma::audio::backend

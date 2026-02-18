@@ -13,7 +13,7 @@ namespace karma::app::client {
 namespace {
 
 std::string CompiledBackendList() {
-    const auto compiled = renderer_backend::CompiledBackends();
+    const auto compiled = renderer::backend::CompiledBackends();
     if (compiled.empty()) {
         return "(none)";
     }
@@ -22,13 +22,13 @@ std::string CompiledBackendList() {
         if (i != 0) {
             out << ",";
         }
-        out << renderer_backend::BackendKindName(compiled[i]);
+        out << renderer::backend::BackendKindName(compiled[i]);
     }
     return out.str();
 }
 
 std::string CompiledPhysicsBackendList() {
-    const auto compiled = physics_backend::CompiledBackends();
+    const auto compiled = physics::backend::CompiledBackends();
     if (compiled.empty()) {
         return "(none)";
     }
@@ -37,13 +37,13 @@ std::string CompiledPhysicsBackendList() {
         if (i != 0) {
             out << ",";
         }
-        out << physics_backend::BackendKindName(compiled[i]);
+        out << physics::backend::BackendKindName(compiled[i]);
     }
     return out.str();
 }
 
 std::string CompiledAudioBackendList() {
-    const auto compiled = audio_backend::CompiledBackends();
+    const auto compiled = audio::backend::CompiledBackends();
     if (compiled.empty()) {
         return "(none)";
     }
@@ -52,7 +52,7 @@ std::string CompiledAudioBackendList() {
         if (i != 0) {
             out << ",";
         }
-        out << audio_backend::BackendKindName(compiled[i]);
+        out << audio::backend::BackendKindName(compiled[i]);
     }
     return out.str();
 }
@@ -92,12 +92,12 @@ void Engine::initSubsystems() {
     physics_system_.setBackend(config_.physics_backend);
     KARMA_TRACE("engine.app",
                 "Engine: creating physics backend (requested='{}', compiled='{}')",
-                physics_backend::BackendKindName(config_.physics_backend),
+                physics::backend::BackendKindName(config_.physics_backend),
                 CompiledPhysicsBackendList());
     physics_system_.init();
     if (!physics_system_.isInitialized()) {
         spdlog::error("Engine: physics backend failed to initialize (requested='{}', compiled='{}')",
-                      physics_backend::BackendKindName(config_.physics_backend),
+                      physics::backend::BackendKindName(config_.physics_backend),
                       CompiledPhysicsBackendList());
         return;
     }
@@ -108,12 +108,12 @@ void Engine::initSubsystems() {
         audio_system_.setBackend(config_.audio_backend);
         KARMA_TRACE("engine.app",
                     "Engine: creating audio backend (requested='{}', compiled='{}')",
-                    audio_backend::BackendKindName(config_.audio_backend),
+                    audio::backend::BackendKindName(config_.audio_backend),
                     CompiledAudioBackendList());
         audio_system_.init();
         if (!audio_system_.isInitialized()) {
             spdlog::error("Engine: audio backend failed to initialize (requested='{}', compiled='{}')",
-                          audio_backend::BackendKindName(config_.audio_backend),
+                          audio::backend::BackendKindName(config_.audio_backend),
                           CompiledAudioBackendList());
             return;
         }
@@ -125,7 +125,7 @@ void Engine::initSubsystems() {
     }
     KARMA_TRACE("engine.app",
                 "Engine: creating graphics device (requested='{}', compiled='{}')",
-                renderer_backend::BackendKindName(config_.render_backend),
+                renderer::backend::BackendKindName(config_.render_backend),
                 CompiledBackendList());
     graphics_ = std::make_unique<renderer::GraphicsDevice>(*window_, config_.render_backend);
     if (graphics_ && graphics_->isValid()) {
@@ -134,7 +134,7 @@ void Engine::initSubsystems() {
                     graphics_->backendName());
     } else {
         spdlog::error("Engine: graphics device failed to initialize (requested='{}', compiled='{}')",
-                      renderer_backend::BackendKindName(config_.render_backend),
+                      renderer::backend::BackendKindName(config_.render_backend),
                       CompiledBackendList());
         graphics_.reset();
     }
@@ -303,7 +303,7 @@ void Engine::tick() {
             } else {
                 forward = {0.0f, 0.0f, -1.0f};
             }
-            audio_backend::ListenerState listener{};
+            audio::backend::ListenerState listener{};
             listener.position = camera.position;
             listener.forward = forward;
             listener.up = {0.0f, 1.0f, 0.0f};

@@ -1,7 +1,7 @@
 #include "karma/renderer/backend.hpp"
 #include "internal.hpp"
 
-#include "../internal/backend_factory.hpp"
+#include "../factory_internal.hpp"
 #include "../internal/direct_sampler_observability.hpp"
 #include "../internal/debug_line.hpp"
 #include "../internal/directional_shadow.hpp"
@@ -40,7 +40,7 @@
 #include <X11/Xlib-xcb.h>
 #endif
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 constexpr std::size_t kDirectionalShadowCascadeCount =
@@ -953,4 +953,4 @@ std::unique_ptr<Backend> CreateDiligentBackend(karma::platform::Window& window) 
     return std::make_unique<DiligentBackend>(window);
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

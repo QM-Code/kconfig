@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-namespace karma::renderer_backend::detail {
+namespace karma::renderer::backend::detail {
 
 struct ResolvedMaterialSemantics {
     glm::vec4 base_color{1.0f, 1.0f, 1.0f, 1.0f};
@@ -860,4 +860,4 @@ inline bool ValidateResolvedMaterialSemantics(const ResolvedMaterialSemantics& s
     return true;
 }
 
-} // namespace karma::renderer_backend::detail
+} // namespace karma::renderer::backend::detail

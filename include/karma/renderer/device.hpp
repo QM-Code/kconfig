@@ -10,7 +10,7 @@ namespace karma::renderer {
 class GraphicsDevice {
  public:
     explicit GraphicsDevice(karma::platform::Window& window,
-                            renderer_backend::BackendKind preferred_backend = renderer_backend::BackendKind::Auto);
+                            renderer::backend::BackendKind preferred_backend = renderer::backend::BackendKind::Auto);
     ~GraphicsDevice();
 
     void beginFrame(int width, int height, float dt);
@@ -32,12 +32,12 @@ class GraphicsDevice {
     void setLights(const std::vector<LightData>& lights);
     void setEnvironmentLighting(const EnvironmentLightingData& environment);
     bool isValid() const;
-    renderer_backend::BackendKind backendKind() const { return backend_kind_; }
-    const char* backendName() const { return renderer_backend::BackendKindName(backend_kind_); }
+    renderer::backend::BackendKind backendKind() const { return backend_kind_; }
+    const char* backendName() const { return renderer::backend::BackendKindName(backend_kind_); }
 
  private:
-    std::unique_ptr<renderer_backend::Backend> backend_;
-    renderer_backend::BackendKind backend_kind_ = renderer_backend::BackendKind::Auto;
+    std::unique_ptr<renderer::backend::Backend> backend_;
+    renderer::backend::BackendKind backend_kind_ = renderer::backend::BackendKind::Auto;
 };
 
 } // namespace karma::renderer

@@ -14,7 +14,7 @@
 #include <unordered_set>
 #include <vector>
 
-namespace karma::ui::rmlui {
+namespace karma::ui::backend::rmlui {
 
 struct Geometry {
     std::vector<Rml::Vertex> vertices;
@@ -98,6 +98,6 @@ std::string EscapeText(const std::string& text);
 std::string BuildBaseDocument();
 std::string BuildPanelsMarkup(const std::vector<UiDrawContext::TextPanel>& text_panels);
 
-} // namespace karma::ui::rmlui
+} // namespace karma::ui::backend::rmlui
 
 #endif // defined(KARMA_HAS_RMLUI)

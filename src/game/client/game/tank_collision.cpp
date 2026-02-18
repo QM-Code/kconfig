@@ -2,7 +2,7 @@
 
 #include "karma/common/config/store.hpp"
 #include "karma/common/logging/logging.hpp"
-#include "karma/geometry/mesh_loader.hpp"
+#include "karma/renderer/assets/mesh_loader.hpp"
 
 #include <glm/glm.hpp>
 
@@ -30,8 +30,8 @@ void Game::buildTankCollisionCache() {
         return;
     }
 
-    std::vector<karma::geometry::SceneMesh> scene_meshes{};
-    if (!karma::geometry::LoadScene(world_path, scene_meshes) || scene_meshes.empty()) {
+    std::vector<karma::renderer::assets::SceneMesh> scene_meshes{};
+    if (!karma::renderer::assets::LoadScene(world_path, scene_meshes) || scene_meshes.empty()) {
         KARMA_TRACE("game.client",
                     "Game: collision cache skipped (LoadScene failed path='{}')",
                     world_path.string());

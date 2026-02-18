@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 bool directionChangedBeyondThreshold(const glm::vec3& a, const glm::vec3& b, float threshold_deg) {
@@ -883,4 +883,4 @@ BgfxPointShadowUpdateResult UpdateBgfxPointShadowCache(
     return result;
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

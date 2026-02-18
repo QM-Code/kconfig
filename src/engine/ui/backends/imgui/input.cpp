@@ -2,7 +2,7 @@
 
 #if defined(KARMA_HAS_IMGUI)
 
-namespace karma::ui::imgui {
+namespace karma::ui::backend::imgui {
 
 ImGuiKey MapKey(platform::Key key) {
     switch (key) {
@@ -115,6 +115,6 @@ void PushModifiers(ImGuiIO& io, const platform::Modifiers& mods) {
     io.AddKeyEvent(ImGuiMod_Super, mods.super);
 }
 
-} // namespace karma::ui::imgui
+} // namespace karma::ui::backend::imgui
 
 #endif // defined(KARMA_HAS_IMGUI)

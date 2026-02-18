@@ -8,13 +8,19 @@
 
 #if defined(KARMA_HAS_PHYSICS_PHYSX)
 #include <PxPhysicsAPI.h>
+#include <cooking/PxCooking.h>
+
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <thread>
 #endif
 
-namespace karma::physics_backend {
+namespace karma::physics::backend {
 namespace {
 
 #if defined(KARMA_HAS_PHYSICS_PHYSX)
@@ -47,6 +53,71 @@ bool IsZeroVec3(const glm::vec3& value, float epsilon = 1e-6f) {
     return std::fabs(value.x) <= epsilon
            && std::fabs(value.y) <= epsilon
            && std::fabs(value.z) <= epsilon;
+}
+
+bool IsNonEmptyPath(const std::string& value) {
+    return std::find_if(value.begin(), value.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }) != value.end();
+}
+
+struct StaticMeshTriangles {
+    std::vector<physx::PxVec3> vertices{};
+    std::vector<physx::PxU32> indices{};
+};
+
+bool LoadStaticMeshTriangles(const std::string& mesh_asset_path, StaticMeshTriangles& out_triangles) {
+    if (!IsNonEmptyPath(mesh_asset_path)) {
+        return false;
+    }
+
+    Assimp::Importer importer;
+    const aiScene* scene =
+        importer.ReadFile(mesh_asset_path,
+                          aiProcess_Triangulate
+                              | aiProcess_JoinIdenticalVertices
+                              | aiProcess_PreTransformVertices);
+    if (!scene || !scene->mRootNode || scene->mNumMeshes == 0) {
+        return false;
+    }
+
+    out_triangles.vertices.clear();
+    out_triangles.indices.clear();
+
+    for (unsigned int mesh_index = 0; mesh_index < scene->mNumMeshes; ++mesh_index) {
+        const aiMesh* mesh = scene->mMeshes[mesh_index];
+        if (!mesh || !mesh->mVertices || mesh->mNumVertices == 0) {
+            continue;
+        }
+
+        const physx::PxU32 base_vertex = static_cast<physx::PxU32>(out_triangles.vertices.size());
+        out_triangles.vertices.reserve(out_triangles.vertices.size() + mesh->mNumVertices);
+        for (unsigned int vertex_index = 0; vertex_index < mesh->mNumVertices; ++vertex_index) {
+            const aiVector3D& vertex = mesh->mVertices[vertex_index];
+            if (!std::isfinite(vertex.x) || !std::isfinite(vertex.y) || !std::isfinite(vertex.z)) {
+                return false;
+            }
+            out_triangles.vertices.emplace_back(vertex.x, vertex.y, vertex.z);
+        }
+
+        for (unsigned int face_index = 0; face_index < mesh->mNumFaces; ++face_index) {
+            const aiFace& face = mesh->mFaces[face_index];
+            if (face.mNumIndices != 3) {
+                continue;
+            }
+            if (face.mIndices[0] >= mesh->mNumVertices
+                || face.mIndices[1] >= mesh->mNumVertices
+                || face.mIndices[2] >= mesh->mNumVertices) {
+                return false;
+            }
+
+            out_triangles.indices.push_back(base_vertex + face.mIndices[0]);
+            out_triangles.indices.push_back(base_vertex + face.mIndices[1]);
+            out_triangles.indices.push_back(base_vertex + face.mIndices[2]);
+        }
+    }
+
+    return out_triangles.vertices.size() >= 3 && out_triangles.indices.size() >= 3;
 }
 
 physx::PxFilterData ToPxFilterData(const CollisionMask& mask) {
@@ -217,6 +288,7 @@ class PhysXBackend final : public Backend {
 
         const physx::PxTransform transform(ToPxVec3(desc.transform.position), ToPxQuat(desc.transform.rotation));
         physx::PxGeometryHolder geometry{};
+        physx::PxTriangleMesh* triangle_mesh = nullptr;
         switch (desc.collider_shape.kind) {
             case ColliderShapeKind::Box:
                 if (!IsFiniteVec3(desc.collider_shape.box_half_extents)
@@ -245,6 +317,41 @@ class PhysXBackend final : public Backend {
                 geometry.storeAny(physx::PxCapsuleGeometry(desc.collider_shape.capsule_radius,
                                                            desc.collider_shape.capsule_half_height));
                 break;
+            case ColliderShapeKind::Mesh: {
+                if (!desc.is_static) {
+                    return kInvalidBodyId;
+                }
+                if (desc.is_trigger) {
+                    return kInvalidBodyId;
+                }
+
+                StaticMeshTriangles mesh_triangles{};
+                if (!LoadStaticMeshTriangles(desc.collider_shape.mesh_asset_path, mesh_triangles)) {
+                    return kInvalidBodyId;
+                }
+
+                physx::PxTriangleMeshDesc triangle_mesh_desc{};
+                triangle_mesh_desc.points.count = static_cast<physx::PxU32>(mesh_triangles.vertices.size());
+                triangle_mesh_desc.points.stride = sizeof(physx::PxVec3);
+                triangle_mesh_desc.points.data = mesh_triangles.vertices.data();
+                triangle_mesh_desc.triangles.count = static_cast<physx::PxU32>(mesh_triangles.indices.size() / 3u);
+                triangle_mesh_desc.triangles.stride = 3 * sizeof(physx::PxU32);
+                triangle_mesh_desc.triangles.data = mesh_triangles.indices.data();
+                if (!triangle_mesh_desc.isValid()) {
+                    return kInvalidBodyId;
+                }
+
+                physx::PxTriangleMeshCookingResult::Enum cook_result{};
+                const physx::PxCookingParams cooking_params(physics_->getTolerancesScale());
+                triangle_mesh = ::PxCreateTriangleMesh(
+                    cooking_params, triangle_mesh_desc, physics_->getPhysicsInsertionCallback(), &cook_result);
+                if (!triangle_mesh) {
+                    return kInvalidBodyId;
+                }
+
+                geometry.storeAny(physx::PxTriangleMeshGeometry(triangle_mesh));
+                break;
+            }
             default:
                 return kInvalidBodyId;
         }
@@ -259,13 +366,20 @@ class PhysXBackend final : public Backend {
         physx::PxShape* shape = physics_->createShape(geometry.any(), *material);
         if (!shape) {
             KARMA_TRACE("physics.physx", "PhysicsBackend[physx]: failed to create shape");
+            if (triangle_mesh) {
+                triangle_mesh->release();
+            }
             material->release();
             return kInvalidBodyId;
         }
 
         shape->setSimulationFilterData(ToPxFilterData(desc.collision_mask));
-        shape->setFlag(physx::PxShapeFlag::eTRIGGER_SHAPE, desc.is_trigger);
-        shape->setFlag(physx::PxShapeFlag::eSIMULATION_SHAPE, !desc.is_trigger);
+        if (desc.collider_shape.kind == ColliderShapeKind::Mesh) {
+            shape->setFlag(physx::PxShapeFlag::eSIMULATION_SHAPE, true);
+        } else {
+            shape->setFlag(physx::PxShapeFlag::eTRIGGER_SHAPE, desc.is_trigger);
+            shape->setFlag(physx::PxShapeFlag::eSIMULATION_SHAPE, !desc.is_trigger);
+        }
         shape->setLocalPose(physx::PxTransform(ToPxVec3(desc.collider_shape.local_center)));
 
         physx::PxRigidActor* actor = nullptr;
@@ -310,6 +424,9 @@ class PhysXBackend final : public Backend {
         }
 
         shape->release();
+        if (triangle_mesh) {
+            triangle_mesh->release();
+        }
         if (!actor) {
             KARMA_TRACE("physics.physx", "PhysicsBackend[physx]: failed to create actor");
             material->release();
@@ -1138,4 +1255,4 @@ std::unique_ptr<Backend> CreatePhysXBackend() {
 #endif
 }
 
-} // namespace karma::physics_backend
+} // namespace karma::physics::backend

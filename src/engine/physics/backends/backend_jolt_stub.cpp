@@ -24,24 +24,32 @@
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/EPhysicsUpdateError.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/RegisterTypes.h>
 
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
+
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
+#include <filesystem>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 #endif
 
-namespace karma::physics_backend {
+namespace karma::physics::backend {
 namespace {
 
 #if defined(KARMA_HAS_PHYSICS_JOLT)
@@ -136,6 +144,71 @@ bool IsZeroVec3(const glm::vec3& value, float epsilon = 1e-6f) {
     return std::fabs(value.x) <= epsilon
            && std::fabs(value.y) <= epsilon
            && std::fabs(value.z) <= epsilon;
+}
+
+bool IsNonEmptyPath(const std::string& value) {
+    return std::find_if(value.begin(), value.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }) != value.end();
+}
+
+struct StaticMeshTriangles {
+    std::vector<glm::vec3> vertices{};
+    std::vector<uint32_t> indices{};
+};
+
+bool LoadStaticMeshTriangles(const std::string& mesh_asset_path, StaticMeshTriangles& out_triangles) {
+    if (!IsNonEmptyPath(mesh_asset_path)) {
+        return false;
+    }
+
+    Assimp::Importer importer;
+    const aiScene* scene =
+        importer.ReadFile(mesh_asset_path,
+                          aiProcess_Triangulate
+                              | aiProcess_JoinIdenticalVertices
+                              | aiProcess_PreTransformVertices);
+    if (!scene || !scene->mRootNode || scene->mNumMeshes == 0) {
+        return false;
+    }
+
+    out_triangles.vertices.clear();
+    out_triangles.indices.clear();
+
+    for (unsigned int mesh_index = 0; mesh_index < scene->mNumMeshes; ++mesh_index) {
+        const aiMesh* mesh = scene->mMeshes[mesh_index];
+        if (!mesh || !mesh->mVertices || mesh->mNumVertices == 0) {
+            continue;
+        }
+
+        const uint32_t base_vertex = static_cast<uint32_t>(out_triangles.vertices.size());
+        out_triangles.vertices.reserve(out_triangles.vertices.size() + mesh->mNumVertices);
+        for (unsigned int vertex_index = 0; vertex_index < mesh->mNumVertices; ++vertex_index) {
+            const aiVector3D& vertex = mesh->mVertices[vertex_index];
+            if (!std::isfinite(vertex.x) || !std::isfinite(vertex.y) || !std::isfinite(vertex.z)) {
+                return false;
+            }
+            out_triangles.vertices.emplace_back(vertex.x, vertex.y, vertex.z);
+        }
+
+        for (unsigned int face_index = 0; face_index < mesh->mNumFaces; ++face_index) {
+            const aiFace& face = mesh->mFaces[face_index];
+            if (face.mNumIndices != 3) {
+                continue;
+            }
+            if (face.mIndices[0] >= mesh->mNumVertices
+                || face.mIndices[1] >= mesh->mNumVertices
+                || face.mIndices[2] >= mesh->mNumVertices) {
+                return false;
+            }
+
+            out_triangles.indices.push_back(base_vertex + face.mIndices[0]);
+            out_triangles.indices.push_back(base_vertex + face.mIndices[1]);
+            out_triangles.indices.push_back(base_vertex + face.mIndices[2]);
+        }
+    }
+
+    return out_triangles.vertices.size() >= 3 && out_triangles.indices.size() >= 3;
 }
 
 void JoltTrace(const char* fmt, ...) {
@@ -349,6 +422,37 @@ class JoltBackend final : public Backend {
                 shape = new JPH::CapsuleShape(desc.collider_shape.capsule_half_height,
                                               desc.collider_shape.capsule_radius);
                 break;
+            case ColliderShapeKind::Mesh: {
+                if (is_dynamic) {
+                    return kInvalidBodyId;
+                }
+                StaticMeshTriangles mesh_triangles{};
+                if (!LoadStaticMeshTriangles(desc.collider_shape.mesh_asset_path, mesh_triangles)) {
+                    return kInvalidBodyId;
+                }
+
+                JPH::VertexList triangle_vertices{};
+                triangle_vertices.reserve(static_cast<uint>(mesh_triangles.vertices.size()));
+                for (const glm::vec3& vertex : mesh_triangles.vertices) {
+                    triangle_vertices.emplace_back(vertex.x, vertex.y, vertex.z);
+                }
+
+                JPH::IndexedTriangleList indexed_triangles{};
+                indexed_triangles.reserve(static_cast<uint>(mesh_triangles.indices.size() / 3u));
+                for (size_t index = 0; index + 2 < mesh_triangles.indices.size(); index += 3) {
+                    indexed_triangles.emplace_back(mesh_triangles.indices[index],
+                                                   mesh_triangles.indices[index + 1],
+                                                   mesh_triangles.indices[index + 2]);
+                }
+
+                JPH::MeshShapeSettings mesh_settings(std::move(triangle_vertices), std::move(indexed_triangles));
+                JPH::ShapeSettings::ShapeResult mesh_shape_result = mesh_settings.Create();
+                if (!mesh_shape_result.IsValid()) {
+                    return kInvalidBodyId;
+                }
+                shape = mesh_shape_result.Get();
+                break;
+            }
             default:
                 return kInvalidBodyId;
         }
@@ -1186,4 +1290,4 @@ std::unique_ptr<Backend> CreateJoltBackend() {
 #endif
 }
 
-} // namespace karma::physics_backend
+} // namespace karma::physics::backend

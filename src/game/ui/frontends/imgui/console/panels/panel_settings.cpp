@@ -280,7 +280,7 @@ void ConsoleView::drawSettingsPanel(const MessageColors &colors) {
     ImGui::Separator();
     ImGui::Spacing();
 
-    const auto banner = ui::status_banner::MakeStatusBanner(settingsModel.statusText,
+    const auto banner = ui::status::banner::MakeStatusBanner(settingsModel.statusText,
                                                             settingsModel.statusIsError);
     if (banner.visible) {
         ImGui::Spacing();
@@ -290,7 +290,7 @@ void ConsoleView::drawSettingsPanel(const MessageColors &colors) {
         } else if (banner.tone == ui::MessageTone::Pending) {
             statusColor = colors.pending;
         }
-        const std::string text = ui::status_banner::FormatStatusText(banner);
+        const std::string text = ui::status::banner::FormatStatusText(banner);
         ImGui::TextColored(statusColor, "%s", text.c_str());
         ImGui::Spacing();
     }

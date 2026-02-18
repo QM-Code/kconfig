@@ -9,7 +9,7 @@
 
 #include <glm/glm.hpp>
 
-namespace karma::audio_backend {
+namespace karma::audio::backend {
 
 enum class BackendKind {
     Auto,
@@ -65,4 +65,4 @@ class Backend {
 std::unique_ptr<Backend> CreateBackend(BackendKind preferred = BackendKind::Auto,
                                        BackendKind* out_selected = nullptr);
 
-} // namespace karma::audio_backend
+} // namespace karma::audio::backend

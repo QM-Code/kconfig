@@ -4,7 +4,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 constexpr uint32_t kDiligentMaterialMaxAnisotropy = 8u;
@@ -813,4 +813,4 @@ float4 main(PSInput input) : SV_TARGET {
     device->CreateBuffer(line_vb_desc, nullptr, &out_line_vertex_buffer);
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

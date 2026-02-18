@@ -9,6 +9,7 @@
 
 #include <cmath>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include <glm/glm.hpp>
@@ -73,35 +74,37 @@ const char* BackendName(Backend backend) {
     }
 }
 
-Backend ParseBackendFromConfig(Backend current) {
+backend::BackendKind PreferredKindFromMode(Backend backend) {
+    switch (backend) {
+        case Backend::ImGui: return backend::BackendKind::ImGui;
+        case Backend::RmlUi: return backend::BackendKind::RmlUi;
+        default: return backend::BackendKind::Auto;
+    }
+}
+
+backend::BackendKind ParseBackendKindFromConfig(Backend current) {
     const std::string current_name = current == Backend::ImGui ? "imgui" : "rmlui";
-    std::string configured = common::config::ReadStringConfig("ui.backend", current_name);
-    for (char& c : configured) {
-        if (c >= 'A' && c <= 'Z') {
-            c = static_cast<char>(c - 'A' + 'a');
-        }
-    }
-    if (configured == "imgui") {
-        return Backend::ImGui;
-    }
-    if (configured == "rmlui") {
-        return Backend::RmlUi;
+    const std::string configured = common::config::ReadStringConfig("ui.backend", current_name);
+    const auto parsed = backend::ParseBackendKind(configured);
+    if (parsed) {
+        return *parsed;
     }
     KARMA_TRACE("ui.system",
                 "UiSystem: unknown ui.backend '{}', keeping '{}'",
                 configured,
                 current_name);
-    return current;
+    return PreferredKindFromMode(current);
 }
 
-std::unique_ptr<BackendDriver, BackendDriverDeleter> adopt_backend(std::unique_ptr<BackendDriver> backend) {
-    return std::unique_ptr<BackendDriver, BackendDriverDeleter>(backend.release());
+std::unique_ptr<backend::BackendDriver, BackendDriverDeleter> adopt_backend(
+    std::unique_ptr<backend::BackendDriver> backend) {
+    return std::unique_ptr<backend::BackendDriver, BackendDriverDeleter>(backend.release());
 }
 
 } // namespace
 
 UiSystem::~UiSystem() = default;
-void BackendDriverDeleter::operator()(BackendDriver* backend) const { delete backend; }
+void BackendDriverDeleter::operator()(backend::BackendDriver* backend) const { delete backend; }
 
 void UiSystem::setBackend(Backend backend) {
     backend_ = backend;
@@ -109,14 +112,17 @@ void UiSystem::setBackend(Backend backend) {
 }
 
 UiBackendKind UiSystem::backendKind() const {
-    switch (backend_) {
-        case Backend::ImGui:
-            return UiBackendKind::ImGui;
-        case Backend::RmlUi:
-            return UiBackendKind::RmlUi;
-        default:
-            return UiBackendKind::None;
+    if (!backend_impl_) {
+        return UiBackendKind::None;
     }
+    const std::string_view name = backend_impl_->name();
+    if (name == "imgui") {
+        return UiBackendKind::ImGui;
+    }
+    if (name == "rmlui") {
+        return UiBackendKind::RmlUi;
+    }
+    return UiBackendKind::None;
 }
 
 void UiSystem::addImGuiDraw(ImGuiDrawCallback callback) {
@@ -154,8 +160,12 @@ void UiSystem::init(renderer::GraphicsDevice& graphics) {
     rmlui_draw_callbacks_.clear();
     text_panels_.clear();
 
-    if (!backend_forced_) {
-        backend_ = ParseBackendFromConfig(backend_);
+    const backend::BackendKind preferred_backend =
+        backend_forced_ ? PreferredKindFromMode(backend_) : ParseBackendKindFromConfig(backend_);
+    if (preferred_backend == backend::BackendKind::ImGui) {
+        backend_ = Backend::ImGui;
+    } else if (preferred_backend == backend::BackendKind::RmlUi) {
+        backend_ = Backend::RmlUi;
     }
     capture_input_enabled_ = common::config::ReadBoolConfig({"ui.captureInput"}, false);
     overlay_fallback_enabled_ = common::config::ReadBoolConfig({"ui.overlayFallback.Enabled"}, true);
@@ -168,21 +178,14 @@ void UiSystem::init(renderer::GraphicsDevice& graphics) {
         KARMA_TRACE("ui.system", "UiSystem: failed to create overlay mesh");
     }
 
-    switch (backend_) {
-        case Backend::ImGui:
-            backend_impl_ = adopt_backend(CreateImGuiBackend());
-            break;
-        case Backend::RmlUi:
-            backend_impl_ = adopt_backend(CreateRmlUiBackend());
-            break;
-        default:
-            backend_impl_ = adopt_backend(CreateSoftwareBackend());
-            break;
-    }
+    backend::BackendKind selected_backend = backend::BackendKind::Auto;
+    backend_impl_ = adopt_backend(backend::CreateBackend(preferred_backend, &selected_backend));
     if (backend_impl_) {
         if (!backend_impl_->init()) {
             KARMA_TRACE("ui.system", "UiSystem: backend '{}' init failed", backend_impl_->name());
-            backend_impl_ = adopt_backend(CreateSoftwareBackend());
+            selected_backend = backend::BackendKind::Auto;
+            backend_impl_ = adopt_backend(
+                backend::CreateBackend(backend::BackendKind::Software, &selected_backend));
             if (backend_impl_ && backend_impl_->init()) {
                 KARMA_TRACE("ui.system",
                             "UiSystem: fallback backend selected '{}'",
@@ -192,9 +195,10 @@ void UiSystem::init(renderer::GraphicsDevice& graphics) {
             }
         } else {
             KARMA_TRACE("ui.system",
-                        "UiSystem: backend selected '{}', mode='{}', captureInput={}",
+                        "UiSystem: backend selected '{}', requested='{}', resolved='{}', captureInput={}",
                         backend_impl_->name(),
                         BackendName(backend_),
+                        backend::BackendKindName(selected_backend),
                         capture_input_enabled_ ? 1 : 0);
         }
     }
@@ -245,7 +249,7 @@ void UiSystem::update(renderer::RenderSystem& render) {
         return;
     }
 
-    OverlayFrame frame{};
+    backend::OverlayFrame frame{};
     if (backend_impl_) {
         backend_impl_->build(imgui_draw_callbacks_, rmlui_draw_callbacks_, text_panels_, frame);
     }

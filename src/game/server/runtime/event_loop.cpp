@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace bz3::server::runtime_detail {
+namespace bz3::server::runtime::detail {
 
 void RunEventLoop(karma::app::server::Engine* app,
                   ServerGame* game,
@@ -186,4 +186,4 @@ void RunEventLoop(karma::app::server::Engine* app,
     }
 }
 
-} // namespace bz3::server::runtime_detail
+} // namespace bz3::server::runtime::detail

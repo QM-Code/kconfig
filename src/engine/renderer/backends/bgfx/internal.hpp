@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 
 class BgfxBackend;
 
@@ -302,4 +302,4 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment();
 
 void SubmitBgfxRenderLayerDraws(const BgfxRenderSubmissionInput& input);
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

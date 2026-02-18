@@ -9,7 +9,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace bz3::client::runtime_detail {
+namespace bz3::client::runtime::detail {
 
 glm::vec3 ReadRequiredVec3(const char* path) {
     const auto values = karma::common::config::ReadRequiredFloatArrayConfig(path);
@@ -152,4 +152,4 @@ karma::app::client::EngineConfig BuildEngineConfig(const karma::cli::client::App
     return config;
 }
 
-} // namespace bz3::client::runtime_detail
+} // namespace bz3::client::runtime::detail

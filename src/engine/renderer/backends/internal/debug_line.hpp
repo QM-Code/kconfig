@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace karma::renderer_backend::detail {
+namespace karma::renderer::backend::detail {
 
 struct ResolvedDebugLineSemantics {
     glm::vec3 start{0.0f, 0.0f, 0.0f};
@@ -65,4 +65,4 @@ inline bool ValidateResolvedDebugLineSemantics(const ResolvedDebugLineSemantics&
     return true;
 }
 
-} // namespace karma::renderer_backend::detail
+} // namespace karma::renderer::backend::detail

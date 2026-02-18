@@ -1,4 +1,4 @@
-#include "karma/geometry/mesh_loader.hpp"
+#include "karma/renderer/assets/mesh_loader.hpp"
 
 #include "karma/common/logging/logging.hpp"
 
@@ -16,10 +16,10 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 
-namespace karma::geometry {
+namespace karma::renderer::assets {
 
 namespace {
-std::optional<renderer::MeshData::TextureData> loadTextureFromFile(const std::filesystem::path& path) {
+std::optional<MeshData::TextureData> loadTextureFromFile(const std::filesystem::path& path) {
     if (path.empty()) {
         return std::nullopt;
     }
@@ -31,7 +31,7 @@ std::optional<renderer::MeshData::TextureData> loadTextureFromFile(const std::fi
         spdlog::error("MeshLoader: failed to load texture '{}': {}", path.string(), stbi_failure_reason());
         return std::nullopt;
     }
-    renderer::MeshData::TextureData tex{};
+    MeshData::TextureData tex{};
     tex.width = width;
     tex.height = height;
     tex.channels = 4;
@@ -41,7 +41,7 @@ std::optional<renderer::MeshData::TextureData> loadTextureFromFile(const std::fi
     return tex;
 }
 
-std::optional<renderer::MeshData::TextureData> loadTextureFromMemory(const unsigned char* bytes, size_t size, const char* label) {
+std::optional<MeshData::TextureData> loadTextureFromMemory(const unsigned char* bytes, size_t size, const char* label) {
     if (!bytes || size == 0) {
         return std::nullopt;
     }
@@ -53,7 +53,7 @@ std::optional<renderer::MeshData::TextureData> loadTextureFromMemory(const unsig
         spdlog::error("MeshLoader: failed to decode embedded texture '{}': {}", label ? label : "(embedded)", stbi_failure_reason());
         return std::nullopt;
     }
-    renderer::MeshData::TextureData tex{};
+    MeshData::TextureData tex{};
     tex.width = width;
     tex.height = height;
     tex.channels = 4;
@@ -63,7 +63,7 @@ std::optional<renderer::MeshData::TextureData> loadTextureFromMemory(const unsig
     return tex;
 }
 
-std::optional<renderer::MeshData::TextureData> loadTextureFromAssimpReference(const aiScene* scene,
+std::optional<MeshData::TextureData> loadTextureFromAssimpReference(const aiScene* scene,
                                                                                const std::filesystem::path& path,
                                                                                const aiString& texPath) {
     if (!scene) {
@@ -91,7 +91,7 @@ std::optional<renderer::MeshData::TextureData> loadTextureFromAssimpReference(co
     return loadTextureFromFile(texFile);
 }
 
-std::optional<renderer::MeshData::TextureData> loadMaterialTexture(const aiScene* scene,
+std::optional<MeshData::TextureData> loadMaterialTexture(const aiScene* scene,
                                                                    aiMaterial* material,
                                                                    const std::filesystem::path& path,
                                                                    aiTextureType type) {
@@ -108,8 +108,8 @@ std::optional<renderer::MeshData::TextureData> loadMaterialTexture(const aiScene
 bool loadMeshData(const aiScene* scene,
                   const aiMesh* mesh,
                   const std::filesystem::path& path,
-                  renderer::MeshData& out,
-                  renderer::MaterialDesc& out_material,
+                  MeshData& out,
+                  MaterialDesc& out_material,
                   const aiMatrix4x4& transform) {
     if (!scene || !mesh) {
         return false;
@@ -120,7 +120,7 @@ bool loadMeshData(const aiScene* scene,
     out.uvs.clear();
     out.indices.clear();
     out.albedo.reset();
-    out_material = renderer::MaterialDesc{};
+    out_material = MaterialDesc{};
 
     out.positions.reserve(mesh->mNumVertices);
     out.normals.reserve(mesh->mNumVertices);
@@ -201,11 +201,11 @@ bool loadMeshData(const aiScene* scene,
             if (material->Get(AI_MATKEY_GLTF_ALPHAMODE, alpha_mode) == AI_SUCCESS) {
                 const std::string mode = alpha_mode.C_Str();
                 if (mode == "MASK") {
-                    out_material.alpha_mode = renderer::MaterialAlphaMode::Mask;
+                    out_material.alpha_mode = MaterialAlphaMode::Mask;
                 } else if (mode == "BLEND") {
-                    out_material.alpha_mode = renderer::MaterialAlphaMode::Blend;
+                    out_material.alpha_mode = MaterialAlphaMode::Blend;
                 } else {
-                    out_material.alpha_mode = renderer::MaterialAlphaMode::Opaque;
+                    out_material.alpha_mode = MaterialAlphaMode::Opaque;
                 }
             }
 #endif
@@ -264,7 +264,7 @@ void collectSceneMeshes(const aiScene* scene,
 }
 }
 
-bool LoadMesh(const std::filesystem::path& path, renderer::MeshData& out) {
+bool LoadMesh(const std::filesystem::path& path, MeshData& out) {
     Assimp::Importer importer;
     KARMA_TRACE("render.mesh", "MeshLoader: loading '{}'", path.string());
     const aiScene* scene = importer.ReadFile(path.string(),
@@ -282,7 +282,7 @@ bool LoadMesh(const std::filesystem::path& path, renderer::MeshData& out) {
         spdlog::error("MeshLoader: '{}' contains no mesh data", path.string());
         return false;
     }
-    renderer::MaterialDesc material{};
+    MaterialDesc material{};
     if (!loadMeshData(scene, mesh, path, out, material, aiMatrix4x4())) {
         spdlog::error("MeshLoader: '{}' failed to decode mesh data", path.string());
         return false;
@@ -330,4 +330,4 @@ bool LoadScene(const std::filesystem::path& path, std::vector<SceneMesh>& out) {
     return !out.empty();
 }
 
-} // namespace karma::geometry
+} // namespace karma::renderer::assets

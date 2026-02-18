@@ -16,7 +16,7 @@
 #include <cmath>
 #include <string>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 constexpr std::size_t kMaxLocalLights = kDiligentMaxLocalLights;
@@ -444,4 +444,4 @@ void SubmitDiligentRenderLayerDraws(const DiligentRenderSubmissionInput& input) 
     }
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

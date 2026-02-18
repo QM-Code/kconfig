@@ -1,7 +1,7 @@
 #include "karma/renderer/backend.hpp"
 #include "internal.hpp"
 
-#include "../internal/backend_factory.hpp"
+#include "../factory_internal.hpp"
 #include "../internal/direct_sampler_observability.hpp"
 #include "../internal/debug_line.hpp"
 #include "../internal/directional_shadow.hpp"
@@ -37,7 +37,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 constexpr bgfx::ViewId kBgfxShadowViewIdBase = 0;
@@ -995,4 +995,4 @@ std::unique_ptr<Backend> CreateBgfxBackend(karma::platform::Window& window) {
     return std::make_unique<BgfxBackend>(window);
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

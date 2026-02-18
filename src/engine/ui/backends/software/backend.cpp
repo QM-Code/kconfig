@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace karma::ui {
+namespace karma::ui::backend {
 namespace {
 
 renderer::MeshData::TextureData BuildOverlayTexture(int width, int height) {
@@ -105,4 +105,4 @@ std::unique_ptr<BackendDriver> CreateSoftwareBackend() {
     return std::make_unique<SoftwareOverlayBackend>();
 }
 
-} // namespace karma::ui
+} // namespace karma::ui::backend

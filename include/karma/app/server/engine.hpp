@@ -16,8 +16,8 @@ struct EngineConfig {
     float target_tick_hz = 60.0f;
     float max_delta_time = 0.25f;
     int max_substeps = 4;
-    physics_backend::BackendKind physics_backend = physics_backend::BackendKind::Auto;
-    audio_backend::BackendKind audio_backend = audio_backend::BackendKind::Auto;
+    physics::backend::BackendKind physics_backend = physics::backend::BackendKind::Auto;
+    audio::backend::BackendKind audio_backend = audio::backend::BackendKind::Auto;
     bool enable_audio = false;
 };
 

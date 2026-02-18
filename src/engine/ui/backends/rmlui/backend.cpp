@@ -4,7 +4,7 @@
 
 #include <memory>
 
-namespace karma::ui {
+namespace karma::ui::backend {
 namespace {
 
 class RmlUiBackend final : public BackendDriver {
@@ -51,4 +51,4 @@ std::unique_ptr<BackendDriver> CreateRmlUiBackend() {
     return std::make_unique<RmlUiBackend>();
 }
 
-} // namespace karma::ui
+} // namespace karma::ui::backend

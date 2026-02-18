@@ -8,16 +8,16 @@
 
 #include "karma/renderer/types.hpp"
 
-namespace karma::geometry {
+namespace karma::renderer::assets {
 
 struct SceneMesh {
-    renderer::MeshData mesh{};
-    renderer::MaterialDesc material{};
+    MeshData mesh{};
+    MaterialDesc material{};
     uint32_t material_index = 0;
     glm::mat4 transform{1.0f};
 };
 
-bool LoadMesh(const std::filesystem::path& path, renderer::MeshData& out);
+bool LoadMesh(const std::filesystem::path& path, MeshData& out);
 bool LoadScene(const std::filesystem::path& path, std::vector<SceneMesh>& out);
 
-} // namespace karma::geometry
+} // namespace karma::renderer::assets

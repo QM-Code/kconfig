@@ -8,7 +8,7 @@ namespace karma::audio {
 namespace {
 
 std::string CompiledBackendList() {
-    const auto compiled = audio_backend::CompiledBackends();
+    const auto compiled = audio::backend::CompiledBackends();
     if (compiled.empty()) {
         return "(none)";
     }
@@ -18,7 +18,7 @@ std::string CompiledBackendList() {
         if (i != 0) {
             out << ",";
         }
-        out << audio_backend::BackendKindName(compiled[i]);
+        out << audio::backend::BackendKindName(compiled[i]);
     }
     return out.str();
 }
@@ -26,7 +26,7 @@ std::string CompiledBackendList() {
 } // namespace
 
 const char* AudioSystem::selectedBackendName() const {
-    return audio_backend::BackendKindName(selected_backend_);
+    return audio::backend::BackendKindName(selected_backend_);
 }
 
 void AudioSystem::init() {
@@ -35,15 +35,15 @@ void AudioSystem::init() {
     }
 
     initialized_ = false;
-    selected_backend_ = audio_backend::BackendKind::Auto;
+    selected_backend_ = audio::backend::BackendKind::Auto;
 
-    const auto try_backend = [this](audio_backend::BackendKind backend_kind) -> bool {
-        audio_backend::BackendKind selected = audio_backend::BackendKind::Auto;
-        auto backend = audio_backend::CreateBackend(backend_kind, &selected);
+    const auto try_backend = [this](audio::backend::BackendKind backend_kind) -> bool {
+        audio::backend::BackendKind selected = audio::backend::BackendKind::Auto;
+        auto backend = audio::backend::CreateBackend(backend_kind, &selected);
         if (!backend) {
             KARMA_TRACE("audio.system",
                         "AudioSystem: backend '{}' unavailable at creation time",
-                        audio_backend::BackendKindName(backend_kind));
+                        audio::backend::BackendKindName(backend_kind));
             return false;
         }
 
@@ -66,10 +66,10 @@ void AudioSystem::init() {
 
     KARMA_TRACE("audio.system",
                 "AudioSystem: creating backend requested='{}' compiled='{}'",
-                audio_backend::BackendKindName(requested_backend_),
+                audio::backend::BackendKindName(requested_backend_),
                 CompiledBackendList());
-    if (requested_backend_ == audio_backend::BackendKind::Auto) {
-        for (const auto compiled_backend : audio_backend::CompiledBackends()) {
+    if (requested_backend_ == audio::backend::BackendKind::Auto) {
+        for (const auto compiled_backend : audio::backend::CompiledBackends()) {
             if (try_backend(compiled_backend)) {
                 return;
             }
@@ -85,14 +85,14 @@ void AudioSystem::init() {
 void AudioSystem::shutdown() {
     if (!backend_) {
         initialized_ = false;
-        selected_backend_ = audio_backend::BackendKind::Auto;
+        selected_backend_ = audio::backend::BackendKind::Auto;
         return;
     }
 
     backend_->shutdown();
     backend_.reset();
     initialized_ = false;
-    selected_backend_ = audio_backend::BackendKind::Auto;
+    selected_backend_ = audio::backend::BackendKind::Auto;
 }
 
 void AudioSystem::beginFrame(float dt) {
@@ -116,28 +116,28 @@ void AudioSystem::endFrame() {
     backend_->endFrame();
 }
 
-void AudioSystem::setListener(const audio_backend::ListenerState& state) {
+void AudioSystem::setListener(const audio::backend::ListenerState& state) {
     if (!backend_) {
         return;
     }
     backend_->setListener(state);
 }
 
-void AudioSystem::playOneShot(const audio_backend::PlayRequest& request) {
+void AudioSystem::playOneShot(const audio::backend::PlayRequest& request) {
     if (!backend_) {
         return;
     }
     backend_->playOneShot(request);
 }
 
-audio_backend::VoiceId AudioSystem::startVoice(const audio_backend::PlayRequest& request) {
+audio::backend::VoiceId AudioSystem::startVoice(const audio::backend::PlayRequest& request) {
     if (!backend_) {
-        return audio_backend::kInvalidVoiceId;
+        return audio::backend::kInvalidVoiceId;
     }
     return backend_->startVoice(request);
 }
 
-void AudioSystem::stopVoice(audio_backend::VoiceId voice) {
+void AudioSystem::stopVoice(audio::backend::VoiceId voice) {
     if (!backend_) {
         return;
     }

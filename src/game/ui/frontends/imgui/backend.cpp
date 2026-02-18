@@ -14,7 +14,7 @@
 
 #include <cmath>
 
-namespace ui_backend {
+namespace ui::backend {
 namespace {
 bool hasOutputDrawData(const ImDrawData* drawData) {
     return drawData && drawData->TotalVtxCount > 0;
@@ -100,7 +100,7 @@ void ImGuiBackend::handleEvents(const std::vector<platform::Event> &events) {
             case platform::EventType::KeyDown:
             case platform::EventType::KeyUp: {
                 const bool down = (event.type == platform::EventType::KeyDown);
-                const ImGuiKey key = ui::input_mapping::ToImGuiKey(event.key);
+                const ImGuiKey key = ui::input::mapping::ToImGuiKey(event.key);
                 if (key != ImGuiKey_None) {
                     io.AddKeyEvent(key, down);
                 }
@@ -115,7 +115,7 @@ void ImGuiBackend::handleEvents(const std::vector<platform::Event> &events) {
             case platform::EventType::MouseButtonDown:
             case platform::EventType::MouseButtonUp: {
                 const bool down = (event.type == platform::EventType::MouseButtonDown);
-                const int button = ui::input_mapping::ToImGuiMouseButton(event.mouseButton);
+                const int button = ui::input::mapping::ToImGuiMouseButton(event.mouseButton);
                 io.AddMouseButtonEvent(button, down);
                 break;
             }
@@ -171,7 +171,7 @@ void ImGuiBackend::update() {
     io.DisplaySize = ImVec2(static_cast<float>(fbWidth), static_cast<float>(fbHeight));
     io.DisplayFramebufferScale = ImVec2(renderScale, renderScale);
 
-    ui::input_mapping::UpdateImGuiModifiers(io, window);
+    ui::input::mapping::UpdateImGuiModifiers(io, window);
     if (window) {
         window->setCursorVisible(!io.MouseDrawCursor);
     }
@@ -449,4 +449,4 @@ const ui::ConsoleInterface &ImGuiBackend::console() const {
     return consoleView;
 }
 
-} // namespace ui_backend
+} // namespace ui::backend

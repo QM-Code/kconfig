@@ -25,8 +25,8 @@ class EcsSyncSystem {
 
     bool hasRuntimeBinding(ecs::Entity entity) const;
     size_t runtimeBindingCount() const;
-    bool tryGetRuntimeBody(ecs::Entity entity, physics_backend::BodyId& out_body) const;
-    bool tryGetRuntimeTransformSnapshot(ecs::Entity entity, physics_backend::BodyTransform& out_transform) const;
+    bool tryGetRuntimeBody(ecs::Entity entity, physics::backend::BodyId& out_body) const;
+    bool tryGetRuntimeTransformSnapshot(ecs::Entity entity, physics::backend::BodyTransform& out_transform) const;
     bool hasControllerRuntimeBinding(ecs::Entity entity) const;
     size_t controllerRuntimeBindingCount() const;
     bool tryGetControllerCompatibility(ecs::Entity entity,
@@ -38,7 +38,7 @@ class EcsSyncSystem {
     };
 
     struct RuntimeBinding {
-        physics_backend::BodyId body = physics_backend::kInvalidBodyId;
+        physics::backend::BodyId body = physics::backend::kInvalidBodyId;
         scene::RigidBodyIntentComponent rigidbody_intent{};
         scene::ColliderIntentComponent collider_intent{};
         scene::PhysicsTransformOwnershipComponent transform_ownership{};
@@ -49,11 +49,12 @@ class EcsSyncSystem {
         scene::ControllerVelocityOwnership velocity_ownership = scene::ControllerVelocityOwnership::RigidbodyIntent;
         glm::vec3 runtime_linear_velocity{0.0f, 0.0f, 0.0f};
         glm::vec3 runtime_angular_velocity{0.0f, 0.0f, 0.0f};
-        physics_backend::BodyTransform last_transform{};
+        physics::backend::BodyTransform last_transform{};
     };
 
     PhysicsSystem& physics_system_;
     std::unordered_map<ecs::Entity, RuntimeBinding, EntityHash> bindings_{};
+    std::unordered_map<ecs::Entity, bool, EntityHash> static_mesh_recovery_pending_{};
 };
 
 } // namespace karma::physics

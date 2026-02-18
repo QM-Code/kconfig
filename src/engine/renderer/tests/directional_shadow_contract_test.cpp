@@ -19,56 +19,56 @@
 
 namespace {
 
-using karma::renderer_backend::detail::ComputeDirectionalShadowFactor;
-using karma::renderer_backend::detail::ComputeEnvironmentAmbientColor;
-using karma::renderer_backend::detail::ComputeEnvironmentClearColor;
-using karma::renderer_backend::detail::ComputeEnvironmentSpecularBoost;
-using karma::renderer_backend::detail::BuildShaderPathTextureIngestion;
-using karma::renderer_backend::detail::BuildRgba8MipChain;
-using karma::renderer_backend::detail::ComputeRgba8MipLevelCount;
-using karma::renderer_backend::detail::DirectSamplerDrawInvariantInput;
-using karma::renderer_backend::detail::EvaluateBgfxDirectSamplerContract;
-using karma::renderer_backend::detail::EvaluateDirectSamplerDrawInvariants;
-using karma::renderer_backend::detail::EvaluateDiligentDirectSamplerContract;
-using karma::renderer_backend::detail::ExpandTextureToRgba8;
-using karma::renderer_backend::detail::IngestMaterialTextureLifecycle;
-using karma::renderer_backend::detail::IngestMaterialTextureSetForLifecycle;
-using karma::renderer_backend::detail::IsUsableTexture;
-using karma::renderer_backend::detail::kDiligentMaterialVariantCount;
-using karma::renderer_backend::detail::kTextureLifecycleMaxDimension;
-using karma::renderer_backend::detail::kTextureLifecycleMaxTexels;
-using karma::renderer_backend::detail::MaterialShaderTextureInputPath;
-using karma::renderer_backend::detail::MaterialTextureSemantic;
-using karma::renderer_backend::detail::ResolveDebugLineSemantics;
-using karma::renderer_backend::detail::DirectionalShadowCaster;
-using karma::renderer_backend::detail::DirectionalShadowMap;
-using karma::renderer_backend::detail::PointShadowMap;
-using karma::renderer_backend::detail::ResolveEnvironmentLightingSemantics;
-using karma::renderer_backend::detail::ResolveMaterialLighting;
-using karma::renderer_backend::detail::ResolveMaterialShaderInputContract;
-using karma::renderer_backend::detail::ResolveMaterialSemantics;
-using karma::renderer_backend::detail::ResolveDirectionalShadowSemantics;
-using karma::renderer_backend::detail::ResolveShaderPathDirectSample;
-using karma::renderer_backend::detail::ResolvedDebugLineSemantics;
-using karma::renderer_backend::detail::ResolvedEnvironmentLightingSemantics;
-using karma::renderer_backend::detail::ResolvedMaterialLighting;
-using karma::renderer_backend::detail::ResolvedMaterialSemantics;
-using karma::renderer_backend::detail::ResolvedDirectionalShadowSemantics;
-using karma::renderer_backend::detail::SamplerVariableAvailability;
-using karma::renderer_backend::detail::SampleDirectionalShadowVisibility;
-using karma::renderer_backend::detail::ComputeDirectionalShadowVisibilityForReceiver;
-using karma::renderer_backend::detail::ShadowClipDepthTransform;
-using karma::renderer_backend::detail::ResolveShadowClipDepthTransform;
-using karma::renderer_backend::detail::ResolveShadowClipYSign;
-using karma::renderer_backend::detail::ValidateResolvedDebugLineSemantics;
-using karma::renderer_backend::detail::ValidateResolvedEnvironmentLightingSemantics;
-using karma::renderer_backend::detail::ValidateResolvedMaterialLighting;
-using karma::renderer_backend::detail::ValidateResolvedMaterialSemantics;
-using karma::renderer_backend::detail::ValidateResolvedDirectionalShadowSemantics;
-using karma::renderer_backend::detail::BuildDirectionalShadowMap;
-using karma::renderer_backend::detail::BuildPointShadowMap;
-using karma::renderer_backend::detail::IsPointShadowMapLayoutCompatible;
-using karma::renderer_backend::detail::SelectPointShadowLightIndices;
+using karma::renderer::backend::detail::ComputeDirectionalShadowFactor;
+using karma::renderer::backend::detail::ComputeEnvironmentAmbientColor;
+using karma::renderer::backend::detail::ComputeEnvironmentClearColor;
+using karma::renderer::backend::detail::ComputeEnvironmentSpecularBoost;
+using karma::renderer::backend::detail::BuildShaderPathTextureIngestion;
+using karma::renderer::backend::detail::BuildRgba8MipChain;
+using karma::renderer::backend::detail::ComputeRgba8MipLevelCount;
+using karma::renderer::backend::detail::DirectSamplerDrawInvariantInput;
+using karma::renderer::backend::detail::EvaluateBgfxDirectSamplerContract;
+using karma::renderer::backend::detail::EvaluateDirectSamplerDrawInvariants;
+using karma::renderer::backend::detail::EvaluateDiligentDirectSamplerContract;
+using karma::renderer::backend::detail::ExpandTextureToRgba8;
+using karma::renderer::backend::detail::IngestMaterialTextureLifecycle;
+using karma::renderer::backend::detail::IngestMaterialTextureSetForLifecycle;
+using karma::renderer::backend::detail::IsUsableTexture;
+using karma::renderer::backend::detail::kDiligentMaterialVariantCount;
+using karma::renderer::backend::detail::kTextureLifecycleMaxDimension;
+using karma::renderer::backend::detail::kTextureLifecycleMaxTexels;
+using karma::renderer::backend::detail::MaterialShaderTextureInputPath;
+using karma::renderer::backend::detail::MaterialTextureSemantic;
+using karma::renderer::backend::detail::ResolveDebugLineSemantics;
+using karma::renderer::backend::detail::DirectionalShadowCaster;
+using karma::renderer::backend::detail::DirectionalShadowMap;
+using karma::renderer::backend::detail::PointShadowMap;
+using karma::renderer::backend::detail::ResolveEnvironmentLightingSemantics;
+using karma::renderer::backend::detail::ResolveMaterialLighting;
+using karma::renderer::backend::detail::ResolveMaterialShaderInputContract;
+using karma::renderer::backend::detail::ResolveMaterialSemantics;
+using karma::renderer::backend::detail::ResolveDirectionalShadowSemantics;
+using karma::renderer::backend::detail::ResolveShaderPathDirectSample;
+using karma::renderer::backend::detail::ResolvedDebugLineSemantics;
+using karma::renderer::backend::detail::ResolvedEnvironmentLightingSemantics;
+using karma::renderer::backend::detail::ResolvedMaterialLighting;
+using karma::renderer::backend::detail::ResolvedMaterialSemantics;
+using karma::renderer::backend::detail::ResolvedDirectionalShadowSemantics;
+using karma::renderer::backend::detail::SamplerVariableAvailability;
+using karma::renderer::backend::detail::SampleDirectionalShadowVisibility;
+using karma::renderer::backend::detail::ComputeDirectionalShadowVisibilityForReceiver;
+using karma::renderer::backend::detail::ShadowClipDepthTransform;
+using karma::renderer::backend::detail::ResolveShadowClipDepthTransform;
+using karma::renderer::backend::detail::ResolveShadowClipYSign;
+using karma::renderer::backend::detail::ValidateResolvedDebugLineSemantics;
+using karma::renderer::backend::detail::ValidateResolvedEnvironmentLightingSemantics;
+using karma::renderer::backend::detail::ValidateResolvedMaterialLighting;
+using karma::renderer::backend::detail::ValidateResolvedMaterialSemantics;
+using karma::renderer::backend::detail::ValidateResolvedDirectionalShadowSemantics;
+using karma::renderer::backend::detail::BuildDirectionalShadowMap;
+using karma::renderer::backend::detail::BuildPointShadowMap;
+using karma::renderer::backend::detail::IsPointShadowMapLayoutCompatible;
+using karma::renderer::backend::detail::SelectPointShadowLightIndices;
 
 bool NearlyEqual(float lhs, float rhs, float epsilon = 1e-4f) {
     return std::fabs(lhs - rhs) <= epsilon;
@@ -1477,8 +1477,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_present_alignment =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 true,   // source_exists
                 true,   // source_declares_direct_contract
                 true,   // binary_exists
@@ -1496,8 +1496,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_present_stale =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 true,   // source_exists
                 true,   // source_declares_direct_contract
                 true,   // binary_exists
@@ -1513,8 +1513,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_pass =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1531,8 +1531,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_parse_fail =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 false,  // manifest_parse_ready
                 "source_missing_and_integrity_manifest_invalid_token_form",
@@ -1550,8 +1550,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_duplicate_key =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 false,  // manifest_parse_ready
                 "source_missing_and_integrity_manifest_duplicate_key",
@@ -1569,8 +1569,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_noncanonical_line_endings =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 false,  // manifest_parse_ready
                 "source_missing_and_integrity_manifest_noncanonical_line_endings",
@@ -1588,8 +1588,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_noncanonical_whitespace =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 false,  // manifest_parse_ready
                 "source_missing_and_integrity_manifest_noncanonical_whitespace",
@@ -1607,8 +1607,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_unknown_key =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 false,  // manifest_parse_ready
                 "source_missing_and_integrity_manifest_unknown_key",
@@ -1626,8 +1626,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_invalid_value_form =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 false,  // manifest_parse_ready
                 "source_missing_and_integrity_manifest_invalid_value_form",
@@ -1645,8 +1645,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_version_unsupported =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1664,8 +1664,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_algorithm_unsupported =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1683,8 +1683,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_missing_manifest =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 false,  // manifest_exists
                 false,  // manifest_parse_ready
                 "source_missing_and_integrity_manifest_parse_failed",
@@ -1702,8 +1702,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_hash_mismatch =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1721,8 +1721,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_signed_envelope_parse_fail =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 false,  // manifest_parse_ready
                 "source_missing_and_integrity_manifest_signed_envelope_metadata_missing",
@@ -1740,8 +1740,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_signed_envelope_deferred =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1761,8 +1761,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_signed_envelope_mode_unsupported =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1783,8 +1783,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_signed_envelope_trust_chain_invalid =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1807,8 +1807,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_signed_envelope_trust_root_missing =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1831,8 +1831,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_signed_envelope_signature_material_invalid =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1856,8 +1856,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_signed_envelope_verification_inputs_invalid =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1884,8 +1884,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_signed_envelope_signature_verification_failed =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1910,8 +1910,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_integrity_signed_envelope_verified =
-        karma::renderer_backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
-            karma::renderer_backend::detail::BgfxSourceAbsentIntegrityInput{
+        karma::renderer::backend::detail::EvaluateBgfxSourceAbsentIntegrityPolicy(
+            karma::renderer::backend::detail::BgfxSourceAbsentIntegrityInput{
                 true,   // manifest_exists
                 true,   // manifest_parse_ready
                 "ok",
@@ -1936,8 +1936,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -1955,8 +1955,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_integrity_fail =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -1973,8 +1973,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_signed_envelope_parse_fail =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -1991,8 +1991,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_signed_envelope_deferred =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2009,8 +2009,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_signed_envelope_mode_unsupported =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2027,8 +2027,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_signed_envelope_trust_root_missing =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2045,8 +2045,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_signed_envelope_trust_chain_invalid =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2063,8 +2063,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_signed_envelope_signature_material_invalid =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2081,8 +2081,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_signed_envelope_verification_inputs_invalid =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2099,8 +2099,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_signed_envelope_signature_verification_failed =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2117,8 +2117,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_signed_envelope_verified =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2135,8 +2135,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_duplicate_key_fail =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2153,8 +2153,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_noncanonical_line_endings_fail =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2171,8 +2171,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_noncanonical_whitespace_fail =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2189,8 +2189,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_unknown_key_fail =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2207,8 +2207,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_alignment_invalid_token_fail =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 true,   // binary_exists
@@ -2225,8 +2225,8 @@ bool RunDirectSamplerObservabilityContractChecks() {
     }
 
     const auto bgfx_source_absent_missing_binary =
-        karma::renderer_backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
-            karma::renderer_backend::detail::BgfxDirectSamplerAlignmentInput{
+        karma::renderer::backend::detail::EvaluateBgfxDirectSamplerAlignmentPolicy(
+            karma::renderer::backend::detail::BgfxDirectSamplerAlignmentInput{
                 false,  // source_exists
                 false,  // source_declares_direct_contract
                 false,  // binary_exists

@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace karma::ui::imgui {
+namespace karma::ui::backend::imgui {
 namespace {
 
 inline float Edge(float ax, float ay, float bx, float by, float px, float py) {
@@ -293,6 +293,6 @@ void RasterizeDrawData(const ImDrawData* draw_data,
     }
 }
 
-} // namespace karma::ui::imgui
+} // namespace karma::ui::backend::imgui
 
 #endif // defined(KARMA_HAS_IMGUI)

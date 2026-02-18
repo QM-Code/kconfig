@@ -3,8 +3,13 @@
 #include "karma/common/logging/logging.hpp"
 #include "karma/physics/physics_system.hpp"
 #include "physics/facade_state.hpp"
+#include "physics/static_mesh_ingest_observability.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <cstdint>
+#include <utility>
 
 #include <glm/geometric.hpp>
 
@@ -13,6 +18,12 @@ namespace {
 
 bool IsFiniteVec3(const glm::vec3& value) {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
+bool IsNonEmptyPath(const std::string& value) {
+    return std::find_if(value.begin(), value.end(), [](unsigned char ch) {
+        return !std::isspace(ch);
+    }) != value.end();
 }
 
 glm::vec3 SanitizedPlayerSize(const glm::vec3& size) {
@@ -25,12 +36,42 @@ glm::vec3 SanitizedPlayerSize(const glm::vec3& size) {
     return size;
 }
 
+enum class StaticMeshIngestTraceOutcome : uint8_t {
+    CreateSuccess = 0,
+    Reject,
+    RecoveryRecreateSuccess
+};
+
+const char* StaticMeshIngestTraceOutcomeTag(StaticMeshIngestTraceOutcome outcome) {
+    switch (outcome) {
+        case StaticMeshIngestTraceOutcome::CreateSuccess:
+            return "create_success";
+        case StaticMeshIngestTraceOutcome::Reject:
+            return "reject";
+        case StaticMeshIngestTraceOutcome::RecoveryRecreateSuccess:
+            return "recovery_recreate_success";
+        default:
+            return "unknown";
+    }
+}
+
+void TraceStaticMeshIngestOutcome(StaticMeshIngestTraceOutcome outcome,
+                                  detail::StaticMeshIngestTraceCause cause = detail::StaticMeshIngestTraceCause::None,
+                                  physics::backend::BodyId body = physics::backend::kInvalidBodyId) {
+    KARMA_TRACE("physics.system",
+                "World: static-mesh-ingest outcome='{}' cause='{}' body={}",
+                StaticMeshIngestTraceOutcomeTag(outcome),
+                detail::StaticMeshIngestTraceCauseTag(cause),
+                body);
+}
+
 } // namespace
 
 class World::Impl {
  public:
     std::shared_ptr<detail::WorldState> state = std::make_shared<detail::WorldState>();
     std::unique_ptr<PlayerController> player_controller{};
+    bool static_mesh_recovery_pending = false;
 
     PhysicsSystem* system() {
         return detail::ResolveSystem(state);
@@ -76,7 +117,7 @@ World::~World() {
 World::World(World&& other) noexcept = default;
 World& World::operator=(World&& other) noexcept = default;
 
-void World::setBackend(physics_backend::BackendKind backend) {
+void World::setBackend(physics::backend::BackendKind backend) {
     auto* system = impl_ ? impl_->system() : nullptr;
     if (!system) {
         return;
@@ -84,18 +125,18 @@ void World::setBackend(physics_backend::BackendKind backend) {
     system->setBackend(backend);
 }
 
-physics_backend::BackendKind World::requestedBackend() const {
+physics::backend::BackendKind World::requestedBackend() const {
     const auto* system = impl_ ? impl_->system() : nullptr;
     if (!system) {
-        return physics_backend::BackendKind::Auto;
+        return physics::backend::BackendKind::Auto;
     }
     return system->requestedBackend();
 }
 
-physics_backend::BackendKind World::selectedBackend() const {
+physics::backend::BackendKind World::selectedBackend() const {
     const auto* system = impl_ ? impl_->system() : nullptr;
     if (!system) {
-        return physics_backend::BackendKind::Auto;
+        return physics::backend::BackendKind::Auto;
     }
     return system->selectedBackend();
 }
@@ -103,7 +144,7 @@ physics_backend::BackendKind World::selectedBackend() const {
 const char* World::selectedBackendName() const {
     const auto* system = impl_ ? impl_->system() : nullptr;
     if (!system) {
-        return physics_backend::BackendKindName(physics_backend::BackendKind::Auto);
+        return physics::backend::BackendKindName(physics::backend::BackendKind::Auto);
     }
     return system->selectedBackendName();
 }
@@ -139,6 +180,7 @@ void World::shutdown() {
     if (impl_->state) {
         impl_->state->generation += 1;
     }
+    impl_->static_mesh_recovery_pending = false;
 }
 
 void World::beginFrame(float dt) {
@@ -211,7 +253,7 @@ RigidBody World::createBoxBody(const glm::vec3& half_extents,
         return RigidBody();
     }
 
-    physics_backend::BodyDesc desc{};
+    physics::backend::BodyDesc desc{};
     desc.is_static = mass <= 0.0f;
     desc.mass = desc.is_static ? 0.0f : mass;
     desc.gravity_enabled = (!desc.is_static) && std::fabs(impl_->state->gravity) > 1e-5f;
@@ -219,7 +261,7 @@ RigidBody World::createBoxBody(const glm::vec3& half_extents,
     desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 
     const auto body = system->createBody(desc);
-    if (body == physics_backend::kInvalidBodyId) {
+    if (body == physics::backend::kInvalidBodyId) {
         return RigidBody();
     }
 
@@ -228,25 +270,37 @@ RigidBody World::createBoxBody(const glm::vec3& half_extents,
 
 StaticBody World::createStaticMesh(const std::string& mesh_path) {
     auto* system = impl_ ? impl_->system() : nullptr;
-    if (!impl_ || !impl_->state || !system || !system->isInitialized() || mesh_path.empty()) {
+    if (!impl_ || !impl_->state || !system || !system->isInitialized()) {
+        return StaticBody();
+    }
+    if (!IsNonEmptyPath(mesh_path)) {
+        TraceStaticMeshIngestOutcome(
+            StaticMeshIngestTraceOutcome::Reject, detail::StaticMeshIngestTraceCause::InvalidIntent);
+        impl_->static_mesh_recovery_pending = true;
         return StaticBody();
     }
 
-    KARMA_TRACE("physics.system",
-                "World facade: createStaticMesh('{}') currently creates placeholder static body",
-                mesh_path);
-
-    physics_backend::BodyDesc desc{};
+    physics::backend::BodyDesc desc{};
     desc.is_static = true;
     desc.mass = 0.0f;
     desc.gravity_enabled = false;
+    desc.collider_shape.kind = physics::backend::ColliderShapeKind::Mesh;
+    desc.collider_shape.mesh_asset_path = mesh_path;
     desc.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
     desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 
     const auto body = system->createBody(desc);
-    if (body == physics_backend::kInvalidBodyId) {
+    if (body == physics::backend::kInvalidBodyId) {
+        TraceStaticMeshIngestOutcome(
+            StaticMeshIngestTraceOutcome::Reject, detail::ClassifyStaticMeshCreateRejectCause(mesh_path));
+        impl_->static_mesh_recovery_pending = true;
         return StaticBody();
     }
+    const bool recovered = std::exchange(impl_->static_mesh_recovery_pending, false);
+    TraceStaticMeshIngestOutcome(
+        recovered ? StaticMeshIngestTraceOutcome::RecoveryRecreateSuccess : StaticMeshIngestTraceOutcome::CreateSuccess,
+        detail::StaticMeshIngestTraceCause::None,
+        body);
 
     return StaticBody::CreateFacadeHandle(impl_->state, impl_->state->generation, body);
 }
@@ -274,7 +328,7 @@ PlayerController& World::createPlayer(const glm::vec3& size) {
         return *impl_->player_controller;
     }
 
-    physics_backend::BodyDesc desc{};
+    physics::backend::BodyDesc desc{};
     desc.is_static = false;
     desc.mass = 1.0f;
     desc.gravity_enabled = std::fabs(impl_->state->gravity) > 1e-5f;
@@ -284,7 +338,7 @@ PlayerController& World::createPlayer(const glm::vec3& size) {
     desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 
     const auto body = system->createBody(desc);
-    if (body == physics_backend::kInvalidBodyId) {
+    if (body == physics::backend::kInvalidBodyId) {
         impl_->player_controller = std::make_unique<PlayerController>();
         impl_->player_controller->setHalfExtents(resolved_size);
         return *impl_->player_controller;
@@ -321,7 +375,7 @@ bool World::raycast(const glm::vec3& from,
         return false;
     }
 
-    physics_backend::RaycastHit hit{};
+    physics::backend::RaycastHit hit{};
     if (!system->raycastClosest(from, direction, max_distance, hit)) {
         return false;
     }

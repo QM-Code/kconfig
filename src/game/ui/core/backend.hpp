@@ -17,7 +17,7 @@ namespace platform {
 class Window;
 }
 
-namespace ui_backend {
+namespace ui::backend {
 
 class Backend {
 public:
@@ -49,4 +49,4 @@ public:
 
 std::unique_ptr<Backend> CreateUiBackend(platform::Window &window);
 
-} // namespace ui_backend
+} // namespace ui::backend

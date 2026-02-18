@@ -11,7 +11,7 @@
 #error "BZ3 UI backend not set. Define KARMA_UI_BACKEND_IMGUI or KARMA_UI_BACKEND_RMLUI."
 #endif
 
-namespace ui_backend {
+namespace ui::backend {
 
 namespace {
 
@@ -58,4 +58,4 @@ std::unique_ptr<Backend> CreateUiBackend(platform::Window &window) {
 #endif
 }
 
-} // namespace ui_backend
+} // namespace ui::backend

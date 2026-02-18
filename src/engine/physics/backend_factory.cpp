@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace karma::physics_backend {
+namespace karma::physics::backend {
 namespace {
 
 std::string Lower(std::string_view input) {
@@ -100,4 +100,4 @@ std::unique_ptr<Backend> CreateBackend(BackendKind preferred, BackendKind* out_s
     return nullptr;
 }
 
-} // namespace karma::physics_backend
+} // namespace karma::physics::backend

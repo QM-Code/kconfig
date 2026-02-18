@@ -195,7 +195,7 @@ These are the likely public SDK-facing categories:
 - Input API (`include/karma/input/*`)
 - UI API (`include/karma/ui/*`)
 - Scene API (`include/karma/scene/*`)
-- Geometry API (`include/karma/geometry/*`)
+- Renderer asset ingestion API (`include/karma/renderer/assets/*`)
 - Core transport contracts (`include/karma/network/transport/*`)
 - Content/data/config utilities that are intentionally SDK-facing (to be explicitly confirmed per header).
 

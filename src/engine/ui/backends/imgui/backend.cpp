@@ -15,7 +15,7 @@
 
 #include <imgui.h>
 
-namespace karma::ui {
+namespace karma::ui::backend {
 namespace {
 
 class ImGuiBackend final : public BackendDriver {
@@ -259,16 +259,16 @@ std::unique_ptr<BackendDriver> CreateImGuiBackend() {
     return std::make_unique<ImGuiBackend>();
 }
 
-} // namespace karma::ui
+} // namespace karma::ui::backend
 
 #else
 
-namespace karma::ui {
+namespace karma::ui::backend {
 
 std::unique_ptr<BackendDriver> CreateImGuiBackend() {
     return imgui::CreateStubBackend();
 }
 
-} // namespace karma::ui
+} // namespace karma::ui::backend
 
 #endif // defined(KARMA_HAS_IMGUI)

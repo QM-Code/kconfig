@@ -1,13 +1,13 @@
 #include "karma/audio/backend.hpp"
 
-#include "audio/backends/backend_factory_internal.hpp"
+#include "audio/backends/factory_internal.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <string>
 #include <vector>
 
-namespace karma::audio_backend {
+namespace karma::audio::backend {
 namespace {
 
 std::string Lower(std::string_view input) {
@@ -100,5 +100,5 @@ std::unique_ptr<Backend> CreateBackend(BackendKind preferred, BackendKind* out_s
     return nullptr;
 }
 
-} // namespace karma::audio_backend
+} // namespace karma::audio::backend
 

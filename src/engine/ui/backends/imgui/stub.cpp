@@ -2,7 +2,7 @@
 
 #include "karma/common/logging/logging.hpp"
 
-namespace karma::ui::imgui {
+namespace karma::ui::backend::imgui {
 namespace {
 
 class StubBackend final : public BackendDriver {
@@ -40,4 +40,4 @@ std::unique_ptr<BackendDriver> CreateStubBackend() {
     return std::make_unique<StubBackend>();
 }
 
-} // namespace karma::ui::imgui
+} // namespace karma::ui::backend::imgui

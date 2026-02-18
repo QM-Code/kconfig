@@ -9,7 +9,7 @@
 
 namespace karma::platform { class Window; }
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 
 enum class BackendKind {
     Auto,
@@ -50,4 +50,4 @@ std::unique_ptr<Backend> CreateBackend(karma::platform::Window& window,
                                        BackendKind preferred = BackendKind::Auto,
                                        BackendKind* out_selected = nullptr);
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

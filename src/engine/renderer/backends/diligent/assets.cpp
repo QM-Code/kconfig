@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 
 renderer::MeshId CreateDiligentMeshAsset(
     Diligent::IRenderDevice* device,
@@ -185,4 +185,4 @@ void DestroyDiligentMaterialAsset(
     materials.erase(material);
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

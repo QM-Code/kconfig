@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 
 bgfx::TextureHandle createWhiteTexture() {
     const uint32_t white = 0xffffffff;
@@ -62,4 +62,4 @@ bgfx::TextureHandle createTextureFromData(const renderer::MeshData::TextureData&
     return texture;
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

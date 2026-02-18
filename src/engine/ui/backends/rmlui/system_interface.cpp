@@ -8,7 +8,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace karma::ui::rmlui {
+namespace karma::ui::backend::rmlui {
 
 double SystemInterface::GetElapsedTime() {
     const auto now = std::chrono::steady_clock::now();
@@ -34,6 +34,6 @@ bool SystemInterface::LogMessage(Rml::Log::Type type, const Rml::String& message
     return true;
 }
 
-} // namespace karma::ui::rmlui
+} // namespace karma::ui::backend::rmlui
 
 #endif // defined(KARMA_HAS_RMLUI)

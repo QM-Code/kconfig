@@ -6,7 +6,7 @@
 #include <csignal>
 #include <string>
 
-namespace bz3::server::runtime_detail {
+namespace bz3::server::runtime::detail {
 
 namespace {
 
@@ -31,4 +31,4 @@ bool ShouldKeepRunning() {
     return g_running.load();
 }
 
-} // namespace bz3::server::runtime_detail
+} // namespace bz3::server::runtime::detail

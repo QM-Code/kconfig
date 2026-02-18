@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace karma::renderer_backend::detail {
+namespace karma::renderer::backend::detail {
 
 struct ResolvedEnvironmentLightingSemantics {
     bool enabled = true;
@@ -114,4 +114,4 @@ inline glm::vec4 ComputeEnvironmentClearColor(const ResolvedEnvironmentLightingS
     return glm::vec4(clear, 1.0f);
 }
 
-} // namespace karma::renderer_backend::detail
+} // namespace karma::renderer::backend::detail

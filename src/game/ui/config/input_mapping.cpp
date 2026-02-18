@@ -2,7 +2,7 @@
 
 #include "karma/platform/window.hpp"
 
-namespace ui::input_mapping {
+namespace ui::input::mapping {
 
 #if defined(KARMA_UI_BACKEND_IMGUI)
 ImGuiKey ToImGuiKey(platform::Key key) {
@@ -281,4 +281,4 @@ int ToRmlMouseButton(platform::MouseButton button) {
 }
 #endif
 
-} // namespace ui::input_mapping
+} // namespace ui::input::mapping

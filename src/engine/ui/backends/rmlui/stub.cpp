@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <string>
 
-namespace karma::ui::rmlui {
+namespace karma::ui::backend::rmlui {
 namespace {
 
 renderer::MeshData::TextureData BuildRmlDebugTexture(int width, int height) {
@@ -107,6 +107,6 @@ std::unique_ptr<Adapter> CreateAdapter() {
     return std::make_unique<AdapterStub>();
 }
 
-} // namespace karma::ui::rmlui
+} // namespace karma::ui::backend::rmlui
 
 #endif // !defined(KARMA_HAS_RMLUI)

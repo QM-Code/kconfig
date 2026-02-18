@@ -13,10 +13,10 @@
 
 namespace {
 
-using karma::audio_backend::BackendKind;
-using karma::audio_backend::BackendKindName;
-using karma::audio_backend::CompiledBackends;
-using karma::audio_backend::ParseBackendKind;
+using karma::audio::backend::BackendKind;
+using karma::audio::backend::BackendKindName;
+using karma::audio::backend::CompiledBackends;
+using karma::audio::backend::ParseBackendKind;
 
 bool ContainsBackend(const std::vector<BackendKind>& values, BackendKind needle) {
     for (const BackendKind value : values) {
@@ -88,12 +88,12 @@ bool NearlyEqual(float lhs, float rhs, float epsilon = 1e-5f) {
 }
 
 bool RunMultiChannelRoutingPolicyChecks() {
-    karma::audio_backend::ListenerState listener{};
+    karma::audio::backend::ListenerState listener{};
     listener.position = {0.0f, 0.0f, 0.0f};
     listener.forward = {0.0f, 0.0f, -1.0f};
     listener.up = {0.0f, 1.0f, 0.0f};
 
-    const auto gains = karma::audio_backend::detail::ComputeSpatialGains(
+    const auto gains = karma::audio::backend::detail::ComputeSpatialGains(
         listener,
         glm::vec3{2.0f, 0.0f, 2.0f});
 
@@ -102,15 +102,15 @@ bool RunMultiChannelRoutingPolicyChecks() {
         return false;
     }
 
-    if (!NearlyEqual(karma::audio_backend::detail::ChannelSpatialGain(gains, 0, 2), gains.left)) {
+    if (!NearlyEqual(karma::audio::backend::detail::ChannelSpatialGain(gains, 0, 2), gains.left)) {
         std::cerr << "multi-channel routing check left channel mismatch\n";
         return false;
     }
-    if (!NearlyEqual(karma::audio_backend::detail::ChannelSpatialGain(gains, 1, 2), gains.right)) {
+    if (!NearlyEqual(karma::audio::backend::detail::ChannelSpatialGain(gains, 1, 2), gains.right)) {
         std::cerr << "multi-channel routing check right channel mismatch\n";
         return false;
     }
-    if (!NearlyEqual(karma::audio_backend::detail::ChannelSpatialGain(gains, 0, 1), gains.master)) {
+    if (!NearlyEqual(karma::audio::backend::detail::ChannelSpatialGain(gains, 0, 1), gains.master)) {
         std::cerr << "multi-channel routing check mono master mismatch\n";
         return false;
     }
@@ -118,7 +118,7 @@ bool RunMultiChannelRoutingPolicyChecks() {
     const float expected_fold = 0.5f * (gains.left + gains.right);
     for (const int channel_count : {3, 4, 6, 8}) {
         for (int channel = 2; channel < channel_count; ++channel) {
-            const float actual = karma::audio_backend::detail::ChannelSpatialGain(gains, channel, channel_count);
+            const float actual = karma::audio::backend::detail::ChannelSpatialGain(gains, channel, channel_count);
             if (!NearlyEqual(actual, expected_fold)) {
                 std::cerr << "multi-channel routing check mismatch for channel_count=" << channel_count
                           << " channel=" << channel << " expected=" << expected_fold << " actual=" << actual
@@ -225,11 +225,11 @@ bool RunBackendSmoke(BackendKind backend) {
         return false;
     }
 
-    karma::audio_backend::ListenerState listener{};
+    karma::audio::backend::ListenerState listener{};
     listener.position = {1.0f, 2.0f, 3.0f};
     audio.setListener(listener);
 
-    karma::audio_backend::PlayRequest one_shot{};
+    karma::audio::backend::PlayRequest one_shot{};
     one_shot.asset_path = "audio/test/oneshot";
     one_shot.gain = 0.2f;
     one_shot.pitch = 1.0f;
@@ -237,14 +237,14 @@ bool RunBackendSmoke(BackendKind backend) {
     one_shot.world_position = glm::vec3{1.0f, 2.0f, 6.0f};
     audio.playOneShot(one_shot);
 
-    karma::audio_backend::PlayRequest looped{};
+    karma::audio::backend::PlayRequest looped{};
     looped.asset_path = "audio/test/loop";
     looped.gain = 0.1f;
     looped.pitch = 1.25f;
     looped.loop = true;
     looped.world_position = glm::vec3{-3.0f, 1.0f, 8.0f};
-    const karma::audio_backend::VoiceId voice = audio.startVoice(looped);
-    if (voice == karma::audio_backend::kInvalidVoiceId) {
+    const karma::audio::backend::VoiceId voice = audio.startVoice(looped);
+    if (voice == karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend) << " failed to start voice\n";
         audio.shutdown();
         return false;
@@ -262,7 +262,7 @@ bool RunBackendSmoke(BackendKind backend) {
         std::cerr << "backend " << BackendKindName(backend) << " still initialized after shutdown\n";
         return false;
     }
-    if (audio.startVoice(looped) != karma::audio_backend::kInvalidVoiceId) {
+    if (audio.startVoice(looped) != karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend) << " allowed startVoice after shutdown\n";
         return false;
     }
@@ -274,11 +274,11 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     karma::audio::AudioSystem audio;
     audio.setBackend(backend);
 
-    karma::audio_backend::ListenerState listener{};
+    karma::audio::backend::ListenerState listener{};
     listener.position = {9.0f, 8.0f, 7.0f};
     audio.setListener(listener);
 
-    karma::audio_backend::PlayRequest request{};
+    karma::audio::backend::PlayRequest request{};
     request.asset_path = "audio/test/uninitialized";
     request.gain = 0.2f;
     request.pitch = 1.0f;
@@ -287,12 +287,12 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     audio.beginFrame(1.0f / 60.0f);
     audio.update(1.0f / 60.0f);
     audio.endFrame();
-    if (audio.startVoice(request) != karma::audio_backend::kInvalidVoiceId) {
+    if (audio.startVoice(request) != karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend)
                   << " startVoice unexpectedly succeeded before init\n";
         return false;
     }
-    audio.stopVoice(karma::audio_backend::kInvalidVoiceId);
+    audio.stopVoice(karma::audio::backend::kInvalidVoiceId);
 
     audio.init();
     if (!audio.isInitialized()) {
@@ -302,7 +302,7 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     }
     audio.shutdown();
 
-    if (audio.startVoice(request) != karma::audio_backend::kInvalidVoiceId) {
+    if (audio.startVoice(request) != karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend)
                   << " startVoice unexpectedly succeeded after shutdown\n";
         return false;
@@ -321,17 +321,17 @@ bool RunVoiceLifecycleChecks(BackendKind backend) {
         return false;
     }
 
-    karma::audio_backend::PlayRequest looped{};
+    karma::audio::backend::PlayRequest looped{};
     looped.asset_path = "audio/test/lifecycle-loop";
     looped.gain = 0.15f;
     looped.pitch = 1.0f;
     looped.loop = true;
     looped.world_position = glm::vec3{0.0f, 0.0f, 2.5f};
 
-    std::unordered_set<karma::audio_backend::VoiceId> ids{};
+    std::unordered_set<karma::audio::backend::VoiceId> ids{};
     for (int i = 0; i < 3; ++i) {
         const auto id = audio.startVoice(looped);
-        if (id == karma::audio_backend::kInvalidVoiceId) {
+        if (id == karma::audio::backend::kInvalidVoiceId) {
             std::cerr << "backend " << BackendKindName(backend)
                       << " failed to start looped voice " << i << "\n";
             audio.shutdown();
@@ -345,7 +345,7 @@ bool RunVoiceLifecycleChecks(BackendKind backend) {
         }
     }
 
-    karma::audio_backend::PlayRequest one_shot{};
+    karma::audio::backend::PlayRequest one_shot{};
     one_shot.asset_path = "audio/test/lifecycle-oneshot";
     one_shot.gain = 0.25f;
     one_shot.pitch = 0.9f;
@@ -359,7 +359,7 @@ bool RunVoiceLifecycleChecks(BackendKind backend) {
     }
     audio.endFrame();
 
-    audio.stopVoice(karma::audio_backend::kInvalidVoiceId);
+    audio.stopVoice(karma::audio::backend::kInvalidVoiceId);
     audio.stopVoice(99999999);
     for (const auto id : ids) {
         audio.stopVoice(id);
@@ -384,14 +384,14 @@ bool RunReinitCycleChecks(BackendKind backend) {
             return false;
         }
 
-        karma::audio_backend::PlayRequest request{};
+        karma::audio::backend::PlayRequest request{};
         request.asset_path = "audio/test/reinit";
         request.gain = 0.1f + (0.05f * static_cast<float>(cycle));
         request.pitch = 1.0f;
         request.loop = (cycle % 2 == 0);
         request.world_position = glm::vec3{static_cast<float>(cycle), 0.0f, 3.0f};
         const auto id = audio.startVoice(request);
-        if (id == karma::audio_backend::kInvalidVoiceId) {
+        if (id == karma::audio::backend::kInvalidVoiceId) {
             std::cerr << "backend " << BackendKindName(backend)
                       << " failed startVoice on reinit cycle " << cycle << "\n";
             audio.shutdown();
@@ -405,7 +405,7 @@ bool RunReinitCycleChecks(BackendKind backend) {
         audio.stopVoice(id);
         audio.shutdown();
 
-        if (audio.startVoice(request) != karma::audio_backend::kInvalidVoiceId) {
+        if (audio.startVoice(request) != karma::audio::backend::kInvalidVoiceId) {
             std::cerr << "backend " << BackendKindName(backend)
                       << " startVoice succeeded after shutdown on cycle " << cycle << "\n";
             return false;
@@ -424,20 +424,20 @@ bool RunListenerAndPositionalSemanticsChecks(BackendKind backend) {
         return false;
     }
 
-    karma::audio_backend::ListenerState listener{};
+    karma::audio::backend::ListenerState listener{};
     listener.position = {0.0f, 1.0f, 0.0f};
     listener.forward = {0.0f, 0.0f, -1.0f};
     listener.up = {0.0f, 1.0f, 0.0f};
     audio.setListener(listener);
 
-    karma::audio_backend::PlayRequest positioned{};
+    karma::audio::backend::PlayRequest positioned{};
     positioned.asset_path = "audio/test/positioned";
     positioned.gain = 0.2f;
     positioned.pitch = 1.0f;
     positioned.loop = true;
     positioned.world_position = glm::vec3{2.0f, 1.0f, 5.0f};
     const auto positioned_voice = audio.startVoice(positioned);
-    if (positioned_voice == karma::audio_backend::kInvalidVoiceId) {
+    if (positioned_voice == karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend)
                   << " failed to start positioned voice\n";
         audio.shutdown();
@@ -449,12 +449,12 @@ bool RunListenerAndPositionalSemanticsChecks(BackendKind backend) {
     listener.up = {0.0f, 1.0f, 0.0f};
     audio.setListener(listener);
 
-    karma::audio_backend::PlayRequest invalid_positioned = positioned;
+    karma::audio::backend::PlayRequest invalid_positioned = positioned;
     invalid_positioned.asset_path = "audio/test/invalid-positioned";
     invalid_positioned.loop = false;
     invalid_positioned.world_position =
         glm::vec3{std::numeric_limits<float>::quiet_NaN(), 0.0f, 1.0f};
-    if (audio.startVoice(invalid_positioned) != karma::audio_backend::kInvalidVoiceId) {
+    if (audio.startVoice(invalid_positioned) != karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend)
                   << " accepted non-finite positioned request\n";
         audio.shutdown();
@@ -462,12 +462,12 @@ bool RunListenerAndPositionalSemanticsChecks(BackendKind backend) {
     }
     audio.playOneShot(invalid_positioned);
 
-    karma::audio_backend::PlayRequest non_positional = positioned;
+    karma::audio::backend::PlayRequest non_positional = positioned;
     non_positional.asset_path = "audio/test/non-positional";
     non_positional.loop = false;
     non_positional.world_position.reset();
     const auto non_positional_voice = audio.startVoice(non_positional);
-    if (non_positional_voice == karma::audio_backend::kInvalidVoiceId) {
+    if (non_positional_voice == karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend)
                   << " failed to start non-positional voice\n";
         audio.shutdown();
@@ -511,7 +511,7 @@ bool RunNonFiniteGainPitchChecks(BackendKind backend) {
         return false;
     }
 
-    karma::audio_backend::PlayRequest valid{};
+    karma::audio::backend::PlayRequest valid{};
     valid.asset_path = "audio/test/finite-gain-pitch";
     valid.gain = 0.2f;
     valid.pitch = 1.0f;
@@ -519,18 +519,18 @@ bool RunNonFiniteGainPitchChecks(BackendKind backend) {
     valid.world_position.reset();
 
     const auto baseline_voice = audio.startVoice(valid);
-    if (baseline_voice == karma::audio_backend::kInvalidVoiceId) {
+    if (baseline_voice == karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend)
                   << " failed to start baseline voice in non-finite gain/pitch check\n";
         audio.shutdown();
         return false;
     }
 
-    karma::audio_backend::PlayRequest invalid_gain = valid;
+    karma::audio::backend::PlayRequest invalid_gain = valid;
     invalid_gain.asset_path = "audio/test/invalid-gain";
     invalid_gain.loop = false;
     invalid_gain.gain = std::numeric_limits<float>::quiet_NaN();
-    if (audio.startVoice(invalid_gain) != karma::audio_backend::kInvalidVoiceId) {
+    if (audio.startVoice(invalid_gain) != karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend)
                   << " accepted non-finite gain request\n";
         audio.shutdown();
@@ -538,11 +538,11 @@ bool RunNonFiniteGainPitchChecks(BackendKind backend) {
     }
     audio.playOneShot(invalid_gain);
 
-    karma::audio_backend::PlayRequest invalid_pitch = valid;
+    karma::audio::backend::PlayRequest invalid_pitch = valid;
     invalid_pitch.asset_path = "audio/test/invalid-pitch";
     invalid_pitch.loop = false;
     invalid_pitch.pitch = std::numeric_limits<float>::infinity();
-    if (audio.startVoice(invalid_pitch) != karma::audio_backend::kInvalidVoiceId) {
+    if (audio.startVoice(invalid_pitch) != karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend)
                   << " accepted non-finite pitch request\n";
         audio.shutdown();
@@ -550,10 +550,10 @@ bool RunNonFiniteGainPitchChecks(BackendKind backend) {
     }
     audio.playOneShot(invalid_pitch);
 
-    karma::audio_backend::PlayRequest followup_valid = valid;
+    karma::audio::backend::PlayRequest followup_valid = valid;
     followup_valid.asset_path = "audio/test/followup-finite-gain-pitch";
     const auto followup_voice = audio.startVoice(followup_valid);
-    if (followup_voice == karma::audio_backend::kInvalidVoiceId) {
+    if (followup_voice == karma::audio::backend::kInvalidVoiceId) {
         std::cerr << "backend " << BackendKindName(backend)
                   << " failed to start follow-up finite voice after invalid gain/pitch requests\n";
         audio.shutdown();

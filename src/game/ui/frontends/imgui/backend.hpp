@@ -16,7 +16,7 @@ namespace platform {
 class Window;
 }
 
-namespace ui_backend {
+namespace ui::backend {
 
 class ImGuiBackend final : public Backend {
 public:
@@ -67,4 +67,4 @@ private:
     void drawTexture(const graphics::TextureHandle& texture);
 };
 
-} // namespace ui_backend
+} // namespace ui::backend

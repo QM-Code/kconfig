@@ -2,9 +2,9 @@
 
 ## Project Snapshot
 - Current owner: `specialist-physics-refactor`
-- Status: `in progress` (Phase 4t validated in `build-a3`; `physics.system` runtime-command traces now emit deterministic stage+operation+outcome+failure-cause tags)
+- Status: `Phase 4 complete / paused` (final Phase 4 shared-helper closeout validated in `build-a3`; paused for backend naming/split handoff before Phase 5)
 - Supersedes: `docs/projects/physics-backend.md` (retired to `docs/archive/physics-backend-retired-2026-02-17.md`)
-- Immediate next task: execute a bounded Phase 4 follow-up to extend runtime-command observability with deterministic tag coverage depth while keeping API/behavior unchanged.
+- Immediate next task: hand off to backend naming/split agent, then re-open planning for Phase 5 (no new Phase 5 implementation work in this track until rename/split handoff is complete).
 - Validation gate: `./scripts/test-engine-backends.sh <build-dir>`
 
 ## Mission
@@ -904,6 +904,145 @@ Explicit remaining deferrals after Phase 4t:
 - No engine loop integration in `src/engine/app/*`.
 - No gameplay migration wiring.
 
+## Phase 4v Runtime Command Decision-Path Trace Tag Slice (2026-02-18)
+Landed in this bounded slice:
+- Extended `physics.system` runtime-command trace metadata in `src/engine/physics/ecs_sync_system.cpp` with deterministic decision-path tags:
+  - `skipped_no_command`,
+  - `skipped_ineligible_non_dynamic`,
+  - `skipped_ineligible_kinematic`,
+  - `applied_runtime`,
+  - `failed_runtime`,
+  - `recovered_via_fallback`.
+- Kept existing stage+operation+outcome+cause+precedence tags intact and additive.
+- Added bounded parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp` for:
+  - helper-level decision-path mapping matrix,
+  - helper-level precedence mapping coverage for multi-command/multi-failure contexts,
+  - fixture-context checks covering success, skip, failure, and recovery decision-path classifications.
+- Kept runtime behavior unchanged:
+  - no command apply/consume/fallback policy changes,
+  - no substrate/backend/API changes.
+
+Explicit remaining deferrals after Phase 4v:
+- No backend-native player-controller runtime object.
+- No grounded/controller movement gameplay semantics in engine physics contracts.
+- No real static-mesh geometry ingestion pipeline.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
+## Phase 4w Runtime Command End-to-End Trace Capture Slice (2026-02-18)
+Landed in this bounded slice:
+- Added bounded in-test trace capture harness in `src/engine/physics/tests/physics_backend_parity_test.cpp` for `physics.system` runtime-command trace assertions.
+- Added emitted-log (not helper-only) coverage for representative runtime-command paths:
+  - success/apply path,
+  - skip/ineligible path,
+  - failure path with deterministic cause,
+  - recovery path after fallback.
+- Emitted payload assertions now validate runtime-command tag groups from actual logs:
+  - stage,
+  - operation,
+  - outcome,
+  - cause (failure path),
+  - precedence metadata,
+  - decision-path metadata.
+- Kept scope behavior-neutral:
+  - no substrate/backend/API changes,
+  - no command lifecycle/fallback semantic changes.
+
+Explicit remaining deferrals after Phase 4w:
+- No backend-native player-controller runtime object.
+- No grounded/controller movement gameplay semantics in engine physics contracts.
+- No real static-mesh geometry ingestion pipeline.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
+## Phase 4x Static-Mesh Ingestion Slice (2026-02-18)
+Landed in this bounded slice:
+- Extended substrate shape contract in `include/karma/physics/backend.hpp` with backend-neutral mesh create-time metadata (`ColliderShapeKind::Mesh` + `ColliderShapeDesc::mesh_asset_path`).
+- Kept substrate ownership/passthrough model in `PhysicsSystem` while preserving existing BodyId-backed behavior.
+- Replaced ECS sync mesh placeholder mapping in `src/engine/physics/ecs_sync_system.cpp`:
+  - static mesh collider intent now emits real mesh shape intent/path into `BodyDesc`,
+  - deterministic teardown/recreate behavior remains policy-driven for invalid/unsupported transitions.
+- Added minimal real static mesh collision ingestion paths in both backends:
+  - Jolt: Assimp scene triangles -> `JPH::MeshShapeSettings` for static runtime bodies,
+  - PhysX: Assimp scene triangles -> `PxTriangleMesh` cooking/create path for static runtime bodies.
+- Preserved deterministic reject behavior for invalid/missing mesh assets and unsupported runtime intent combinations.
+- Added bounded parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp` for:
+  - substrate static-mesh create success on both backends,
+  - missing mesh path deterministic reject,
+  - ECS sync static-mesh create/teardown/recovery behavior on invalid/missing mesh-path transitions.
+
+Explicit remaining deferrals after Phase 4x:
+- No dynamic mesh-body ingestion support.
+- Public `World::createStaticMesh(...)` facade path still uses bounded placeholder behavior and is not yet migrated to this substrate contract.
+- No backend-native player-controller runtime object.
+- No grounded/controller movement gameplay semantics in engine physics contracts.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
+## Phase 4y Static-Mesh Observability + Facade Parity Slice (2026-02-18)
+Landed in this bounded slice:
+- Wired facade `World::createStaticMesh(...)` in `src/engine/physics/world.cpp` to real static mesh substrate ingestion:
+  - now emits `BodyDesc` with `shape=Mesh` + `mesh_asset_path`,
+  - removes prior placeholder static-body behavior for valid static mesh intent.
+- Added deterministic static-mesh ingest trace tags in `src/engine/physics/ecs_sync_system.cpp` (`physics.system`):
+  - `create_success`,
+  - `invalid_intent_reject`,
+  - `backend_reject`,
+  - `recovery_recreate_success`.
+- Added bounded mesh ingest recovery bookkeeping in ECS sync to classify recreate-after-reject transitions deterministically.
+- Extended parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp`:
+  - facade smoke now verifies real mesh-path ingestion through `World::createStaticMesh(...)`,
+  - facade reject/recovery path for missing mesh path then corrected path,
+  - ECS sync trace-capture assertions now validate emitted static-mesh ingest reject/recovery tags.
+
+Explicit remaining deferrals after Phase 4y:
+- No dynamic mesh-body ingestion support.
+- No backend-native player-controller runtime object.
+- No grounded/controller movement gameplay semantics in engine physics contracts.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
+## Phase 4z Static-Mesh Reject-Cause Observability Breadth Slice (2026-02-18)
+Landed in this bounded slice:
+- Extended static-mesh ingest tracing in `src/engine/physics/ecs_sync_system.cpp` and `src/engine/physics/world.cpp` to emit deterministic `outcome` + `cause` metadata for `physics.system`:
+  - reject causes now include:
+    - `invalid_intent`,
+    - `ineligible_dynamic_mesh_intent`,
+    - `mesh_asset_load_or_cook_failed`,
+    - `backend_reject_create`.
+- Kept runtime behavior/API unchanged while hardening observability:
+  - ECS sync now classifies mesh+dynamic intent explicitly as `ineligible_dynamic_mesh_intent`,
+  - create-time mesh reject traces now distinguish missing/non-file mesh paths (`mesh_asset_load_or_cook_failed`) from backend create rejection on existing files (`backend_reject_create`).
+- Extended parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp`:
+  - ECS sync trace-capture assertions now validate emitted cause tags for create success, all reject categories above, and reject->corrected recovery.
+  - Facade smoke/parity path now captures `physics.system` traces and asserts create success, reject categories (`invalid_intent`, `mesh_asset_load_or_cook_failed`, `backend_reject_create`), and reject->corrected recovery.
+
+Explicit remaining deferrals after Phase 4z:
+- No dynamic mesh-body ingestion support.
+- No backend-native player-controller runtime object.
+- No grounded/controller movement gameplay semantics in engine physics contracts.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
+## Phase 4 Follow-up Static-Mesh Reject-Cause Helper Unification Slice (2026-02-18)
+Landed in this bounded slice:
+- Removed duplicate static-mesh reject-cause classification/tag logic from:
+  - `src/engine/physics/ecs_sync_system.cpp`,
+  - `src/engine/physics/world.cpp`.
+- Introduced one shared internal helper in:
+  - `src/engine/physics/static_mesh_ingest_observability.hpp`.
+- Routed both ECS sync and world facade trace paths through the shared helper:
+  - common cause enum/tag mapping,
+  - common create-reject cause classifier.
+- Preserved behavior and observability outputs (no API changes, no gameplay wiring, no dynamic-mesh additions).
+
+Explicit remaining deferrals after this Phase 4 follow-up:
+- No dynamic mesh-body ingestion support.
+- No backend-native player-controller runtime object.
+- No grounded/controller movement gameplay semantics in engine physics contracts.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
 ## Current Status
 - `2026-02-17`: Project created as full replacement for backend-only parity track.
 - `2026-02-17`: `physics-backend.md` retired and subsumed into this plan.
@@ -1138,7 +1277,61 @@ Explicit remaining deferrals after Phase 4t:
   - `./scripts/test-engine-backends.sh build-a3` (pass)
   - `./docs/scripts/lint-project-docs.sh` (pass)
   - `./abuild.py --lock-status -d build-a3` (owner verified)
-- Next implementation slice: execute a bounded Phase 4 follow-up to deepen runtime-command observability coverage while preserving current API and runtime behavior.
+- `2026-02-18`: Phase 4v runtime-command decision-path observability tag slice landed:
+  - ECS pre-sim `physics.system` runtime-command traces now include deterministic decision-path tags while preserving existing stage/operation/outcome/cause/precedence metadata.
+  - helper-level matrix and fixture-context coverage now validate success/skip/failure/recovery decision-path classification deterministically.
+- `2026-02-18`: Phase 4v validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- `2026-02-18`: Phase 4w runtime-command end-to-end trace capture slice landed:
+  - parity test now captures and asserts `physics.system` runtime-command tags from emitted logs (not only helper classification),
+  - representative success/skip/failure/recovery decision paths are validated against actual trace payloads.
+- `2026-02-18`: Phase 4w validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- `2026-02-18`: Phase 4x static-mesh ingestion slice landed:
+  - substrate shape contract now carries mesh create-time metadata (`shape=Mesh`, `mesh_asset_path`) for backend-owned static ingestion,
+  - ECS sync mesh intent path now emits real mesh ingestion intent instead of placeholder mesh->box mapping,
+  - Jolt/PhysX backend create paths now ingest static mesh assets via real triangle-mesh shape creation with deterministic reject behavior.
+- `2026-02-18`: Phase 4x validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- `2026-02-18`: Phase 4y static-mesh observability + facade parity slice landed:
+  - `World::createStaticMesh(...)` now uses real static mesh ingestion path through substrate `BodyDesc` mesh fields,
+  - ECS sync now emits deterministic static-mesh ingest outcome tags (`create_success`, `invalid_intent_reject`, `backend_reject`, `recovery_recreate_success`),
+  - parity tests now cover facade reject/recovery and emitted static-mesh ingest trace tag assertions.
+- `2026-02-18`: Phase 4y validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- `2026-02-18`: Phase 4z static-mesh reject-cause observability breadth slice landed:
+  - ECS sync and world facade static-mesh traces now emit deterministic `outcome` + `cause` tags,
+  - reject causes now include `invalid_intent`, `ineligible_dynamic_mesh_intent`, `mesh_asset_load_or_cook_failed`, and `backend_reject_create`,
+  - parity/facade trace-capture coverage now asserts all reject categories plus reject->corrected recovery paths from emitted `physics.system` logs.
+- `2026-02-18`: Phase 4z validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- `2026-02-18`: Phase 4 follow-up static-mesh reject-cause helper unification slice landed:
+  - ECS sync + world facade now share one internal static-mesh reject-cause classifier/tag helper (`src/engine/physics/static_mesh_ingest_observability.hpp`),
+  - duplicated reject-cause logic was removed from both call sites while preserving emitted tags and behavior.
+- `2026-02-18`: Phase 4 follow-up validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+- `2026-02-18`: Phase 4 closeout (final pre-rename slice) confirmed:
+  - shared static-mesh reject-cause helper unification is landed as the final Phase 4 task,
+  - Phase 4 is complete and this track is paused for backend naming/split handoff,
+  - no Phase 5 implementation work started in this slice.
+- Next implementation slice: after backend naming/split handoff completion, resume with a new bounded Phase 5 planning/entry slice.
 
 ## Handoff Checklist
 - [x] `physics-refactor.md` remains the single active physics project doc in `docs/projects/`.

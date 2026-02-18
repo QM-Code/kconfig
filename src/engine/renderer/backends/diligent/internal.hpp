@@ -25,7 +25,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 
 class DiligentBackend;
 
@@ -335,4 +335,4 @@ void CreateDiligentLinePipeline(
 void SetDiligentViewport(Diligent::IDeviceContext* context, uint32_t width, uint32_t height);
 void SubmitDiligentRenderLayerDraws(const DiligentRenderSubmissionInput& input);
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

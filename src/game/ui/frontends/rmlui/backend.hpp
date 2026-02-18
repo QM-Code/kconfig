@@ -21,7 +21,7 @@ class RmlUiHud;
 class RmlUiConsole;
 }
 
-namespace ui_backend {
+namespace ui::backend {
 
 class RmlUiBackend final : public Backend {
 public:
@@ -67,4 +67,4 @@ private:
     const std::string &cachedTwemojiMarkup(const std::string &text);
 };
 
-} // namespace ui_backend
+} // namespace ui::backend

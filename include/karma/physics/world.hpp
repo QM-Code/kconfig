@@ -26,9 +26,9 @@ class World {
     World(World&& other) noexcept;
     World& operator=(World&& other) noexcept;
 
-    void setBackend(physics_backend::BackendKind backend);
-    physics_backend::BackendKind requestedBackend() const;
-    physics_backend::BackendKind selectedBackend() const;
+    void setBackend(physics::backend::BackendKind backend);
+    physics::backend::BackendKind requestedBackend() const;
+    physics::backend::BackendKind selectedBackend() const;
     const char* selectedBackendName() const;
     bool isInitialized() const;
 

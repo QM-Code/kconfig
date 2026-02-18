@@ -7,7 +7,7 @@
 #include <fstream>
 #include <string>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 bgfx::ShaderHandle loadShader(const std::string& path) {
@@ -113,4 +113,4 @@ BgfxUniformSamplerHandles CreateBgfxUniformSamplerHandles(
     return handles;
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

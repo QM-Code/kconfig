@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace bz3::client::runtime_detail {
+namespace bz3::client::runtime::detail {
 
 bz3::GameStartupOptions ResolveGameStartupOptions(const karma::cli::client::AppOptions& options) {
     bz3::GameStartupOptions startup{};
@@ -74,4 +74,4 @@ bz3::GameStartupOptions ResolveGameStartupOptions(const karma::cli::client::AppO
     return startup;
 }
 
-} // namespace bz3::client::runtime_detail
+} // namespace bz3::client::runtime::detail

@@ -18,7 +18,7 @@
 #include <cstring>
 #include <string>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 constexpr bgfx::ViewId kBgfxShadowViewIdBase = 0;
@@ -528,4 +528,4 @@ void SubmitBgfxRenderLayerDraws(const BgfxRenderSubmissionInput& input) {
     }
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

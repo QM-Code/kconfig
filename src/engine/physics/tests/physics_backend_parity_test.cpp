@@ -1,15 +1,20 @@
 #include "karma/ecs/world.hpp"
+#include "karma/common/logging/logging.hpp"
 #include "karma/physics/backend.hpp"
 #include "karma/physics/physics_system.hpp"
 #include "karma/physics/world.hpp"
 #include "karma/scene/components.hpp"
 #include "physics/ecs_sync_system.hpp"
 
+#include <spdlog/sinks/base_sink.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <limits>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -20,6 +25,10 @@ const char* ClassifyRuntimeCommandTraceOperationTag(bool has_linear_force,
                                                     bool has_linear_impulse,
                                                     bool has_angular_torque,
                                                     bool has_angular_impulse);
+const char* ClassifyRuntimeCommandTraceOperationPrecedenceTag(bool has_linear_force,
+                                                              bool has_linear_impulse,
+                                                              bool has_angular_torque,
+                                                              bool has_angular_impulse);
 const char* ClassifyRuntimeCommandTraceOutcomeTag(bool has_pending_commands,
                                                   bool is_dynamic,
                                                   bool is_kinematic,
@@ -27,20 +36,28 @@ const char* ClassifyRuntimeCommandTraceOutcomeTag(bool has_pending_commands,
                                                   bool runtime_apply_failed,
                                                   bool recovery_applied);
 const char* ClassifyRuntimeCommandTraceFailureCauseTag(bool stale_runtime_binding_body, bool runtime_apply_failed);
+const char* ClassifyRuntimeCommandTraceFailureCausePrecedenceTag(bool stale_runtime_binding_body,
+                                                                 bool runtime_apply_failed);
+const char* ClassifyRuntimeCommandTraceDecisionPathTag(bool has_pending_commands,
+                                                       bool is_dynamic,
+                                                       bool is_kinematic,
+                                                       bool stale_runtime_binding_body,
+                                                       bool runtime_apply_failed,
+                                                       bool recovery_applied);
 }
 
 namespace {
 
-using karma::physics_backend::BackendKind;
-using karma::physics_backend::BackendKindName;
-using karma::physics_backend::BodyDesc;
-using karma::physics_backend::BodyId;
-using karma::physics_backend::BodyTransform;
-using karma::physics_backend::CollisionMask;
-using BackendColliderShapeKind = karma::physics_backend::ColliderShapeKind;
-using karma::physics_backend::RaycastHit;
-using karma::physics_backend::CompiledBackends;
-using karma::physics_backend::ParseBackendKind;
+using karma::physics::backend::BackendKind;
+using karma::physics::backend::BackendKindName;
+using karma::physics::backend::BodyDesc;
+using karma::physics::backend::BodyId;
+using karma::physics::backend::BodyTransform;
+using karma::physics::backend::CollisionMask;
+using BackendColliderShapeKind = karma::physics::backend::ColliderShapeKind;
+using karma::physics::backend::RaycastHit;
+using karma::physics::backend::CompiledBackends;
+using karma::physics::backend::ParseBackendKind;
 
 constexpr float kEpsilon = 1e-3f;
 constexpr float kGravityDropMin = 1e-4f;
@@ -68,6 +85,67 @@ bool EqualCollisionMask(const CollisionMask& lhs, const CollisionMask& rhs) {
 bool ContainsBackend(const std::vector<BackendKind>& values, BackendKind needle) {
     return std::find(values.begin(), values.end(), needle) != values.end();
 }
+
+std::string ResolveTestAssetPath(std::string_view relative_path) {
+    const std::filesystem::path direct_path(relative_path);
+    if (std::filesystem::exists(direct_path)) {
+        return direct_path.lexically_normal().string();
+    }
+
+    // Resolve from source tree when tests run from a build directory.
+    std::filesystem::path source_root = std::filesystem::path(__FILE__);
+    for (int i = 0; i < 5; ++i) {
+        source_root = source_root.parent_path();
+    }
+    return (source_root / direct_path).lexically_normal().string();
+}
+
+class RuntimeTraceCaptureSink final : public spdlog::sinks::base_sink<std::mutex> {
+ private:
+    struct CapturedTraceEvent {
+        std::string logger_name{};
+        std::string payload{};
+    };
+
+ public:
+    void Clear() {
+        std::lock_guard<std::mutex> lock(this->mutex_);
+        events_.clear();
+    }
+
+    bool ContainsEvent(std::string_view logger_name, std::initializer_list<std::string_view> tokens) {
+        std::lock_guard<std::mutex> lock(this->mutex_);
+        for (const auto& event : events_) {
+            if (event.logger_name != logger_name) {
+                continue;
+            }
+            bool all_tokens_present = true;
+            for (const auto token : tokens) {
+                if (event.payload.find(token) == std::string::npos) {
+                    all_tokens_present = false;
+                    break;
+                }
+            }
+            if (all_tokens_present) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+ protected:
+    void sink_it_(const spdlog::details::log_msg& msg) override {
+        CapturedTraceEvent event{};
+        event.logger_name.assign(msg.logger_name.data(), msg.logger_name.size());
+        event.payload.assign(msg.payload.data(), msg.payload.size());
+        events_.push_back(std::move(event));
+    }
+
+    void flush_() override {}
+
+ private:
+    std::vector<CapturedTraceEvent> events_{};
+};
 
 bool ValidateTransform(const BodyTransform& actual,
                        const BodyTransform& expected,
@@ -107,7 +185,7 @@ bool RunLifecycleChecks(BackendKind backend) {
     static_desc.transform.position = glm::vec3(10.0f, 20.0f, 30.0f);
     static_desc.transform.rotation = glm::normalize(glm::quat(0.95f, 0.1f, 0.2f, 0.05f));
     const BodyId static_body = physics.createBody(static_desc);
-    if (static_body == karma::physics_backend::kInvalidBodyId) {
+    if (static_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend) << " failed to create static body\n";
         physics.shutdown();
         return false;
@@ -132,7 +210,7 @@ bool RunLifecycleChecks(BackendKind backend) {
     dynamic_desc.linear_velocity = glm::vec3(3.0f, 0.0f, 0.0f);
     dynamic_desc.angular_velocity = glm::vec3(0.0f, 1.0f, 0.0f);
     const BodyId dynamic_body = physics.createBody(dynamic_desc);
-    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+    if (dynamic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend) << " failed to create dynamic body\n";
         physics.shutdown();
         return false;
@@ -219,13 +297,16 @@ bool RunColliderShapeAndRuntimePropertyChecks(BackendKind backend) {
         return false;
     }
 
+    const std::string static_mesh_asset = ResolveTestAssetPath("demo/worlds/r55man-2/world.glb");
+    const std::string missing_mesh_asset = ResolveTestAssetPath("demo/worlds/phase4x-missing-static-mesh.glb");
+
     BodyDesc box_desc{};
     box_desc.is_static = true;
     box_desc.collider_shape.kind = BackendColliderShapeKind::Box;
     box_desc.collider_shape.box_half_extents = glm::vec3(0.75f, 0.4f, 1.2f);
     box_desc.transform.position = glm::vec3(-2.0f, 1.0f, 0.0f);
     const BodyId box_body = physics.createBody(box_desc);
-    if (box_body == karma::physics_backend::kInvalidBodyId) {
+    if (box_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create box-shape body\n";
         physics.shutdown();
@@ -239,7 +320,7 @@ bool RunColliderShapeAndRuntimePropertyChecks(BackendKind backend) {
     sphere_desc.collider_shape.sphere_radius = 0.6f;
     sphere_desc.transform.position = glm::vec3(0.0f, 4.0f, 0.0f);
     const BodyId sphere_body = physics.createBody(sphere_desc);
-    if (sphere_body == karma::physics_backend::kInvalidBodyId) {
+    if (sphere_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create sphere-shape body\n";
         physics.destroyBody(box_body);
@@ -254,7 +335,7 @@ bool RunColliderShapeAndRuntimePropertyChecks(BackendKind backend) {
     capsule_desc.collider_shape.capsule_half_height = 0.9f;
     capsule_desc.transform.position = glm::vec3(2.0f, 1.5f, 0.0f);
     const BodyId capsule_body = physics.createBody(capsule_desc);
-    if (capsule_body == karma::physics_backend::kInvalidBodyId) {
+    if (capsule_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create capsule-shape body\n";
         physics.destroyBody(sphere_body);
@@ -382,6 +463,46 @@ bool RunColliderShapeAndRuntimePropertyChecks(BackendKind backend) {
         return false;
     }
 
+    BodyDesc mesh_desc{};
+    mesh_desc.is_static = true;
+    mesh_desc.collider_shape.kind = BackendColliderShapeKind::Mesh;
+    mesh_desc.collider_shape.mesh_asset_path = static_mesh_asset;
+    mesh_desc.transform.position = glm::vec3(4.0f, 0.0f, 0.0f);
+    const BodyId mesh_body = physics.createBody(mesh_desc);
+    if (mesh_body == karma::physics::backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create static mesh-shape body from mesh path\n";
+        physics.destroyBody(capsule_body);
+        physics.destroyBody(sphere_body);
+        physics.destroyBody(box_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyTransform(mesh_body, observed)
+        || !ValidateTransform(observed, mesh_desc.transform, "mesh-shape transform", backend)) {
+        physics.destroyBody(mesh_body);
+        physics.destroyBody(capsule_body);
+        physics.destroyBody(sphere_body);
+        physics.destroyBody(box_body);
+        physics.shutdown();
+        return false;
+    }
+
+    BodyDesc missing_mesh_desc = mesh_desc;
+    missing_mesh_desc.transform.position = glm::vec3(6.0f, 0.0f, 0.0f);
+    missing_mesh_desc.collider_shape.mesh_asset_path = missing_mesh_asset;
+    if (physics.createBody(missing_mesh_desc) != karma::physics::backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " createBody unexpectedly succeeded for missing static mesh path\n";
+        physics.destroyBody(mesh_body);
+        physics.destroyBody(capsule_body);
+        physics.destroyBody(sphere_body);
+        physics.destroyBody(box_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.destroyBody(mesh_body);
     physics.destroyBody(capsule_body);
     physics.destroyBody(sphere_body);
     physics.destroyBody(box_body);
@@ -407,7 +528,7 @@ bool RunColliderShapeOffsetQueryChecks(BackendKind backend) {
     baseline_desc.collider_shape.local_center = glm::vec3(0.0f, 0.0f, 0.0f);
     baseline_desc.transform.position = glm::vec3(-2.0f, 0.0f, 0.0f);
     const BodyId baseline_body = physics.createBody(baseline_desc);
-    if (baseline_body == karma::physics_backend::kInvalidBodyId) {
+    if (baseline_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create baseline box body (shape-offset check)\n";
         physics.shutdown();
@@ -418,7 +539,7 @@ bool RunColliderShapeOffsetQueryChecks(BackendKind backend) {
     offset_desc.transform.position = glm::vec3(2.0f, 0.0f, 0.0f);
     offset_desc.collider_shape.local_center = glm::vec3(0.0f, 2.0f, 0.0f);
     const BodyId offset_body = physics.createBody(offset_desc);
-    if (offset_body == karma::physics_backend::kInvalidBodyId) {
+    if (offset_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create offset box body (shape-offset check)\n";
         physics.destroyBody(baseline_body);
@@ -429,7 +550,7 @@ bool RunColliderShapeOffsetQueryChecks(BackendKind backend) {
     BodyDesc invalid_offset_desc = baseline_desc;
     invalid_offset_desc.transform.position = glm::vec3(6.0f, 0.0f, 0.0f);
     invalid_offset_desc.collider_shape.local_center.x = std::numeric_limits<float>::quiet_NaN();
-    if (physics.createBody(invalid_offset_desc) != karma::physics_backend::kInvalidBodyId) {
+    if (physics.createBody(invalid_offset_desc) != karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " createBody unexpectedly succeeded with non-finite local offset\n";
         physics.destroyBody(offset_body);
@@ -512,7 +633,7 @@ bool RunBodyVelocityApiChecks(BackendKind backend) {
     dynamic_desc.linear_velocity = glm::vec3(0.4f, 0.0f, -0.3f);
     dynamic_desc.angular_velocity = glm::vec3(0.0f, 1.1f, 0.0f);
     const BodyId dynamic_body = physics.createBody(dynamic_desc);
-    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+    if (dynamic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create dynamic body (velocity-api check)\n";
         physics.shutdown();
@@ -574,7 +695,7 @@ bool RunBodyVelocityApiChecks(BackendKind backend) {
     BodyDesc static_desc{};
     static_desc.is_static = true;
     const BodyId static_body = physics.createBody(static_desc);
-    if (static_body == karma::physics_backend::kInvalidBodyId) {
+    if (static_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create static body (velocity-api check)\n";
         physics.destroyBody(dynamic_body);
@@ -628,7 +749,7 @@ bool RunBodyForceImpulseApiChecks(BackendKind backend) {
     dynamic_desc.linear_velocity = glm::vec3(0.0f, 0.0f, 0.0f);
     dynamic_desc.angular_velocity = glm::vec3(0.0f, 0.0f, 0.0f);
     const BodyId dynamic_body = physics.createBody(dynamic_desc);
-    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+    if (dynamic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create dynamic body (force-impulse-api check)\n";
         physics.shutdown();
@@ -778,7 +899,7 @@ bool RunBodyForceImpulseApiChecks(BackendKind backend) {
     BodyDesc static_desc{};
     static_desc.is_static = true;
     const BodyId static_body = physics.createBody(static_desc);
-    if (static_body == karma::physics_backend::kInvalidBodyId) {
+    if (static_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create static body (force-impulse-api check)\n";
         physics.destroyBody(dynamic_body);
@@ -822,10 +943,10 @@ bool RunBodyForceImpulseApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
-    if (physics.addBodyForce(karma::physics_backend::kInvalidBodyId, glm::vec3(1.0f, 0.0f, 0.0f))
-        || physics.addBodyLinearImpulse(karma::physics_backend::kInvalidBodyId, glm::vec3(1.0f, 0.0f, 0.0f))
-        || physics.addBodyTorque(karma::physics_backend::kInvalidBodyId, glm::vec3(0.0f, 1.0f, 0.0f))
-        || physics.addBodyAngularImpulse(karma::physics_backend::kInvalidBodyId, glm::vec3(0.0f, 1.0f, 0.0f))) {
+    if (physics.addBodyForce(karma::physics::backend::kInvalidBodyId, glm::vec3(1.0f, 0.0f, 0.0f))
+        || physics.addBodyLinearImpulse(karma::physics::backend::kInvalidBodyId, glm::vec3(1.0f, 0.0f, 0.0f))
+        || physics.addBodyTorque(karma::physics::backend::kInvalidBodyId, glm::vec3(0.0f, 1.0f, 0.0f))
+        || physics.addBodyAngularImpulse(karma::physics::backend::kInvalidBodyId, glm::vec3(0.0f, 1.0f, 0.0f))) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " force/impulse/torque APIs unexpectedly succeeded for invalid id\n";
         physics.shutdown();
@@ -854,7 +975,7 @@ bool RunBodyDampingApiChecks(BackendKind backend) {
     dynamic_desc.linear_damping = 0.35f;
     dynamic_desc.angular_damping = 0.65f;
     const BodyId dynamic_body = physics.createBody(dynamic_desc);
-    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+    if (dynamic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create dynamic body (damping-api check)\n";
         physics.shutdown();
@@ -925,7 +1046,7 @@ bool RunBodyDampingApiChecks(BackendKind backend) {
     BodyDesc static_desc{};
     static_desc.is_static = true;
     const BodyId static_body = physics.createBody(static_desc);
-    if (static_body == karma::physics_backend::kInvalidBodyId) {
+    if (static_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create static body (damping-api check)\n";
         physics.destroyBody(dynamic_body);
@@ -956,10 +1077,10 @@ bool RunBodyDampingApiChecks(BackendKind backend) {
         return false;
     }
 
-    if (physics.setBodyLinearDamping(karma::physics_backend::kInvalidBodyId, 0.0f)
-        || physics.getBodyLinearDamping(karma::physics_backend::kInvalidBodyId, observed_linear_damping)
-        || physics.setBodyAngularDamping(karma::physics_backend::kInvalidBodyId, 0.0f)
-        || physics.getBodyAngularDamping(karma::physics_backend::kInvalidBodyId, observed_angular_damping)) {
+    if (physics.setBodyLinearDamping(karma::physics::backend::kInvalidBodyId, 0.0f)
+        || physics.getBodyLinearDamping(karma::physics::backend::kInvalidBodyId, observed_linear_damping)
+        || physics.setBodyAngularDamping(karma::physics::backend::kInvalidBodyId, 0.0f)
+        || physics.getBodyAngularDamping(karma::physics::backend::kInvalidBodyId, observed_angular_damping)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " damping APIs unexpectedly succeeded for invalid id\n";
         physics.shutdown();
@@ -970,7 +1091,7 @@ bool RunBodyDampingApiChecks(BackendKind backend) {
     invalid_linear_desc.is_static = false;
     invalid_linear_desc.mass = 1.0f;
     invalid_linear_desc.linear_damping = -0.2f;
-    if (physics.createBody(invalid_linear_desc) != karma::physics_backend::kInvalidBodyId) {
+    if (physics.createBody(invalid_linear_desc) != karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " createBody unexpectedly accepted negative linear damping\n";
         physics.shutdown();
@@ -979,7 +1100,7 @@ bool RunBodyDampingApiChecks(BackendKind backend) {
     BodyDesc invalid_angular_desc = invalid_linear_desc;
     invalid_angular_desc.linear_damping = 0.1f;
     invalid_angular_desc.angular_damping = std::numeric_limits<float>::quiet_NaN();
-    if (physics.createBody(invalid_angular_desc) != karma::physics_backend::kInvalidBodyId) {
+    if (physics.createBody(invalid_angular_desc) != karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " createBody unexpectedly accepted non-finite angular damping\n";
         physics.shutdown();
@@ -1008,7 +1129,7 @@ bool RunBodyMaterialApiChecks(BackendKind backend) {
     dynamic_desc.friction = 0.25f;
     dynamic_desc.restitution = 0.4f;
     const BodyId dynamic_body = physics.createBody(dynamic_desc);
-    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+    if (dynamic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create dynamic body (material-api check)\n";
         physics.shutdown();
@@ -1080,7 +1201,7 @@ bool RunBodyMaterialApiChecks(BackendKind backend) {
     static_desc.friction = 0.3f;
     static_desc.restitution = 0.2f;
     const BodyId static_body = physics.createBody(static_desc);
-    if (static_body == karma::physics_backend::kInvalidBodyId) {
+    if (static_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create static body (material-api check)\n";
         physics.destroyBody(dynamic_body);
@@ -1115,10 +1236,10 @@ bool RunBodyMaterialApiChecks(BackendKind backend) {
         return false;
     }
 
-    if (physics.setBodyFriction(karma::physics_backend::kInvalidBodyId, 0.2f)
-        || physics.getBodyFriction(karma::physics_backend::kInvalidBodyId, observed_friction)
-        || physics.setBodyRestitution(karma::physics_backend::kInvalidBodyId, 0.1f)
-        || physics.getBodyRestitution(karma::physics_backend::kInvalidBodyId, observed_restitution)) {
+    if (physics.setBodyFriction(karma::physics::backend::kInvalidBodyId, 0.2f)
+        || physics.getBodyFriction(karma::physics::backend::kInvalidBodyId, observed_friction)
+        || physics.setBodyRestitution(karma::physics::backend::kInvalidBodyId, 0.1f)
+        || physics.getBodyRestitution(karma::physics::backend::kInvalidBodyId, observed_restitution)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " material APIs unexpectedly succeeded for invalid id\n";
         physics.shutdown();
@@ -1128,7 +1249,7 @@ bool RunBodyMaterialApiChecks(BackendKind backend) {
     BodyDesc invalid_friction_desc{};
     invalid_friction_desc.is_static = true;
     invalid_friction_desc.friction = -0.1f;
-    if (physics.createBody(invalid_friction_desc) != karma::physics_backend::kInvalidBodyId) {
+    if (physics.createBody(invalid_friction_desc) != karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " createBody unexpectedly accepted invalid friction\n";
         physics.shutdown();
@@ -1137,7 +1258,7 @@ bool RunBodyMaterialApiChecks(BackendKind backend) {
     BodyDesc invalid_restitution_desc{};
     invalid_restitution_desc.is_static = true;
     invalid_restitution_desc.restitution = 1.1f;
-    if (physics.createBody(invalid_restitution_desc) != karma::physics_backend::kInvalidBodyId) {
+    if (physics.createBody(invalid_restitution_desc) != karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " createBody unexpectedly accepted out-of-range restitution\n";
         physics.shutdown();
@@ -1165,7 +1286,7 @@ bool RunBodyKinematicApiChecks(BackendKind backend) {
     dynamic_desc.transform.position = glm::vec3(0.0f, 3.0f, 0.0f);
     dynamic_desc.is_kinematic = false;
     const BodyId dynamic_body = physics.createBody(dynamic_desc);
-    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+    if (dynamic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create dynamic body (kinematic-api check)\n";
         physics.shutdown();
@@ -1204,7 +1325,7 @@ bool RunBodyKinematicApiChecks(BackendKind backend) {
     BodyDesc create_kinematic_desc = dynamic_desc;
     create_kinematic_desc.is_kinematic = true;
     const BodyId create_kinematic_body = physics.createBody(create_kinematic_desc);
-    if (create_kinematic_body == karma::physics_backend::kInvalidBodyId) {
+    if (create_kinematic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create kinematic dynamic body\n";
         physics.destroyBody(dynamic_body);
@@ -1223,7 +1344,7 @@ bool RunBodyKinematicApiChecks(BackendKind backend) {
     BodyDesc static_desc{};
     static_desc.is_static = true;
     const BodyId static_body = physics.createBody(static_desc);
-    if (static_body == karma::physics_backend::kInvalidBodyId) {
+    if (static_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create static body (kinematic-api check)\n";
         physics.destroyBody(create_kinematic_body);
@@ -1243,7 +1364,7 @@ bool RunBodyKinematicApiChecks(BackendKind backend) {
 
     BodyDesc invalid_static_kinematic_desc = static_desc;
     invalid_static_kinematic_desc.is_kinematic = true;
-    if (physics.createBody(invalid_static_kinematic_desc) != karma::physics_backend::kInvalidBodyId) {
+    if (physics.createBody(invalid_static_kinematic_desc) != karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " createBody unexpectedly accepted static body with kinematic enabled\n";
         physics.destroyBody(static_body);
@@ -1262,8 +1383,8 @@ bool RunBodyKinematicApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyKinematic(karma::physics_backend::kInvalidBodyId, true)
-        || physics.getBodyKinematic(karma::physics_backend::kInvalidBodyId, observed_kinematic)) {
+    if (physics.setBodyKinematic(karma::physics::backend::kInvalidBodyId, true)
+        || physics.getBodyKinematic(karma::physics::backend::kInvalidBodyId, observed_kinematic)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " kinematic APIs unexpectedly succeeded for invalid id\n";
         physics.shutdown();
@@ -1291,7 +1412,7 @@ bool RunBodyAwakeApiChecks(BackendKind backend) {
     dynamic_desc.transform.position = glm::vec3(0.0f, 3.0f, 0.0f);
     dynamic_desc.awake = false;
     const BodyId dynamic_body = physics.createBody(dynamic_desc);
-    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+    if (dynamic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create dynamic body (awake-api check)\n";
         physics.shutdown();
@@ -1330,7 +1451,7 @@ bool RunBodyAwakeApiChecks(BackendKind backend) {
     BodyDesc static_desc{};
     static_desc.is_static = true;
     const BodyId static_body = physics.createBody(static_desc);
-    if (static_body == karma::physics_backend::kInvalidBodyId) {
+    if (static_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create static body (awake-api check)\n";
         physics.destroyBody(dynamic_body);
@@ -1355,8 +1476,8 @@ bool RunBodyAwakeApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyAwake(karma::physics_backend::kInvalidBodyId, true)
-        || physics.getBodyAwake(karma::physics_backend::kInvalidBodyId, observed_awake)) {
+    if (physics.setBodyAwake(karma::physics::backend::kInvalidBodyId, true)
+        || physics.getBodyAwake(karma::physics::backend::kInvalidBodyId, observed_awake)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " awake APIs unexpectedly succeeded for invalid id\n";
         physics.shutdown();
@@ -1385,7 +1506,7 @@ bool RunBodyMotionLockApiChecks(BackendKind backend) {
     dynamic_desc.rotation_locked = false;
     dynamic_desc.translation_locked = false;
     const BodyId dynamic_body = physics.createBody(dynamic_desc);
-    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+    if (dynamic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create dynamic body (motion-lock-api check)\n";
         physics.shutdown();
@@ -1494,7 +1615,7 @@ bool RunBodyMotionLockApiChecks(BackendKind backend) {
     BodyDesc invalid_both_locks_desc = dynamic_desc;
     invalid_both_locks_desc.rotation_locked = true;
     invalid_both_locks_desc.translation_locked = true;
-    if (physics.createBody(invalid_both_locks_desc) != karma::physics_backend::kInvalidBodyId) {
+    if (physics.createBody(invalid_both_locks_desc) != karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " createBody unexpectedly accepted dynamic body with both locks enabled\n";
         physics.destroyBody(dynamic_body);
@@ -1505,7 +1626,7 @@ bool RunBodyMotionLockApiChecks(BackendKind backend) {
     BodyDesc static_desc{};
     static_desc.is_static = true;
     const BodyId static_body = physics.createBody(static_desc);
-    if (static_body == karma::physics_backend::kInvalidBodyId) {
+    if (static_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create static body (motion-lock-api check)\n";
         physics.destroyBody(dynamic_body);
@@ -1537,10 +1658,10 @@ bool RunBodyMotionLockApiChecks(BackendKind backend) {
         return false;
     }
 
-    if (physics.setBodyRotationLocked(karma::physics_backend::kInvalidBodyId, false)
-        || physics.getBodyRotationLocked(karma::physics_backend::kInvalidBodyId, rotation_locked)
-        || physics.setBodyTranslationLocked(karma::physics_backend::kInvalidBodyId, false)
-        || physics.getBodyTranslationLocked(karma::physics_backend::kInvalidBodyId, translation_locked)) {
+    if (physics.setBodyRotationLocked(karma::physics::backend::kInvalidBodyId, false)
+        || physics.getBodyRotationLocked(karma::physics::backend::kInvalidBodyId, rotation_locked)
+        || physics.setBodyTranslationLocked(karma::physics::backend::kInvalidBodyId, false)
+        || physics.getBodyTranslationLocked(karma::physics::backend::kInvalidBodyId, translation_locked)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " motion-lock APIs unexpectedly succeeded for invalid id\n";
         physics.shutdown();
@@ -1569,7 +1690,7 @@ bool RunGroundCollisionChecks(BackendKind backend) {
             tile_desc.transform.position = glm::vec3(static_cast<float>(x), 0.0f, static_cast<float>(z));
             tile_desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
             const BodyId tile = physics.createBody(tile_desc);
-            if (tile == karma::physics_backend::kInvalidBodyId) {
+            if (tile == karma::physics::backend::kInvalidBodyId) {
                 std::cerr << "backend=" << BackendKindName(backend) << " failed to create ground tile\n";
                 physics.shutdown();
                 return false;
@@ -1584,7 +1705,7 @@ bool RunGroundCollisionChecks(BackendKind backend) {
     dynamic_desc.transform.position = glm::vec3(0.0f, 3.0f, 0.0f);
     dynamic_desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     const BodyId dynamic_body = physics.createBody(dynamic_desc);
-    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+    if (dynamic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend) << " failed to create dynamic body (ground check)\n";
         physics.shutdown();
         return false;
@@ -1678,7 +1799,7 @@ bool RunVelocityIntegrationChecks(BackendKind backend) {
     dynamic_desc.linear_velocity = glm::vec3(4.0f, 0.0f, 0.0f);
     dynamic_desc.angular_velocity = glm::vec3(0.0f, 0.0f, 0.0f);
     const BodyId dynamic_body = physics.createBody(dynamic_desc);
-    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+    if (dynamic_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend) << " failed to create dynamic body (velocity check)\n";
         physics.shutdown();
         return false;
@@ -1754,212 +1875,212 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
     probe.rotation = glm::normalize(glm::quat(0.9f, 0.1f, 0.2f, 0.3f));
     BodyTransform out{};
 
-    if (physics.getBodyTransform(karma::physics_backend::kInvalidBodyId, out)) {
+    if (physics.getBodyTransform(karma::physics::backend::kInvalidBodyId, out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyTransform unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyTransform(karma::physics_backend::kInvalidBodyId, probe)) {
+    if (physics.setBodyTransform(karma::physics::backend::kInvalidBodyId, probe)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTransform unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
     bool gravity_enabled = false;
-    if (physics.getBodyGravityEnabled(karma::physics_backend::kInvalidBodyId, gravity_enabled)) {
+    if (physics.getBodyGravityEnabled(karma::physics::backend::kInvalidBodyId, gravity_enabled)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyGravityEnabled unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyGravityEnabled(karma::physics_backend::kInvalidBodyId, true)) {
+    if (physics.setBodyGravityEnabled(karma::physics::backend::kInvalidBodyId, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyGravityEnabled unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyKinematic(karma::physics_backend::kInvalidBodyId, gravity_enabled)) {
+    if (physics.getBodyKinematic(karma::physics::backend::kInvalidBodyId, gravity_enabled)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyKinematic unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyKinematic(karma::physics_backend::kInvalidBodyId, true)) {
+    if (physics.setBodyKinematic(karma::physics::backend::kInvalidBodyId, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyKinematic unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyAwake(karma::physics_backend::kInvalidBodyId, gravity_enabled)) {
+    if (physics.getBodyAwake(karma::physics::backend::kInvalidBodyId, gravity_enabled)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyAwake unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyAwake(karma::physics_backend::kInvalidBodyId, true)) {
+    if (physics.setBodyAwake(karma::physics::backend::kInvalidBodyId, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyAwake unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.addBodyForce(karma::physics_backend::kInvalidBodyId, glm::vec3(1.0f, 0.0f, 0.0f))) {
+    if (physics.addBodyForce(karma::physics::backend::kInvalidBodyId, glm::vec3(1.0f, 0.0f, 0.0f))) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " addBodyForce unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.addBodyLinearImpulse(karma::physics_backend::kInvalidBodyId, glm::vec3(1.0f, 0.0f, 0.0f))) {
+    if (physics.addBodyLinearImpulse(karma::physics::backend::kInvalidBodyId, glm::vec3(1.0f, 0.0f, 0.0f))) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " addBodyLinearImpulse unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.addBodyTorque(karma::physics_backend::kInvalidBodyId, glm::vec3(0.0f, 1.0f, 0.0f))) {
+    if (physics.addBodyTorque(karma::physics::backend::kInvalidBodyId, glm::vec3(0.0f, 1.0f, 0.0f))) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " addBodyTorque unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.addBodyAngularImpulse(karma::physics_backend::kInvalidBodyId, glm::vec3(0.0f, 1.0f, 0.0f))) {
+    if (physics.addBodyAngularImpulse(karma::physics::backend::kInvalidBodyId, glm::vec3(0.0f, 1.0f, 0.0f))) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " addBodyAngularImpulse unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
     glm::vec3 velocity_out{};
-    if (physics.setBodyLinearVelocity(karma::physics_backend::kInvalidBodyId, glm::vec3(0.0f, 0.0f, 0.0f))) {
+    if (physics.setBodyLinearVelocity(karma::physics::backend::kInvalidBodyId, glm::vec3(0.0f, 0.0f, 0.0f))) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyLinearVelocity unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyLinearVelocity(karma::physics_backend::kInvalidBodyId, velocity_out)) {
+    if (physics.getBodyLinearVelocity(karma::physics::backend::kInvalidBodyId, velocity_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyLinearVelocity unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyAngularVelocity(karma::physics_backend::kInvalidBodyId, glm::vec3(0.0f, 0.0f, 0.0f))) {
+    if (physics.setBodyAngularVelocity(karma::physics::backend::kInvalidBodyId, glm::vec3(0.0f, 0.0f, 0.0f))) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyAngularVelocity unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyAngularVelocity(karma::physics_backend::kInvalidBodyId, velocity_out)) {
+    if (physics.getBodyAngularVelocity(karma::physics::backend::kInvalidBodyId, velocity_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyAngularVelocity unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
     float damping_out = 0.0f;
-    if (physics.setBodyLinearDamping(karma::physics_backend::kInvalidBodyId, 0.0f)) {
+    if (physics.setBodyLinearDamping(karma::physics::backend::kInvalidBodyId, 0.0f)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyLinearDamping unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyLinearDamping(karma::physics_backend::kInvalidBodyId, damping_out)) {
+    if (physics.getBodyLinearDamping(karma::physics::backend::kInvalidBodyId, damping_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyLinearDamping unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyAngularDamping(karma::physics_backend::kInvalidBodyId, 0.0f)) {
+    if (physics.setBodyAngularDamping(karma::physics::backend::kInvalidBodyId, 0.0f)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyAngularDamping unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyAngularDamping(karma::physics_backend::kInvalidBodyId, damping_out)) {
+    if (physics.getBodyAngularDamping(karma::physics::backend::kInvalidBodyId, damping_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyAngularDamping unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
     bool lock_out = false;
-    if (physics.setBodyRotationLocked(karma::physics_backend::kInvalidBodyId, true)) {
+    if (physics.setBodyRotationLocked(karma::physics::backend::kInvalidBodyId, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyRotationLocked unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyRotationLocked(karma::physics_backend::kInvalidBodyId, lock_out)) {
+    if (physics.getBodyRotationLocked(karma::physics::backend::kInvalidBodyId, lock_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyRotationLocked unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyTranslationLocked(karma::physics_backend::kInvalidBodyId, true)) {
+    if (physics.setBodyTranslationLocked(karma::physics::backend::kInvalidBodyId, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTranslationLocked unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyTranslationLocked(karma::physics_backend::kInvalidBodyId, lock_out)) {
+    if (physics.getBodyTranslationLocked(karma::physics::backend::kInvalidBodyId, lock_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyTranslationLocked unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyTrigger(karma::physics_backend::kInvalidBodyId, true)) {
+    if (physics.setBodyTrigger(karma::physics::backend::kInvalidBodyId, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTrigger unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyTrigger(karma::physics_backend::kInvalidBodyId, gravity_enabled)) {
+    if (physics.getBodyTrigger(karma::physics::backend::kInvalidBodyId, gravity_enabled)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyTrigger unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
     CollisionMask mask_out{};
-    if (physics.setBodyCollisionMask(karma::physics_backend::kInvalidBodyId, CollisionMask{})) {
+    if (physics.setBodyCollisionMask(karma::physics::backend::kInvalidBodyId, CollisionMask{})) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyCollisionMask unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyCollisionMask(karma::physics_backend::kInvalidBodyId, mask_out)) {
+    if (physics.getBodyCollisionMask(karma::physics::backend::kInvalidBodyId, mask_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyCollisionMask unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
     float material_out = 0.0f;
-    if (physics.setBodyFriction(karma::physics_backend::kInvalidBodyId, 0.5f)) {
+    if (physics.setBodyFriction(karma::physics::backend::kInvalidBodyId, 0.5f)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyFriction unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyFriction(karma::physics_backend::kInvalidBodyId, material_out)) {
+    if (physics.getBodyFriction(karma::physics::backend::kInvalidBodyId, material_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyFriction unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.setBodyRestitution(karma::physics_backend::kInvalidBodyId, 0.2f)) {
+    if (physics.setBodyRestitution(karma::physics::backend::kInvalidBodyId, 0.2f)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyRestitution unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    if (physics.getBodyRestitution(karma::physics_backend::kInvalidBodyId, material_out)) {
+    if (physics.getBodyRestitution(karma::physics::backend::kInvalidBodyId, material_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyRestitution unexpectedly succeeded for invalid id\n";
         physics.shutdown();
         return false;
     }
-    physics.destroyBody(karma::physics_backend::kInvalidBodyId);
+    physics.destroyBody(karma::physics::backend::kInvalidBodyId);
 
     BodyDesc desc{};
     desc.is_static = true;
     desc.transform.position = glm::vec3(1.0f, 2.0f, 3.0f);
     desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     const BodyId body = physics.createBody(desc);
-    if (body == karma::physics_backend::kInvalidBodyId) {
+    if (body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create body (invalid-id check)\n";
         physics.shutdown();
@@ -2373,7 +2494,7 @@ bool RunBodyGravityFlagChecks(BackendKind backend) {
     static_desc.is_static = true;
     static_desc.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
     const BodyId static_body = physics.createBody(static_desc);
-    if (static_body == karma::physics_backend::kInvalidBodyId) {
+    if (static_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend) << " failed to create static body (gravity-flag check)\n";
         physics.shutdown();
         return false;
@@ -2400,7 +2521,7 @@ bool RunBodyGravityFlagChecks(BackendKind backend) {
     no_gravity_desc.gravity_enabled = false;
     no_gravity_desc.transform.position = glm::vec3(0.0f, 10.0f, 0.0f);
     const BodyId no_gravity_body = physics.createBody(no_gravity_desc);
-    if (no_gravity_body == karma::physics_backend::kInvalidBodyId) {
+    if (no_gravity_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create no-gravity dynamic body (gravity-flag check)\n";
         physics.destroyBody(static_body);
@@ -2467,7 +2588,7 @@ bool RunBodyGravityFlagChecks(BackendKind backend) {
     runtime_toggle_desc.gravity_enabled = false;
     runtime_toggle_desc.transform.position = glm::vec3(2.0f, 10.0f, 0.0f);
     const BodyId runtime_toggle_body = physics.createBody(runtime_toggle_desc);
-    if (runtime_toggle_body == karma::physics_backend::kInvalidBodyId) {
+    if (runtime_toggle_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create runtime-toggle body (gravity-flag check)\n";
         physics.destroyBody(no_gravity_body);
@@ -2567,7 +2688,7 @@ bool RunBodyRotationLockChecks(BackendKind backend) {
     unlocked_desc.transform.position = glm::vec3(0.0f, 5.0f, 0.0f);
     unlocked_desc.angular_velocity = glm::vec3(0.0f, 8.0f, 0.0f);
     const BodyId unlocked_body = physics.createBody(unlocked_desc);
-    if (unlocked_body == karma::physics_backend::kInvalidBodyId) {
+    if (unlocked_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create unlocked body (rotation-lock check)\n";
         physics.shutdown();
@@ -2578,7 +2699,7 @@ bool RunBodyRotationLockChecks(BackendKind backend) {
     locked_desc.rotation_locked = true;
     locked_desc.transform.position = glm::vec3(2.0f, 5.0f, 0.0f);
     const BodyId locked_body = physics.createBody(locked_desc);
-    if (locked_body == karma::physics_backend::kInvalidBodyId) {
+    if (locked_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create locked body (rotation-lock check)\n";
         physics.destroyBody(unlocked_body);
@@ -2675,7 +2796,7 @@ bool RunBodyTranslationLockChecks(BackendKind backend) {
     unlocked_desc.transform.position = glm::vec3(-4.0f, 5.0f, 0.0f);
     unlocked_desc.linear_velocity = glm::vec3(3.0f, 0.0f, 0.0f);
     const BodyId unlocked_body = physics.createBody(unlocked_desc);
-    if (unlocked_body == karma::physics_backend::kInvalidBodyId) {
+    if (unlocked_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create unlocked body (translation-lock check)\n";
         physics.shutdown();
@@ -2686,7 +2807,7 @@ bool RunBodyTranslationLockChecks(BackendKind backend) {
     locked_desc.translation_locked = true;
     locked_desc.transform.position = glm::vec3(8.0f, 5.0f, 0.0f);
     const BodyId locked_body = physics.createBody(locked_desc);
-    if (locked_body == karma::physics_backend::kInvalidBodyId) {
+    if (locked_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create translation-locked body (translation-lock check)\n";
         physics.destroyBody(unlocked_body);
@@ -2791,7 +2912,7 @@ bool RunReinitCycleChecks(BackendKind backend) {
         desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
         desc.linear_velocity = glm::vec3(1.0f + static_cast<float>(cycle), 0.0f, 0.0f);
         const BodyId body = physics.createBody(desc);
-        if (body == karma::physics_backend::kInvalidBodyId) {
+        if (body == karma::physics::backend::kInvalidBodyId) {
             std::cerr << "backend=" << BackendKindName(backend)
                       << " failed to create body on cycle " << cycle << "\n";
             physics.shutdown();
@@ -2851,7 +2972,7 @@ bool RunRestingStabilityChecks(BackendKind backend) {
     ground_desc.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
     ground_desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     const BodyId ground = physics.createBody(ground_desc);
-    if (ground == karma::physics_backend::kInvalidBodyId) {
+    if (ground == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend) << " failed to create ground (resting check)\n";
         physics.shutdown();
         return false;
@@ -2863,7 +2984,7 @@ bool RunRestingStabilityChecks(BackendKind backend) {
     drop_desc.transform.position = glm::vec3(0.0f, 4.0f, 0.0f);
     drop_desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     const BodyId body = physics.createBody(drop_desc);
-    if (body == karma::physics_backend::kInvalidBodyId) {
+    if (body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend) << " failed to create body (resting check)\n";
         physics.shutdown();
         return false;
@@ -2948,7 +3069,7 @@ bool RunRaycastQueryChecks(BackendKind backend) {
     lower_desc.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
     lower_desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     const BodyId lower_body = physics.createBody(lower_desc);
-    if (lower_body == karma::physics_backend::kInvalidBodyId) {
+    if (lower_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend) << " failed to create lower static body (raycast check)\n";
         physics.shutdown();
         return false;
@@ -2959,7 +3080,7 @@ bool RunRaycastQueryChecks(BackendKind backend) {
     upper_desc.transform.position = glm::vec3(0.0f, 3.0f, 0.0f);
     upper_desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     const BodyId upper_body = physics.createBody(upper_desc);
-    if (upper_body == karma::physics_backend::kInvalidBodyId) {
+    if (upper_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend) << " failed to create upper static body (raycast check)\n";
         physics.destroyBody(lower_body);
         physics.shutdown();
@@ -3093,7 +3214,7 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     float material_value = 0.0f;
 
     const BodyId before_init = physics.createBody(desc);
-    if (before_init != karma::physics_backend::kInvalidBodyId) {
+    if (before_init != karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " createBody succeeded before init\n";
         return false;
@@ -3212,7 +3333,7 @@ bool RunUninitializedApiChecks(BackendKind backend) {
         return false;
     }
     const BodyId body = physics.createBody(desc);
-    if (body == karma::physics_backend::kInvalidBodyId) {
+    if (body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " failed to create body after init in uninitialized-api check\n";
         physics.shutdown();
@@ -3222,7 +3343,7 @@ bool RunUninitializedApiChecks(BackendKind backend) {
     physics.shutdown();
 
     const BodyId after_shutdown = physics.createBody(desc);
-    if (after_shutdown != karma::physics_backend::kInvalidBodyId) {
+    if (after_shutdown != karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " createBody succeeded after shutdown\n";
         return false;
@@ -3354,7 +3475,7 @@ bool RunRepeatabilityChecks(BackendKind backend) {
         ground_desc.transform.position = glm::vec3(0.0f, 0.0f, 0.0f);
         ground_desc.transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
         const BodyId ground = physics.createBody(ground_desc);
-        if (ground == karma::physics_backend::kInvalidBodyId) {
+        if (ground == karma::physics::backend::kInvalidBodyId) {
             std::cerr << "backend=" << BackendKindName(backend)
                       << " failed to create ground (repeatability trial " << trial_index << ")\n";
             physics.shutdown();
@@ -3369,7 +3490,7 @@ bool RunRepeatabilityChecks(BackendKind backend) {
         body_desc.linear_velocity = glm::vec3(2.0f, 0.5f, -1.0f);
         body_desc.angular_velocity = glm::vec3(0.3f, 0.2f, -0.1f);
         const BodyId body = physics.createBody(body_desc);
-        if (body == karma::physics_backend::kInvalidBodyId) {
+        if (body == karma::physics::backend::kInvalidBodyId) {
             std::cerr << "backend=" << BackendKindName(backend)
                       << " failed to create body (repeatability trial " << trial_index << ")\n";
             physics.destroyBody(ground);
@@ -3510,8 +3631,11 @@ bool RunBackendSelectionChecks() {
 bool RunRuntimeCommandTraceClassificationChecks() {
     using karma::physics::detail::ClassifyRuntimeCommandTraceStageTag;
     using karma::physics::detail::ClassifyRuntimeCommandTraceOperationTag;
+    using karma::physics::detail::ClassifyRuntimeCommandTraceOperationPrecedenceTag;
     using karma::physics::detail::ClassifyRuntimeCommandTraceOutcomeTag;
     using karma::physics::detail::ClassifyRuntimeCommandTraceFailureCauseTag;
+    using karma::physics::detail::ClassifyRuntimeCommandTraceFailureCausePrecedenceTag;
+    using karma::physics::detail::ClassifyRuntimeCommandTraceDecisionPathTag;
 
     auto expect_tag = [](std::string_view actual, std::string_view expected, std::string_view label) -> bool {
         if (actual != expected) {
@@ -3565,6 +3689,31 @@ bool RunRuntimeCommandTraceClassificationChecks() {
                     "operation-none")) {
         return false;
     }
+    if (!expect_tag(ClassifyRuntimeCommandTraceOperationPrecedenceTag(true, false, false, false),
+                    "none",
+                    "operation-precedence-single")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceOperationPrecedenceTag(true, true, true, true),
+                    "linear_force_first",
+                    "operation-precedence-force-first")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceOperationPrecedenceTag(false, true, true, true),
+                    "linear_impulse_second",
+                    "operation-precedence-impulse-second")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceOperationPrecedenceTag(false, false, true, true),
+                    "angular_torque_third",
+                    "operation-precedence-torque-third")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceOperationPrecedenceTag(false, false, false, false),
+                    "none",
+                    "operation-precedence-none")) {
+        return false;
+    }
 
     if (!expect_tag(ClassifyRuntimeCommandTraceOutcomeTag(true, true, false, true, false, false),
                     "stale_runtime_binding_body",
@@ -3616,18 +3765,87 @@ bool RunRuntimeCommandTraceClassificationChecks() {
                     "failure-cause-deterministic-priority")) {
         return false;
     }
+    if (!expect_tag(ClassifyRuntimeCommandTraceFailureCausePrecedenceTag(true, false),
+                    "stale_binding_first",
+                    "failure-cause-precedence-stale-first")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceFailureCausePrecedenceTag(false, true),
+                    "backend_reject_first",
+                    "failure-cause-precedence-backend-first")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceFailureCausePrecedenceTag(true, true),
+                    "stale_binding_first",
+                    "failure-cause-precedence-priority")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceFailureCausePrecedenceTag(false, false),
+                    "none",
+                    "failure-cause-precedence-none")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(false, true, false, false, false, false),
+                    "skipped_no_command",
+                    "decision-skipped-no-command")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(true, false, false, false, false, false),
+                    "skipped_ineligible_non_dynamic",
+                    "decision-skipped-ineligible-non-dynamic")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(true, true, true, false, false, false),
+                    "skipped_ineligible_kinematic",
+                    "decision-skipped-ineligible-kinematic")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(true, true, false, false, false, false),
+                    "applied_runtime",
+                    "decision-applied-runtime")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(true, true, false, true, false, false),
+                    "failed_runtime",
+                    "decision-failed-runtime-stale")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(true, true, false, false, true, false),
+                    "failed_runtime",
+                    "decision-failed-runtime-backend")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(true, true, false, false, false, true),
+                    "recovered_via_fallback",
+                    "decision-recovered-via-fallback")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(false, true, false, true, true, true),
+                    "recovered_via_fallback",
+                    "decision-deterministic-priority-recovery")) {
+        return false;
+    }
     if (!expect_tag(ClassifyRuntimeCommandTraceOperationTag(false, true, false, false),
                     "linear_impulse",
                     "combined-operation-linear-impulse")
         || !expect_tag(ClassifyRuntimeCommandTraceStageTag(true, false),
                        "update",
                        "combined-stage-update")
+        || !expect_tag(ClassifyRuntimeCommandTraceOperationPrecedenceTag(false, true, false, false),
+                       "none",
+                       "combined-operation-precedence-single")
         || !expect_tag(ClassifyRuntimeCommandTraceOutcomeTag(true, true, false, false, true, false),
                        "runtime_apply_failed",
                        "combined-outcome-runtime-apply-failed")
         || !expect_tag(ClassifyRuntimeCommandTraceFailureCauseTag(false, true),
                        "backend_reject",
-                       "combined-cause-backend-reject")) {
+                       "combined-cause-backend-reject")
+        || !expect_tag(ClassifyRuntimeCommandTraceFailureCausePrecedenceTag(false, true),
+                       "backend_reject_first",
+                       "combined-cause-precedence-backend")
+        || !expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(true, true, false, false, true, false),
+                       "failed_runtime",
+                       "combined-decision-failed")) {
         return false;
     }
     if (!expect_tag(ClassifyRuntimeCommandTraceOperationTag(false, false, false, true),
@@ -3641,7 +3859,13 @@ bool RunRuntimeCommandTraceClassificationChecks() {
                        "combined-outcome-recovery-applied")
         || !expect_tag(ClassifyRuntimeCommandTraceFailureCauseTag(false, false),
                        "none",
-                       "combined-cause-none")) {
+                       "combined-cause-none")
+        || !expect_tag(ClassifyRuntimeCommandTraceFailureCausePrecedenceTag(false, false),
+                       "none",
+                       "combined-cause-precedence-none")
+        || !expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(true, true, false, false, false, true),
+                       "recovered_via_fallback",
+                       "combined-decision-recovery")) {
         return false;
     }
     if (!expect_tag(ClassifyRuntimeCommandTraceOperationTag(true, false, false, false),
@@ -3655,7 +3879,30 @@ bool RunRuntimeCommandTraceClassificationChecks() {
                        "combined-outcome-stale-runtime")
         || !expect_tag(ClassifyRuntimeCommandTraceFailureCauseTag(true, false),
                        "stale_binding",
-                       "combined-cause-stale-binding")) {
+                       "combined-cause-stale-binding")
+        || !expect_tag(ClassifyRuntimeCommandTraceFailureCausePrecedenceTag(true, false),
+                       "stale_binding_first",
+                       "combined-cause-precedence-stale")
+        || !expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(true, true, false, true, false, false),
+                       "failed_runtime",
+                       "combined-decision-stale-failed")) {
+        return false;
+    }
+    if (!expect_tag(ClassifyRuntimeCommandTraceOperationTag(true, true, false, true),
+                    "linear_force",
+                    "matrix-operation-priority")
+        || !expect_tag(ClassifyRuntimeCommandTraceOperationPrecedenceTag(true, true, false, true),
+                       "linear_force_first",
+                       "matrix-operation-precedence")
+        || !expect_tag(ClassifyRuntimeCommandTraceFailureCauseTag(true, true),
+                       "stale_binding",
+                       "matrix-cause-priority")
+        || !expect_tag(ClassifyRuntimeCommandTraceFailureCausePrecedenceTag(true, true),
+                       "stale_binding_first",
+                       "matrix-cause-precedence-priority")
+        || !expect_tag(ClassifyRuntimeCommandTraceDecisionPathTag(true, true, false, true, true, false),
+                       "failed_runtime",
+                       "matrix-decision-failure")) {
         return false;
     }
 
@@ -4292,6 +4539,39 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     auto world_position = [](const TransformComponent& transform) {
         return glm::vec3(transform.world[3]);
     };
+    auto expect_decision_path = [&](std::string_view actual, std::string_view expected, std::string_view label) {
+        if (actual != expected) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " ecs-sync decision-path classification mismatch for " << label << ": expected '" << expected
+                      << "' got '" << actual << "'\n";
+            return false;
+        }
+        return true;
+    };
+    auto expect_captured_trace = [&](const std::shared_ptr<RuntimeTraceCaptureSink>& sink,
+                                     std::initializer_list<std::string_view> tokens,
+                                     std::string_view label) {
+        if (!sink || !sink->ContainsEvent("physics.system", tokens)) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " ecs-sync trace capture missing expected runtime-command tags for " << label << "\n";
+            return false;
+        }
+        return true;
+    };
+    auto expect_captured_mesh_trace = [&](const std::shared_ptr<RuntimeTraceCaptureSink>& sink,
+                                          std::initializer_list<std::string_view> tokens,
+                                          std::string_view label) {
+        if (!sink || !sink->ContainsEvent("physics.system", tokens)) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " ecs-sync trace capture missing expected static-mesh ingest tags for " << label << "\n";
+            return false;
+        }
+        return true;
+    };
+
+    const std::string static_mesh_asset = ResolveTestAssetPath("demo/worlds/r55man-2/world.glb");
+    const std::string missing_mesh_asset = ResolveTestAssetPath("demo/worlds/phase4x-missing-static-mesh.glb");
+    const std::string non_mesh_asset = ResolveTestAssetPath("README.md");
 
     karma::physics::PhysicsSystem physics;
     physics.setBackend(backend);
@@ -4304,6 +4584,25 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     karma::physics::EcsSyncSystem sync(physics);
     karma::ecs::World world{};
+    auto trace_sink = std::make_shared<RuntimeTraceCaptureSink>();
+    auto capture_logger = std::make_shared<spdlog::logger>("physics_backend_parity_trace_capture", trace_sink);
+    capture_logger->set_level(spdlog::level::trace);
+    const auto previous_default_logger = spdlog::default_logger();
+    struct TraceLoggerRestoreScope final {
+        explicit TraceLoggerRestoreScope(std::shared_ptr<spdlog::logger> previous) : previous_(std::move(previous)) {}
+        ~TraceLoggerRestoreScope() {
+            if (previous_) {
+                spdlog::set_default_logger(previous_);
+            }
+            spdlog::drop("physics.system");
+        }
+
+     private:
+        std::shared_ptr<spdlog::logger> previous_{};
+    } trace_logger_restore(previous_default_logger);
+    spdlog::set_default_logger(capture_logger);
+    spdlog::drop("physics.system");
+    karma::common::logging::EnableTraceChannels("physics.system");
 
     const auto entity_create = world.createEntity();
     world.add<TransformComponent>(entity_create, make_transform_component(glm::vec3(0.0f, 3.0f, 0.0f)));
@@ -4315,9 +4614,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_create, PhysicsTransformOwnershipComponent{});
 
     sync.preSimulate(world);
-    BodyId created_body = karma::physics_backend::kInvalidBodyId;
+    BodyId created_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_create, created_body)
-        || created_body == karma::physics_backend::kInvalidBodyId
+        || created_body == karma::physics::backend::kInvalidBodyId
         || sync.runtimeBindingCount() != 1u) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync failed to create runtime body for valid entity\n";
@@ -4357,9 +4656,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
 
     sync.preSimulate(world);
-    BodyId rebuilt_body = karma::physics_backend::kInvalidBodyId;
+    BodyId rebuilt_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_create, rebuilt_body)
-        || rebuilt_body == karma::physics_backend::kInvalidBodyId
+        || rebuilt_body == karma::physics::backend::kInvalidBodyId
         || rebuilt_body == created_body) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync did not rebuild runtime body after shape change\n";
@@ -4384,33 +4683,106 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<RigidBodyIntentComponent>(entity_mesh, mesh_static_rigidbody);
     ColliderIntentComponent mesh_collider{};
     mesh_collider.shape = ColliderShapeKind::Mesh;
-    mesh_collider.mesh_path = "demo/worlds/phase3-placeholder-static.glb";
+    mesh_collider.mesh_path = static_mesh_asset;
     world.add<ColliderIntentComponent>(entity_mesh, mesh_collider);
     world.add<PhysicsTransformOwnershipComponent>(entity_mesh, PhysicsTransformOwnershipComponent{});
 
+    trace_sink->Clear();
     sync.preSimulate(world);
     if (!sync.hasRuntimeBinding(entity_mesh)) {
         std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync failed to create mesh-placeholder runtime body\n";
+                  << " ecs-sync failed to create static-mesh runtime body from mesh path\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='create_success'", "cause='none'"},
+                                    "create success")) {
         physics.shutdown();
         return false;
     }
 
     auto* mesh_dynamic_flip = world.tryGet<RigidBodyIntentComponent>(entity_mesh);
     mesh_dynamic_flip->dynamic = true;
+    trace_sink->Clear();
     sync.preSimulate(world);
     if (sync.hasRuntimeBinding(entity_mesh)) {
         std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync did not teardown mesh-placeholder runtime body after unsupported dynamic transition\n";
+                  << " ecs-sync did not teardown static-mesh runtime body after unsupported dynamic transition\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='reject'",
+                                     "cause='ineligible_dynamic_mesh_intent'"},
+                                    "ineligible dynamic mesh-intent reject")) {
         physics.shutdown();
         return false;
     }
 
     mesh_dynamic_flip->dynamic = false;
+    auto* mesh_invalid_path = world.tryGet<ColliderIntentComponent>(entity_mesh);
+    mesh_invalid_path->mesh_path = "   ";
+    trace_sink->Clear();
+    sync.preSimulate(world);
+    if (sync.hasRuntimeBinding(entity_mesh)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not teardown static-mesh runtime body for invalid mesh-path intent\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='reject'", "cause='invalid_intent'"},
+                                    "invalid-intent reject")) {
+        physics.shutdown();
+        return false;
+    }
+
+    mesh_invalid_path->mesh_path = missing_mesh_asset;
+    trace_sink->Clear();
+    sync.preSimulate(world);
+    if (sync.hasRuntimeBinding(entity_mesh)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not teardown static-mesh runtime body for missing mesh path\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='reject'",
+                                     "cause='mesh_asset_load_or_cook_failed'"},
+                                    "mesh-asset load/cook failure reject")) {
+        physics.shutdown();
+        return false;
+    }
+
+    mesh_invalid_path->mesh_path = non_mesh_asset;
+    trace_sink->Clear();
+    sync.preSimulate(world);
+    if (sync.hasRuntimeBinding(entity_mesh)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not teardown static-mesh runtime body for backend reject create path\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='reject'", "cause='backend_reject_create'"},
+                                    "backend reject create")) {
+        physics.shutdown();
+        return false;
+    }
+
+    mesh_invalid_path->mesh_path = static_mesh_asset;
+    trace_sink->Clear();
     sync.preSimulate(world);
     if (!sync.hasRuntimeBinding(entity_mesh)) {
         std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync did not recreate mesh-placeholder runtime body after returning to supported static intent\n";
+                  << " ecs-sync did not recreate static-mesh runtime body after returning to supported static intent\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='recovery_recreate_success'", "cause='none'"},
+                                    "recovery recreate success after reject correction")) {
         physics.shutdown();
         return false;
     }
@@ -4458,9 +4830,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_runtime_properties, PhysicsTransformOwnershipComponent{});
 
     sync.preSimulate(world);
-    BodyId runtime_properties_body = karma::physics_backend::kInvalidBodyId;
+    BodyId runtime_properties_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_runtime_properties, runtime_properties_body)
-        || runtime_properties_body == karma::physics_backend::kInvalidBodyId) {
+        || runtime_properties_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync failed to create runtime-properties fixture body\n";
         physics.shutdown();
@@ -4482,9 +4854,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     runtime_properties_collider->is_trigger = true;
     sync.preSimulate(world);
 
-    BodyId trigger_updated_body = karma::physics_backend::kInvalidBodyId;
+    BodyId trigger_updated_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_runtime_properties, trigger_updated_body)
-        || trigger_updated_body == karma::physics_backend::kInvalidBodyId) {
+        || trigger_updated_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync lost runtime-properties fixture after trigger transition\n";
         physics.shutdown();
@@ -4505,9 +4877,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     runtime_properties_collider->mask.collides_with = updated_runtime_mask.collides_with;
     sync.preSimulate(world);
 
-    BodyId post_filter_update_body = karma::physics_backend::kInvalidBodyId;
+    BodyId post_filter_update_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_runtime_properties, post_filter_update_body)
-        || post_filter_update_body == karma::physics_backend::kInvalidBodyId) {
+        || post_filter_update_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync lost runtime-properties fixture after filter transition\n";
         physics.shutdown();
@@ -4540,9 +4912,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     runtime_properties_collider->friction = 0.9f;
     sync.preSimulate(world);
 
-    BodyId post_material_friction_update_body = karma::physics_backend::kInvalidBodyId;
+    BodyId post_material_friction_update_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_runtime_properties, post_material_friction_update_body)
-        || post_material_friction_update_body == karma::physics_backend::kInvalidBodyId) {
+        || post_material_friction_update_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync lost runtime-properties fixture after friction transition\n";
         physics.shutdown();
@@ -4566,9 +4938,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     runtime_properties_collider->restitution = 0.4f;
     sync.preSimulate(world);
 
-    BodyId post_material_restitution_update_body = karma::physics_backend::kInvalidBodyId;
+    BodyId post_material_restitution_update_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_runtime_properties, post_material_restitution_update_body)
-        || post_material_restitution_update_body == karma::physics_backend::kInvalidBodyId) {
+        || post_material_restitution_update_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync lost runtime-properties fixture after restitution transition\n";
         physics.shutdown();
@@ -4606,9 +4978,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_damping, PhysicsTransformOwnershipComponent{});
 
     sync.preSimulate(world);
-    BodyId damping_body_before = karma::physics_backend::kInvalidBodyId;
+    BodyId damping_body_before = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_damping, damping_body_before)
-        || damping_body_before == karma::physics_backend::kInvalidBodyId) {
+        || damping_body_before == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync failed to create damping fixture runtime body\n";
         physics.shutdown();
@@ -4632,7 +5004,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     damping_rigidbody_mut->angular_damping = 0.4f;
     sync.preSimulate(world);
 
-    BodyId damping_body_after = karma::physics_backend::kInvalidBodyId;
+    BodyId damping_body_after = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_damping, damping_body_after)
         || damping_body_after != damping_body_before) {
         std::cerr << "backend=" << BackendKindName(backend)
@@ -4660,9 +5032,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_motion_lock, PhysicsTransformOwnershipComponent{});
 
     sync.preSimulate(world);
-    BodyId motion_lock_body_before = karma::physics_backend::kInvalidBodyId;
+    BodyId motion_lock_body_before = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_motion_lock, motion_lock_body_before)
-        || motion_lock_body_before == karma::physics_backend::kInvalidBodyId) {
+        || motion_lock_body_before == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync failed to create motion-lock fixture runtime body\n";
         physics.shutdown();
@@ -4685,9 +5057,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     motion_lock_rigidbody_mut->translation_locked = false;
     sync.preSimulate(world);
 
-    BodyId motion_lock_body_after_rotation_enable = karma::physics_backend::kInvalidBodyId;
+    BodyId motion_lock_body_after_rotation_enable = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_motion_lock, motion_lock_body_after_rotation_enable)
-        || motion_lock_body_after_rotation_enable == karma::physics_backend::kInvalidBodyId) {
+        || motion_lock_body_after_rotation_enable == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync lost motion-lock fixture after valid rotation-lock transition\n";
         physics.shutdown();
@@ -4716,7 +5088,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
 
     sync.preSimulate(world);
-    BodyId motion_lock_body_after_rotation_noop = karma::physics_backend::kInvalidBodyId;
+    BodyId motion_lock_body_after_rotation_noop = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_motion_lock, motion_lock_body_after_rotation_noop)
         || motion_lock_body_after_rotation_noop != motion_lock_body_after_rotation_enable) {
         std::cerr << "backend=" << BackendKindName(backend)
@@ -4728,9 +5100,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     motion_lock_rigidbody_mut->rotation_locked = false;
     motion_lock_rigidbody_mut->translation_locked = false;
     sync.preSimulate(world);
-    BodyId motion_lock_body_after_disable = karma::physics_backend::kInvalidBodyId;
+    BodyId motion_lock_body_after_disable = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_motion_lock, motion_lock_body_after_disable)
-        || motion_lock_body_after_disable == karma::physics_backend::kInvalidBodyId) {
+        || motion_lock_body_after_disable == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync lost motion-lock fixture after lock-disable transition\n";
         physics.shutdown();
@@ -4778,9 +5150,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     motion_lock_rigidbody_mut->rotation_locked = false;
     motion_lock_rigidbody_mut->translation_locked = false;
     sync.preSimulate(world);
-    BodyId motion_lock_body_after_recovery = karma::physics_backend::kInvalidBodyId;
+    BodyId motion_lock_body_after_recovery = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_motion_lock, motion_lock_body_after_recovery)
-        || motion_lock_body_after_recovery == karma::physics_backend::kInvalidBodyId) {
+        || motion_lock_body_after_recovery == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync did not recreate motion-lock fixture after invalid both-lock recovery\n";
         physics.shutdown();
@@ -4806,9 +5178,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_kinematic, PhysicsTransformOwnershipComponent{});
 
     sync.preSimulate(world);
-    BodyId kinematic_body_before_toggle = karma::physics_backend::kInvalidBodyId;
+    BodyId kinematic_body_before_toggle = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_kinematic, kinematic_body_before_toggle)
-        || kinematic_body_before_toggle == karma::physics_backend::kInvalidBodyId) {
+        || kinematic_body_before_toggle == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync failed to create kinematic fixture runtime body\n";
         physics.shutdown();
@@ -4828,9 +5200,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     kinematic_rigidbody_mut->kinematic = true;
     sync.preSimulate(world);
 
-    BodyId kinematic_body_after_enable = karma::physics_backend::kInvalidBodyId;
+    BodyId kinematic_body_after_enable = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_kinematic, kinematic_body_after_enable)
-        || kinematic_body_after_enable == karma::physics_backend::kInvalidBodyId
+        || kinematic_body_after_enable == karma::physics::backend::kInvalidBodyId
         || !physics.getBodyKinematic(kinematic_body_after_enable, runtime_kinematic_enabled)
         || !runtime_kinematic_enabled) {
         std::cerr << "backend=" << BackendKindName(backend)
@@ -4844,9 +5216,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     kinematic_rigidbody_mut->kinematic = false;
     sync.preSimulate(world);
 
-    BodyId kinematic_body_after_forced_fallback = karma::physics_backend::kInvalidBodyId;
+    BodyId kinematic_body_after_forced_fallback = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_kinematic, kinematic_body_after_forced_fallback)
-        || kinematic_body_after_forced_fallback == karma::physics_backend::kInvalidBodyId
+        || kinematic_body_after_forced_fallback == karma::physics::backend::kInvalidBodyId
         || kinematic_body_after_forced_fallback == kinematic_body_after_enable
         || !physics.getBodyKinematic(kinematic_body_after_forced_fallback, runtime_kinematic_enabled)
         || runtime_kinematic_enabled) {
@@ -4866,9 +5238,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_awake, PhysicsTransformOwnershipComponent{});
 
     sync.preSimulate(world);
-    BodyId awake_body_before_toggle = karma::physics_backend::kInvalidBodyId;
+    BodyId awake_body_before_toggle = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_awake, awake_body_before_toggle)
-        || awake_body_before_toggle == karma::physics_backend::kInvalidBodyId) {
+        || awake_body_before_toggle == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync failed to create awake fixture runtime body\n";
         physics.shutdown();
@@ -4887,7 +5259,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     awake_rigidbody_mut->awake = false;
     sync.preSimulate(world);
 
-    BodyId awake_body_after_sleep = karma::physics_backend::kInvalidBodyId;
+    BodyId awake_body_after_sleep = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_awake, awake_body_after_sleep)
         || awake_body_after_sleep != awake_body_before_toggle
         || !physics.getBodyAwake(awake_body_after_sleep, runtime_awake_enabled)
@@ -4900,7 +5272,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     awake_rigidbody_mut->awake = true;
     sync.preSimulate(world);
-    BodyId awake_body_after_wake = karma::physics_backend::kInvalidBodyId;
+    BodyId awake_body_after_wake = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_awake, awake_body_after_wake)
         || awake_body_after_wake != awake_body_before_toggle
         || !physics.getBodyAwake(awake_body_after_wake, runtime_awake_enabled)
@@ -4916,9 +5288,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     awake_rigidbody_mut->awake = false;
     sync.preSimulate(world);
 
-    BodyId awake_body_after_forced_fallback = karma::physics_backend::kInvalidBodyId;
+    BodyId awake_body_after_forced_fallback = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_awake, awake_body_after_forced_fallback)
-        || awake_body_after_forced_fallback == karma::physics_backend::kInvalidBodyId
+        || awake_body_after_forced_fallback == karma::physics::backend::kInvalidBodyId
         || awake_body_after_forced_fallback == awake_body_after_wake
         || !physics.getBodyAwake(awake_body_after_forced_fallback, runtime_awake_enabled)
         || runtime_awake_enabled) {
@@ -4944,9 +5316,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_force_impulse, PhysicsTransformOwnershipComponent{});
 
     sync.preSimulate(world);
-    BodyId force_impulse_body = karma::physics_backend::kInvalidBodyId;
+    BodyId force_impulse_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_force_impulse, force_impulse_body)
-        || force_impulse_body == karma::physics_backend::kInvalidBodyId) {
+        || force_impulse_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync failed to create force/impulse fixture runtime body\n";
         physics.shutdown();
@@ -5000,7 +5372,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     force_impulse_rigidbody_mut->angular_torque = glm::vec3(0.0f, 0.0f, 0.0f);
     const BodyId force_impulse_body_before_noop = force_impulse_body;
     sync.preSimulate(world);
-    BodyId force_impulse_body_after_noop = karma::physics_backend::kInvalidBodyId;
+    BodyId force_impulse_body_after_noop = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_force_impulse, force_impulse_body_after_noop)
         || force_impulse_body_after_noop != force_impulse_body_before_noop) {
         std::cerr << "backend=" << BackendKindName(backend)
@@ -5054,7 +5426,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     force_impulse_rigidbody_mut->clear_runtime_commands_requested = true;
     const BodyId force_impulse_body_before_clear_request = force_impulse_body_after_noop;
     sync.preSimulate(world);
-    BodyId force_impulse_body_after_clear_request = karma::physics_backend::kInvalidBodyId;
+    BodyId force_impulse_body_after_clear_request = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_force_impulse, force_impulse_body_after_clear_request)
         || force_impulse_body_after_clear_request != force_impulse_body_before_clear_request
         || !force_impulse_rigidbody_mut
@@ -5086,9 +5458,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     sync.preSimulate(world);
     auto* non_dynamic_commands_rigidbody_mut = world.tryGet<RigidBodyIntentComponent>(entity_non_dynamic_commands);
-    BodyId non_dynamic_commands_body_before = karma::physics_backend::kInvalidBodyId;
+    BodyId non_dynamic_commands_body_before = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_non_dynamic_commands, non_dynamic_commands_body_before)
-        || non_dynamic_commands_body_before == karma::physics_backend::kInvalidBodyId
+        || non_dynamic_commands_body_before == karma::physics::backend::kInvalidBodyId
         || !non_dynamic_commands_rigidbody_mut
         || !karma::scene::HasRuntimeLinearForceCommand(*non_dynamic_commands_rigidbody_mut)
         || !karma::scene::HasRuntimeLinearImpulseCommand(*non_dynamic_commands_rigidbody_mut)
@@ -5112,7 +5484,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
 
     sync.preSimulate(world);
-    BodyId non_dynamic_commands_body_second = karma::physics_backend::kInvalidBodyId;
+    BodyId non_dynamic_commands_body_second = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_non_dynamic_commands, non_dynamic_commands_body_second)
         || non_dynamic_commands_body_second != non_dynamic_commands_body_before
         || !karma::scene::HasRuntimeLinearImpulseCommand(*non_dynamic_commands_rigidbody_mut)
@@ -5125,7 +5497,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     non_dynamic_commands_rigidbody_mut->clear_runtime_commands_requested = true;
     sync.preSimulate(world);
-    BodyId non_dynamic_commands_body_after_clear = karma::physics_backend::kInvalidBodyId;
+    BodyId non_dynamic_commands_body_after_clear = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_non_dynamic_commands, non_dynamic_commands_body_after_clear)
         || non_dynamic_commands_body_after_clear != non_dynamic_commands_body_before
         || karma::scene::HasRuntimeCommandClearRequest(*non_dynamic_commands_rigidbody_mut)
@@ -5145,9 +5517,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     non_dynamic_commands_rigidbody_mut->angular_torque = glm::vec3(0.0f, 7.5f, 0.0f);
     non_dynamic_commands_rigidbody_mut->angular_impulse = glm::vec3(0.0f, 0.35f, 0.0f);
     sync.preSimulate(world);
-    BodyId non_dynamic_commands_body_after_recovery = karma::physics_backend::kInvalidBodyId;
+    BodyId non_dynamic_commands_body_after_recovery = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_non_dynamic_commands, non_dynamic_commands_body_after_recovery)
-        || non_dynamic_commands_body_after_recovery == karma::physics_backend::kInvalidBodyId
+        || non_dynamic_commands_body_after_recovery == karma::physics::backend::kInvalidBodyId
         || karma::scene::HasRuntimeLinearImpulseCommand(*non_dynamic_commands_rigidbody_mut)
         || karma::scene::HasRuntimeAngularImpulseCommand(*non_dynamic_commands_rigidbody_mut)
         || !karma::scene::HasRuntimeLinearForceCommand(*non_dynamic_commands_rigidbody_mut)
@@ -5174,11 +5546,12 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<ColliderIntentComponent>(entity_ineligible_commands, ColliderIntentComponent{});
     world.add<PhysicsTransformOwnershipComponent>(entity_ineligible_commands, PhysicsTransformOwnershipComponent{});
 
+    trace_sink->Clear();
     sync.preSimulate(world);
     auto* ineligible_commands_rigidbody_mut = world.tryGet<RigidBodyIntentComponent>(entity_ineligible_commands);
-    BodyId ineligible_commands_body_before = karma::physics_backend::kInvalidBodyId;
+    BodyId ineligible_commands_body_before = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_ineligible_commands, ineligible_commands_body_before)
-        || ineligible_commands_body_before == karma::physics_backend::kInvalidBodyId
+        || ineligible_commands_body_before == karma::physics::backend::kInvalidBodyId
         || !ineligible_commands_rigidbody_mut
         || !karma::scene::HasRuntimeLinearForceCommand(*ineligible_commands_rigidbody_mut)
         || !karma::scene::HasRuntimeLinearImpulseCommand(*ineligible_commands_rigidbody_mut)
@@ -5186,6 +5559,23 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         || !karma::scene::HasRuntimeAngularImpulseCommand(*ineligible_commands_rigidbody_mut)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync ineligible command fixture failed to keep runtime body and pending commands stable\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_captured_trace(trace_sink,
+                               {"stage='create'",
+                                "operation='linear_force'",
+                                "outcome='ineligible_kinematic'",
+                                "operation_precedence='linear_force_first'",
+                                "decision_path='skipped_ineligible_kinematic'"},
+                               "skip/ineligible emitted trace tags")) {
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_decision_path(karma::physics::detail::ClassifyRuntimeCommandTraceDecisionPathTag(
+                                  true, true, true, false, false, false),
+                              "skipped_ineligible_kinematic",
+                              "fixture-skip-kinematic")) {
         physics.shutdown();
         return false;
     }
@@ -5202,7 +5592,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
 
     sync.preSimulate(world);
-    BodyId ineligible_commands_body_second = karma::physics_backend::kInvalidBodyId;
+    BodyId ineligible_commands_body_second = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_ineligible_commands, ineligible_commands_body_second)
         || ineligible_commands_body_second != ineligible_commands_body_before
         || !karma::scene::HasRuntimeLinearImpulseCommand(*ineligible_commands_rigidbody_mut)
@@ -5215,7 +5605,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     ineligible_commands_rigidbody_mut->clear_runtime_commands_requested = true;
     sync.preSimulate(world);
-    BodyId ineligible_commands_body_after_clear = karma::physics_backend::kInvalidBodyId;
+    BodyId ineligible_commands_body_after_clear = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_ineligible_commands, ineligible_commands_body_after_clear)
         || ineligible_commands_body_after_clear != ineligible_commands_body_before
         || karma::scene::HasRuntimeCommandClearRequest(*ineligible_commands_rigidbody_mut)
@@ -5232,14 +5622,32 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     ineligible_commands_rigidbody_mut->linear_impulse = glm::vec3(0.55f, 0.0f, 0.0f);
     ineligible_commands_rigidbody_mut->angular_impulse = glm::vec3(0.0f, 0.45f, 0.0f);
     ineligible_commands_rigidbody_mut->kinematic = false;
+    trace_sink->Clear();
     sync.preSimulate(world);
-    BodyId ineligible_commands_body_after_recovery = karma::physics_backend::kInvalidBodyId;
+    BodyId ineligible_commands_body_after_recovery = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_ineligible_commands, ineligible_commands_body_after_recovery)
         || ineligible_commands_body_after_recovery != ineligible_commands_body_before
         || karma::scene::HasRuntimeLinearImpulseCommand(*ineligible_commands_rigidbody_mut)
         || karma::scene::HasRuntimeAngularImpulseCommand(*ineligible_commands_rigidbody_mut)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync ineligible command recovery did not consume one-shot commands without churn\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_captured_trace(trace_sink,
+                               {"stage='update'",
+                                "operation='linear_impulse'",
+                                "outcome='none'",
+                                "operation_precedence='linear_impulse_second'",
+                                "decision_path='applied_runtime'"},
+                               "success/apply emitted trace tags")) {
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_decision_path(karma::physics::detail::ClassifyRuntimeCommandTraceDecisionPathTag(
+                                  true, true, false, false, false, false),
+                              "applied_runtime",
+                              "fixture-applied-runtime")) {
         physics.shutdown();
         return false;
     }
@@ -5255,9 +5663,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     sync.preSimulate(world);
     auto* stale_runtime_rigidbody_mut = world.tryGet<RigidBodyIntentComponent>(entity_stale_runtime_commands);
-    BodyId stale_runtime_body_before = karma::physics_backend::kInvalidBodyId;
+    BodyId stale_runtime_body_before = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_stale_runtime_commands, stale_runtime_body_before)
-        || stale_runtime_body_before == karma::physics_backend::kInvalidBodyId
+        || stale_runtime_body_before == karma::physics::backend::kInvalidBodyId
         || !stale_runtime_rigidbody_mut) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync stale-runtime fixture failed to create initial runtime body\n";
@@ -5292,9 +5700,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
 
     sync.preSimulate(world);
-    BodyId stale_runtime_body_after_failure = karma::physics_backend::kInvalidBodyId;
+    BodyId stale_runtime_body_after_failure = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_stale_runtime_commands, stale_runtime_body_after_failure)
-        || stale_runtime_body_after_failure == karma::physics_backend::kInvalidBodyId
+        || stale_runtime_body_after_failure == karma::physics::backend::kInvalidBodyId
         || stale_runtime_body_after_failure == stale_runtime_body_before
         || !karma::scene::HasRuntimeLinearForceCommand(*stale_runtime_rigidbody_mut)
         || !karma::scene::HasRuntimeLinearImpulseCommand(*stale_runtime_rigidbody_mut)
@@ -5307,7 +5715,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
 
     sync.preSimulate(world);
-    BodyId stale_runtime_body_second = karma::physics_backend::kInvalidBodyId;
+    BodyId stale_runtime_body_second = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_stale_runtime_commands, stale_runtime_body_second)
         || stale_runtime_body_second != stale_runtime_body_after_failure
         || !karma::scene::HasRuntimeLinearImpulseCommand(*stale_runtime_rigidbody_mut)
@@ -5320,7 +5728,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     stale_runtime_rigidbody_mut->clear_runtime_commands_requested = true;
     sync.preSimulate(world);
-    BodyId stale_runtime_body_after_clear = karma::physics_backend::kInvalidBodyId;
+    BodyId stale_runtime_body_after_clear = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_stale_runtime_commands, stale_runtime_body_after_clear)
         || stale_runtime_body_after_clear != stale_runtime_body_after_failure
         || karma::scene::HasRuntimeCommandClearRequest(*stale_runtime_rigidbody_mut)
@@ -5340,9 +5748,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     stale_runtime_rigidbody_mut->angular_impulse = glm::vec3(0.0f, 0.3f, 0.0f);
     stale_runtime_rigidbody_mut->kinematic = false;
     sync.preSimulate(world);
-    BodyId stale_runtime_body_after_recovery = karma::physics_backend::kInvalidBodyId;
+    BodyId stale_runtime_body_after_recovery = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_stale_runtime_commands, stale_runtime_body_after_recovery)
-        || stale_runtime_body_after_recovery == karma::physics_backend::kInvalidBodyId
+        || stale_runtime_body_after_recovery == karma::physics::backend::kInvalidBodyId
         || karma::scene::HasRuntimeLinearImpulseCommand(*stale_runtime_rigidbody_mut)
         || karma::scene::HasRuntimeAngularImpulseCommand(*stale_runtime_rigidbody_mut)
         || !karma::scene::HasRuntimeLinearForceCommand(*stale_runtime_rigidbody_mut)
@@ -5363,9 +5771,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_backend_command_failure, PhysicsTransformOwnershipComponent{});
 
     sync.preSimulate(world);
-    BodyId backend_failure_body = karma::physics_backend::kInvalidBodyId;
+    BodyId backend_failure_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_backend_command_failure, backend_failure_body)
-        || backend_failure_body == karma::physics_backend::kInvalidBodyId) {
+        || backend_failure_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync backend-failure fixture did not create initial runtime body\n";
         physics.shutdown();
@@ -5400,10 +5808,18 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    if (!expect_decision_path(karma::physics::detail::ClassifyRuntimeCommandTraceDecisionPathTag(
+                                  true, true, false, false, true, false),
+                              "failed_runtime",
+                              "fixture-failed-runtime")) {
+        physics.shutdown();
+        return false;
+    }
+    trace_sink->Clear();
     sync.preSimulate(world);
-    BodyId backend_failure_body_after_recovery = karma::physics_backend::kInvalidBodyId;
+    BodyId backend_failure_body_after_recovery = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_backend_command_failure, backend_failure_body_after_recovery)
-        || backend_failure_body_after_recovery == karma::physics_backend::kInvalidBodyId
+        || backend_failure_body_after_recovery == karma::physics::backend::kInvalidBodyId
         || backend_failure_body_after_recovery == backend_failure_body
         || karma::scene::HasRuntimeLinearImpulseCommand(*backend_failure_rigidbody_mut)
         || karma::scene::HasRuntimeAngularImpulseCommand(*backend_failure_rigidbody_mut)) {
@@ -5416,6 +5832,35 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         || !karma::scene::HasRuntimeAngularTorqueCommand(*backend_failure_rigidbody_mut)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync backend-failure fixture unexpectedly cleared persistent commands during recovery\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_captured_trace(trace_sink,
+                               {"stage='update'",
+                                "operation='linear_force'",
+                                "outcome='runtime_apply_failed'",
+                                "cause='backend_reject'",
+                                "operation_precedence='linear_force_first'",
+                                "cause_precedence='backend_reject_first'",
+                                "decision_path='failed_runtime'"},
+                               "failure/cause emitted trace tags")) {
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_captured_trace(trace_sink,
+                               {"stage='recovery'",
+                                "operation='linear_force'",
+                                "outcome='recovery_applied'",
+                                "operation_precedence='linear_force_first'",
+                                "decision_path='recovered_via_fallback'"},
+                               "recovery emitted trace tags")) {
+        physics.shutdown();
+        return false;
+    }
+    if (!expect_decision_path(karma::physics::detail::ClassifyRuntimeCommandTraceDecisionPathTag(
+                                  true, true, false, false, false, true),
+                              "recovered_via_fallback",
+                              "fixture-recovered-via-fallback")) {
         physics.shutdown();
         return false;
     }
@@ -5457,9 +5902,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
             return false;
         }
         sync.preSimulate(world);
-        BodyId backend_failure_body_next = karma::physics_backend::kInvalidBodyId;
+        BodyId backend_failure_body_next = karma::physics::backend::kInvalidBodyId;
         if (!sync.tryGetRuntimeBody(entity_backend_command_failure, backend_failure_body_next)
-            || backend_failure_body_next == karma::physics_backend::kInvalidBodyId
+            || backend_failure_body_next == karma::physics::backend::kInvalidBodyId
             || backend_failure_body_next == backend_failure_body_loop
             || !karma::scene::HasRuntimeLinearForceCommand(*backend_failure_rigidbody_mut)
             || !karma::scene::HasRuntimeAngularTorqueCommand(*backend_failure_rigidbody_mut)) {
@@ -5473,7 +5918,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     backend_failure_rigidbody_mut->clear_runtime_commands_requested = true;
     sync.preSimulate(world);
-    BodyId backend_failure_body_after_clear = karma::physics_backend::kInvalidBodyId;
+    BodyId backend_failure_body_after_clear = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_backend_command_failure, backend_failure_body_after_clear)
         || backend_failure_body_after_clear != backend_failure_body_loop
         || karma::scene::HasRuntimeCommandClearRequest(*backend_failure_rigidbody_mut)
@@ -5488,7 +5933,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
 
     sync.preSimulate(world);
-    BodyId backend_failure_body_after_clear_repeat = karma::physics_backend::kInvalidBodyId;
+    BodyId backend_failure_body_after_clear_repeat = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_backend_command_failure, backend_failure_body_after_clear_repeat)
         || backend_failure_body_after_clear_repeat != backend_failure_body_after_clear
         || karma::scene::HasRuntimeLinearForceCommand(*backend_failure_rigidbody_mut)
@@ -5530,9 +5975,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     auto* controller_intent = world.tryGet<PlayerControllerIntentComponent>(entity_controller);
     controller_intent->desired_velocity = glm::vec3(1.1f, 0.0f, -0.6f);
     sync.preSimulate(world);
-    BodyId controller_body = karma::physics_backend::kInvalidBodyId;
+    BodyId controller_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
-        || controller_body == karma::physics_backend::kInvalidBodyId) {
+        || controller_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync lost controller body before desired-velocity check\n";
         physics.shutdown();
@@ -5557,7 +6002,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     const BodyId controller_body_before_noop = controller_body;
     sync.preSimulate(world);
-    BodyId controller_body_after_noop = karma::physics_backend::kInvalidBodyId;
+    BodyId controller_body_after_noop = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_controller, controller_body_after_noop)
         || controller_body_after_noop != controller_body_before_noop) {
         std::cerr << "backend=" << BackendKindName(backend)
@@ -5583,7 +6028,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     auto* controller_collider = world.tryGet<ColliderIntentComponent>(entity_controller);
     controller_intent->half_extents.x += 0.12f;
     sync.preSimulate(world);
-    BodyId controller_body_after_half_extents_rebuild = karma::physics_backend::kInvalidBodyId;
+    BodyId controller_body_after_half_extents_rebuild = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_controller, controller_body_after_half_extents_rebuild)
         || controller_body_after_half_extents_rebuild == controller_body_after_noop) {
         std::cerr << "backend=" << BackendKindName(backend)
@@ -5615,7 +6060,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
 
     sync.preSimulate(world);
-    BodyId controller_body_after_second_noop = karma::physics_backend::kInvalidBodyId;
+    BodyId controller_body_after_second_noop = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_controller, controller_body_after_second_noop)
         || controller_body_after_second_noop != controller_body_after_half_extents_rebuild) {
         std::cerr << "backend=" << BackendKindName(backend)
@@ -5645,7 +6090,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     controller_intent->center.y += 0.18f;
     sync.preSimulate(world);
-    BodyId controller_body_after_center_rebuild = karma::physics_backend::kInvalidBodyId;
+    BodyId controller_body_after_center_rebuild = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_controller, controller_body_after_center_rebuild)
         || controller_body_after_center_rebuild == controller_body_after_second_noop) {
         std::cerr << "backend=" << BackendKindName(backend)
@@ -5691,7 +6136,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         return false;
     }
     if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
-        || controller_body == karma::physics_backend::kInvalidBodyId) {
+        || controller_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync lost controller body for disabled-controller velocity check\n";
         physics.shutdown();
@@ -5725,7 +6170,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     controller_rigidbody_intent->angular_velocity = glm::vec3(0.0f, 0.2f, 0.2f);
     sync.preSimulate(world);
     if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
-        || controller_body == karma::physics_backend::kInvalidBodyId) {
+        || controller_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync lost controller body for re-enabled controller ownership check\n";
         physics.shutdown();
@@ -5790,9 +6235,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
 
     sync.preSimulate(world);
-    BodyId static_controller_body = karma::physics_backend::kInvalidBodyId;
+    BodyId static_controller_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_controller_static, static_controller_body)
-        || static_controller_body == karma::physics_backend::kInvalidBodyId) {
+        || static_controller_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync did not retain runtime body for controller/non-dynamic rejection path\n";
         physics.shutdown();
@@ -5806,7 +6251,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
     for (int i = 0; i < 3; ++i) {
         sync.preSimulate(world);
-        BodyId observed_static_controller_body = karma::physics_backend::kInvalidBodyId;
+        BodyId observed_static_controller_body = karma::physics::backend::kInvalidBodyId;
         if (!sync.tryGetRuntimeBody(entity_controller_static, observed_static_controller_body)
             || observed_static_controller_body != static_controller_body
             || sync.hasControllerRuntimeBinding(entity_controller_static)) {
@@ -5826,7 +6271,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         return false;
     }
     if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
-        || controller_body == karma::physics_backend::kInvalidBodyId) {
+        || controller_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync lost controller body after controller component removal\n";
         physics.shutdown();
@@ -5859,9 +6304,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_push, scene_authoritative);
 
     sync.preSimulate(world);
-    BodyId push_body = karma::physics_backend::kInvalidBodyId;
+    BodyId push_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_push, push_body)
-        || push_body == karma::physics_backend::kInvalidBodyId) {
+        || push_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync failed to create scene-authoritative runtime body\n";
         physics.shutdown();
@@ -5899,9 +6344,9 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_pull, PhysicsTransformOwnershipComponent{});
 
     sync.preSimulate(world);
-    BodyId pull_body = karma::physics_backend::kInvalidBodyId;
+    BodyId pull_body = karma::physics::backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_pull, pull_body)
-        || pull_body == karma::physics_backend::kInvalidBodyId) {
+        || pull_body == karma::physics::backend::kInvalidBodyId) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync failed to create physics-authoritative runtime body\n";
         physics.shutdown();
@@ -5983,6 +6428,40 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 }
 
 bool RunFacadeScaffoldChecks(BackendKind backend) {
+    const std::string static_mesh_asset = ResolveTestAssetPath("demo/worlds/r55man-2/world.glb");
+    const std::string missing_mesh_asset = ResolveTestAssetPath("demo/worlds/phase4y-missing-static-mesh.glb");
+    const std::string non_mesh_asset = ResolveTestAssetPath("README.md");
+    auto expect_captured_mesh_trace = [&](const std::shared_ptr<RuntimeTraceCaptureSink>& sink,
+                                          std::initializer_list<std::string_view> tokens,
+                                          std::string_view label) {
+        if (!sink || !sink->ContainsEvent("physics.system", tokens)) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " world facade trace capture missing expected static-mesh ingest tags for " << label << "\n";
+            return false;
+        }
+        return true;
+    };
+
+    auto trace_sink = std::make_shared<RuntimeTraceCaptureSink>();
+    auto capture_logger = std::make_shared<spdlog::logger>("physics_backend_parity_world_trace_capture", trace_sink);
+    capture_logger->set_level(spdlog::level::trace);
+    const auto previous_default_logger = spdlog::default_logger();
+    struct TraceLoggerRestoreScope final {
+        explicit TraceLoggerRestoreScope(std::shared_ptr<spdlog::logger> previous) : previous_(std::move(previous)) {}
+        ~TraceLoggerRestoreScope() {
+            if (previous_) {
+                spdlog::set_default_logger(previous_);
+            }
+            spdlog::drop("physics.system");
+        }
+
+     private:
+        std::shared_ptr<spdlog::logger> previous_{};
+    } trace_logger_restore(previous_default_logger);
+    spdlog::set_default_logger(capture_logger);
+    spdlog::drop("physics.system");
+    karma::common::logging::EnableTraceChannels("physics.system");
+
     karma::physics::World world;
     world.setBackend(backend);
     world.init();
@@ -6025,10 +6504,79 @@ bool RunFacadeScaffoldChecks(BackendKind backend) {
         return false;
     }
 
-    karma::physics::StaticBody static_mesh = world.createStaticMesh("demo/worlds/placeholder-static.glb");
+    trace_sink->Clear();
+    karma::physics::StaticBody static_mesh = world.createStaticMesh(static_mesh_asset);
     if (!static_mesh.isValid()) {
         std::cerr << "backend=" << BackendKindName(backend)
-                  << " world facade failed to create placeholder static mesh body\n";
+                  << " world facade failed to create static mesh body from real mesh asset path\n";
+        world.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='create_success'", "cause='none'"},
+                                    "create success")) {
+        world.shutdown();
+        return false;
+    }
+
+    trace_sink->Clear();
+    karma::physics::StaticBody invalid_intent_static_mesh = world.createStaticMesh("   ");
+    if (invalid_intent_static_mesh.isValid()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade unexpectedly created static mesh body for invalid intent path\n";
+        world.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='reject'", "cause='invalid_intent'"},
+                                    "invalid-intent reject")) {
+        world.shutdown();
+        return false;
+    }
+
+    trace_sink->Clear();
+    karma::physics::StaticBody load_failed_static_mesh = world.createStaticMesh(missing_mesh_asset);
+    if (load_failed_static_mesh.isValid()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade unexpectedly created static mesh body for missing mesh path\n";
+        world.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='reject'",
+                                     "cause='mesh_asset_load_or_cook_failed'"},
+                                    "mesh-asset load/cook failed reject")) {
+        world.shutdown();
+        return false;
+    }
+
+    trace_sink->Clear();
+    karma::physics::StaticBody backend_rejected_static_mesh = world.createStaticMesh(non_mesh_asset);
+    if (backend_rejected_static_mesh.isValid()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade unexpectedly created static mesh body for backend reject path\n";
+        world.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='reject'", "cause='backend_reject_create'"},
+                                    "backend reject create")) {
+        world.shutdown();
+        return false;
+    }
+
+    trace_sink->Clear();
+    karma::physics::StaticBody recovered_static_mesh = world.createStaticMesh(static_mesh_asset);
+    if (!recovered_static_mesh.isValid()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade failed to recover static mesh creation after reject path\n";
+        world.shutdown();
+        return false;
+    }
+    if (!expect_captured_mesh_trace(trace_sink,
+                                    {"static-mesh-ingest", "outcome='recovery_recreate_success'",
+                                     "cause='none'"},
+                                    "recovery recreate success after reject correction")) {
         world.shutdown();
         return false;
     }
@@ -6063,6 +6611,7 @@ bool RunFacadeScaffoldChecks(BackendKind backend) {
 
     controller.destroy();
     dynamic_body.destroy();
+    recovered_static_mesh.destroy();
     static_mesh.destroy();
     world.shutdown();
 

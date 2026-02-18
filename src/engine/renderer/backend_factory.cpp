@@ -1,13 +1,13 @@
 #include "karma/renderer/backend.hpp"
 
-#include "backends/internal/backend_factory.hpp"
+#include "backends/factory_internal.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <string>
 #include <vector>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 std::string Lower(std::string_view input) {
@@ -102,4 +102,4 @@ std::unique_ptr<Backend> CreateBackend(karma::platform::Window& window,
     return nullptr;
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

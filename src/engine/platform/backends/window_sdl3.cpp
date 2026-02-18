@@ -1,4 +1,5 @@
 #include "platform/backends/window_sdl3.hpp"
+#include "platform/backends/factory_internal.hpp"
 
 #include "karma/common/logging/logging.hpp"
 
@@ -477,3 +478,13 @@ NativeWindowHandle WindowSdl3::nativeHandle() const {
 }
 
 } // namespace karma::platform
+
+#if defined(KARMA_WINDOW_BACKEND_SDL3)
+namespace karma::platform::backend {
+
+std::unique_ptr<Window> CreateSdl3WindowBackend(const WindowConfig& config) {
+    return std::make_unique<WindowSdl3>(config);
+}
+
+} // namespace karma::platform::backend
+#endif

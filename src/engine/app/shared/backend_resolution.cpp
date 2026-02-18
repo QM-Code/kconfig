@@ -7,22 +7,22 @@
 
 namespace karma::app::shared {
 
-physics_backend::BackendKind ResolvePhysicsBackendFromOption(const std::string& option_value,
+physics::backend::BackendKind ResolvePhysicsBackendFromOption(const std::string& option_value,
                                                              bool option_explicit) {
     const std::string configured = option_explicit
         ? option_value
         : common::config::ReadStringConfig("physics.backend", "auto");
-    const auto parsed = physics_backend::ParseBackendKind(configured);
+    const auto parsed = physics::backend::ParseBackendKind(configured);
     if (!parsed) {
         const char* source = option_explicit ? "--backend-physics" : "config 'physics.backend'";
         throw std::runtime_error(std::string("Invalid value for ") + source + ": '" + configured
                                  + "' (expected: auto|jolt|physx)");
     }
-    if (*parsed != physics_backend::BackendKind::Auto) {
-        const auto compiled = physics_backend::CompiledBackends();
+    if (*parsed != physics::backend::BackendKind::Auto) {
+        const auto compiled = physics::backend::CompiledBackends();
         const bool supported = std::any_of(compiled.begin(),
                                            compiled.end(),
-                                           [parsed](physics_backend::BackendKind kind) {
+                                           [parsed](physics::backend::BackendKind kind) {
                                                return kind == *parsed;
                                            });
         if (!supported) {
@@ -33,22 +33,22 @@ physics_backend::BackendKind ResolvePhysicsBackendFromOption(const std::string& 
     return *parsed;
 }
 
-audio_backend::BackendKind ResolveAudioBackendFromOption(const std::string& option_value,
+audio::backend::BackendKind ResolveAudioBackendFromOption(const std::string& option_value,
                                                          bool option_explicit) {
     const std::string configured = option_explicit
         ? option_value
         : common::config::ReadStringConfig("audio.backend", "auto");
-    const auto parsed = audio_backend::ParseBackendKind(configured);
+    const auto parsed = audio::backend::ParseBackendKind(configured);
     if (!parsed) {
         const char* source = option_explicit ? "--backend-audio" : "config 'audio.backend'";
         throw std::runtime_error(std::string("Invalid value for ") + source + ": '" + configured
                                  + "' (expected: auto|sdl3audio|miniaudio)");
     }
-    if (*parsed != audio_backend::BackendKind::Auto) {
-        const auto compiled = audio_backend::CompiledBackends();
+    if (*parsed != audio::backend::BackendKind::Auto) {
+        const auto compiled = audio::backend::CompiledBackends();
         const bool supported = std::any_of(compiled.begin(),
                                            compiled.end(),
-                                           [parsed](audio_backend::BackendKind kind) {
+                                           [parsed](audio::backend::BackendKind kind) {
                                                return kind == *parsed;
                                            });
         if (!supported) {

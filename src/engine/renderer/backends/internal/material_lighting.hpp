@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace karma::renderer_backend::detail {
+namespace karma::renderer::backend::detail {
 
 struct ResolvedMaterialLighting {
     glm::vec4 color{1.0f, 1.0f, 1.0f, 1.0f};
@@ -100,4 +100,4 @@ inline bool ValidateResolvedMaterialLighting(const ResolvedMaterialLighting& lig
     return true;
 }
 
-} // namespace karma::renderer_backend::detail
+} // namespace karma::renderer::backend::detail

@@ -27,7 +27,7 @@ PlayerController PlayerController::CreateFacadeHandle(std::shared_ptr<void> worl
                                                       const glm::vec3& half_extents) {
     auto impl = std::make_unique<Impl>();
     impl->state = std::static_pointer_cast<detail::WorldState>(std::move(world_state));
-    impl->handle.body = static_cast<physics_backend::BodyId>(body);
+    impl->handle.body = static_cast<physics::backend::BodyId>(body);
     impl->handle.generation = generation;
     if (half_extents.x > 0.0f && half_extents.y > 0.0f && half_extents.z > 0.0f) {
         impl->half_extents = half_extents;
@@ -53,7 +53,7 @@ glm::vec3 PlayerController::getPosition() const {
         return glm::vec3(0.0f, 0.0f, 0.0f);
     }
 
-    physics_backend::BodyTransform transform{};
+    physics::backend::BodyTransform transform{};
     if (!system->getBodyTransform(impl_->handle.body, transform)) {
         return glm::vec3(0.0f, 0.0f, 0.0f);
     }
@@ -71,7 +71,7 @@ glm::quat PlayerController::getRotation() const {
         return glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     }
 
-    physics_backend::BodyTransform transform{};
+    physics::backend::BodyTransform transform{};
     if (!system->getBodyTransform(impl_->handle.body, transform)) {
         return glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     }
@@ -148,7 +148,7 @@ void PlayerController::setPosition(const glm::vec3& position) {
         return;
     }
 
-    physics_backend::BodyTransform transform{};
+    physics::backend::BodyTransform transform{};
     if (!system->getBodyTransform(impl_->handle.body, transform)) {
         return;
     }
@@ -167,7 +167,7 @@ void PlayerController::setRotation(const glm::quat& rotation) {
         return;
     }
 
-    physics_backend::BodyTransform transform{};
+    physics::backend::BodyTransform transform{};
     if (!system->getBodyTransform(impl_->handle.body, transform)) {
         return;
     }

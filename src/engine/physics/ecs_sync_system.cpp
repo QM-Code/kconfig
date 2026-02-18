@@ -4,6 +4,7 @@
 #include "karma/ecs/world.hpp"
 #include "karma/physics/physics_system.hpp"
 #include "karma/scene/components.hpp"
+#include "physics/static_mesh_ingest_observability.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -46,6 +47,29 @@ enum class RuntimeCommandTraceFailureCause : uint8_t {
     None = 0,
     StaleBinding,
     BackendReject
+};
+
+enum class RuntimeCommandTraceOperationPrecedence : uint8_t {
+    None = 0,
+    LinearForceFirst,
+    LinearImpulseSecond,
+    AngularTorqueThird,
+    AngularImpulseFourth
+};
+
+enum class RuntimeCommandTraceFailureCausePrecedence : uint8_t {
+    None = 0,
+    StaleBindingFirst,
+    BackendRejectFirst
+};
+
+enum class RuntimeCommandTraceDecisionPath : uint8_t {
+    SkippedNoCommand = 0,
+    SkippedIneligibleNonDynamic,
+    SkippedIneligibleKinematic,
+    AppliedRuntime,
+    FailedRuntime,
+    RecoveredViaFallback
 };
 
 const char* RuntimeCommandTraceStageTag(RuntimeCommandTraceStage stage) {
@@ -123,6 +147,55 @@ const char* RuntimeCommandTraceFailureCauseTag(RuntimeCommandTraceFailureCause c
     }
 }
 
+const char* RuntimeCommandTraceOperationPrecedenceTag(RuntimeCommandTraceOperationPrecedence precedence) {
+    switch (precedence) {
+        case RuntimeCommandTraceOperationPrecedence::None:
+            return "none";
+        case RuntimeCommandTraceOperationPrecedence::LinearForceFirst:
+            return "linear_force_first";
+        case RuntimeCommandTraceOperationPrecedence::LinearImpulseSecond:
+            return "linear_impulse_second";
+        case RuntimeCommandTraceOperationPrecedence::AngularTorqueThird:
+            return "angular_torque_third";
+        case RuntimeCommandTraceOperationPrecedence::AngularImpulseFourth:
+            return "angular_impulse_fourth";
+        default:
+            return "unknown";
+    }
+}
+
+const char* RuntimeCommandTraceFailureCausePrecedenceTag(RuntimeCommandTraceFailureCausePrecedence precedence) {
+    switch (precedence) {
+        case RuntimeCommandTraceFailureCausePrecedence::None:
+            return "none";
+        case RuntimeCommandTraceFailureCausePrecedence::StaleBindingFirst:
+            return "stale_binding_first";
+        case RuntimeCommandTraceFailureCausePrecedence::BackendRejectFirst:
+            return "backend_reject_first";
+        default:
+            return "unknown";
+    }
+}
+
+const char* RuntimeCommandTraceDecisionPathTag(RuntimeCommandTraceDecisionPath decision_path) {
+    switch (decision_path) {
+        case RuntimeCommandTraceDecisionPath::SkippedNoCommand:
+            return "skipped_no_command";
+        case RuntimeCommandTraceDecisionPath::SkippedIneligibleNonDynamic:
+            return "skipped_ineligible_non_dynamic";
+        case RuntimeCommandTraceDecisionPath::SkippedIneligibleKinematic:
+            return "skipped_ineligible_kinematic";
+        case RuntimeCommandTraceDecisionPath::AppliedRuntime:
+            return "applied_runtime";
+        case RuntimeCommandTraceDecisionPath::FailedRuntime:
+            return "failed_runtime";
+        case RuntimeCommandTraceDecisionPath::RecoveredViaFallback:
+            return "recovered_via_fallback";
+        default:
+            return "unknown";
+    }
+}
+
 RuntimeCommandTraceOperation ClassifyRuntimeCommandTraceOperation(bool has_linear_force,
                                                                   bool has_linear_impulse,
                                                                   bool has_angular_torque,
@@ -142,6 +215,30 @@ RuntimeCommandTraceOperation ClassifyRuntimeCommandTraceOperation(bool has_linea
     return RuntimeCommandTraceOperation::None;
 }
 
+RuntimeCommandTraceOperationPrecedence ClassifyRuntimeCommandTraceOperationPrecedence(bool has_linear_force,
+                                                                                      bool has_linear_impulse,
+                                                                                      bool has_angular_torque,
+                                                                                      bool has_angular_impulse) {
+    const int command_count = static_cast<int>(has_linear_force) + static_cast<int>(has_linear_impulse)
+                              + static_cast<int>(has_angular_torque) + static_cast<int>(has_angular_impulse);
+    if (command_count <= 1) {
+        return RuntimeCommandTraceOperationPrecedence::None;
+    }
+    if (has_linear_force) {
+        return RuntimeCommandTraceOperationPrecedence::LinearForceFirst;
+    }
+    if (has_linear_impulse) {
+        return RuntimeCommandTraceOperationPrecedence::LinearImpulseSecond;
+    }
+    if (has_angular_torque) {
+        return RuntimeCommandTraceOperationPrecedence::AngularTorqueThird;
+    }
+    if (has_angular_impulse) {
+        return RuntimeCommandTraceOperationPrecedence::AngularImpulseFourth;
+    }
+    return RuntimeCommandTraceOperationPrecedence::None;
+}
+
 const char* ClassifyRuntimeCommandTraceOperationTag(bool has_linear_force,
                                                     bool has_linear_impulse,
                                                     bool has_angular_torque,
@@ -150,6 +247,17 @@ const char* ClassifyRuntimeCommandTraceOperationTag(bool has_linear_force,
                                                                                 has_linear_impulse,
                                                                                 has_angular_torque,
                                                                                 has_angular_impulse));
+}
+
+const char* ClassifyRuntimeCommandTraceOperationPrecedenceTag(bool has_linear_force,
+                                                              bool has_linear_impulse,
+                                                              bool has_angular_torque,
+                                                              bool has_angular_impulse) {
+    return RuntimeCommandTraceOperationPrecedenceTag(
+        ClassifyRuntimeCommandTraceOperationPrecedence(has_linear_force,
+                                                       has_linear_impulse,
+                                                       has_angular_torque,
+                                                       has_angular_impulse));
 }
 
 RuntimeCommandTraceOutcome ClassifyRuntimeCommandTraceOutcome(bool has_pending_commands,
@@ -204,9 +312,61 @@ RuntimeCommandTraceFailureCause ClassifyRuntimeCommandTraceFailureCause(bool sta
     return RuntimeCommandTraceFailureCause::None;
 }
 
+RuntimeCommandTraceFailureCausePrecedence ClassifyRuntimeCommandTraceFailureCausePrecedence(bool stale_runtime_binding_body,
+                                                                                             bool runtime_apply_failed) {
+    if (stale_runtime_binding_body) {
+        return RuntimeCommandTraceFailureCausePrecedence::StaleBindingFirst;
+    }
+    if (runtime_apply_failed) {
+        return RuntimeCommandTraceFailureCausePrecedence::BackendRejectFirst;
+    }
+    return RuntimeCommandTraceFailureCausePrecedence::None;
+}
+
 const char* ClassifyRuntimeCommandTraceFailureCauseTag(bool stale_runtime_binding_body, bool runtime_apply_failed) {
     return RuntimeCommandTraceFailureCauseTag(
         ClassifyRuntimeCommandTraceFailureCause(stale_runtime_binding_body, runtime_apply_failed));
+}
+
+const char* ClassifyRuntimeCommandTraceFailureCausePrecedenceTag(bool stale_runtime_binding_body,
+                                                                 bool runtime_apply_failed) {
+    return RuntimeCommandTraceFailureCausePrecedenceTag(
+        ClassifyRuntimeCommandTraceFailureCausePrecedence(stale_runtime_binding_body, runtime_apply_failed));
+}
+
+RuntimeCommandTraceDecisionPath ClassifyRuntimeCommandTraceDecisionPath(bool has_pending_commands,
+                                                                        RuntimeCommandTraceOutcome outcome) {
+    switch (outcome) {
+        case RuntimeCommandTraceOutcome::IneligibleNonDynamic:
+            return RuntimeCommandTraceDecisionPath::SkippedIneligibleNonDynamic;
+        case RuntimeCommandTraceOutcome::IneligibleKinematic:
+            return RuntimeCommandTraceDecisionPath::SkippedIneligibleKinematic;
+        case RuntimeCommandTraceOutcome::StaleRuntimeBindingBody:
+        case RuntimeCommandTraceOutcome::RuntimeApplyFailed:
+            return RuntimeCommandTraceDecisionPath::FailedRuntime;
+        case RuntimeCommandTraceOutcome::RecoveryApplied:
+            return RuntimeCommandTraceDecisionPath::RecoveredViaFallback;
+        case RuntimeCommandTraceOutcome::None:
+        default:
+            return has_pending_commands ? RuntimeCommandTraceDecisionPath::AppliedRuntime
+                                        : RuntimeCommandTraceDecisionPath::SkippedNoCommand;
+    }
+}
+
+const char* ClassifyRuntimeCommandTraceDecisionPathTag(bool has_pending_commands,
+                                                       bool is_dynamic,
+                                                       bool is_kinematic,
+                                                       bool stale_runtime_binding_body,
+                                                       bool runtime_apply_failed,
+                                                       bool recovery_applied) {
+    return RuntimeCommandTraceDecisionPathTag(
+        ClassifyRuntimeCommandTraceDecisionPath(has_pending_commands,
+                                                ClassifyRuntimeCommandTraceOutcome(has_pending_commands,
+                                                                                   is_dynamic,
+                                                                                   is_kinematic,
+                                                                                   stale_runtime_binding_body,
+                                                                                   runtime_apply_failed,
+                                                                                   recovery_applied)));
 }
 
 bool IsRuntimeCommandTraceFailureOutcome(RuntimeCommandTraceOutcome outcome) {
@@ -236,7 +396,7 @@ bool IsFiniteMat4(const glm::mat4& value) {
     return true;
 }
 
-bool ReadSceneTransform(const scene::TransformComponent& transform, physics_backend::BodyTransform& out_transform) {
+bool ReadSceneTransform(const scene::TransformComponent& transform, physics::backend::BodyTransform& out_transform) {
     if (!IsFiniteMat4(transform.world)) {
         return false;
     }
@@ -250,7 +410,7 @@ bool ReadSceneTransform(const scene::TransformComponent& transform, physics_back
            && scene::IsFiniteScalar(out_transform.rotation.z);
 }
 
-void WriteSceneTransform(scene::TransformComponent& transform, const physics_backend::BodyTransform& body_transform) {
+void WriteSceneTransform(scene::TransformComponent& transform, const physics::backend::BodyTransform& body_transform) {
     glm::mat4 matrix = glm::mat4_cast(glm::normalize(body_transform.rotation));
     matrix[3] = glm::vec4(body_transform.position, 1.0f);
     transform.local = matrix;
@@ -318,7 +478,7 @@ void ResolveVelocityOwnership(const scene::RigidBodyIntentComponent& rigidbody,
 }
 
 bool ApplyRuntimeVelocityPolicy(PhysicsSystem& physics_system,
-                                physics_backend::BodyId body,
+                                physics::backend::BodyId body,
                                 const scene::RigidBodyIntentComponent& rigidbody,
                                 const scene::PlayerControllerIntentComponent* controller,
                                 scene::ControllerColliderCompatibility compatibility,
@@ -341,46 +501,89 @@ struct RuntimeCommandApplyResult {
     detail::RuntimeCommandTraceOperation trace_operation = detail::RuntimeCommandTraceOperation::None;
     detail::RuntimeCommandTraceOutcome trace_outcome = detail::RuntimeCommandTraceOutcome::None;
     detail::RuntimeCommandTraceFailureCause trace_failure_cause = detail::RuntimeCommandTraceFailureCause::None;
+    detail::RuntimeCommandTraceOperationPrecedence trace_operation_precedence =
+        detail::RuntimeCommandTraceOperationPrecedence::None;
+    detail::RuntimeCommandTraceFailureCausePrecedence trace_failure_cause_precedence =
+        detail::RuntimeCommandTraceFailureCausePrecedence::None;
 };
 
-bool IsStaleRuntimeBindingBody(PhysicsSystem& physics_system, physics_backend::BodyId body) {
-    physics_backend::BodyTransform probe{};
+enum class StaticMeshIngestTraceOutcome : uint8_t {
+    CreateSuccess = 0,
+    Reject,
+    RecoveryRecreateSuccess
+};
+
+const char* StaticMeshIngestTraceOutcomeTag(StaticMeshIngestTraceOutcome outcome) {
+    switch (outcome) {
+        case StaticMeshIngestTraceOutcome::CreateSuccess:
+            return "create_success";
+        case StaticMeshIngestTraceOutcome::Reject:
+            return "reject";
+        case StaticMeshIngestTraceOutcome::RecoveryRecreateSuccess:
+            return "recovery_recreate_success";
+        default:
+            return "unknown";
+    }
+}
+
+void TraceStaticMeshIngestOutcome(ecs::Entity entity,
+                                  StaticMeshIngestTraceOutcome outcome,
+                                  detail::StaticMeshIngestTraceCause cause = detail::StaticMeshIngestTraceCause::None,
+                                  physics::backend::BodyId body = physics::backend::kInvalidBodyId) {
+    KARMA_TRACE("physics.system",
+                "EcsSyncSystem: static-mesh-ingest outcome='{}' cause='{}' entity={} generation={} body={}",
+                StaticMeshIngestTraceOutcomeTag(outcome),
+                detail::StaticMeshIngestTraceCauseTag(cause),
+                entity.index,
+                entity.generation,
+                body);
+}
+
+bool IsStaleRuntimeBindingBody(PhysicsSystem& physics_system, physics::backend::BodyId body) {
+    physics::backend::BodyTransform probe{};
     return !physics_system.getBodyTransform(body, probe);
 }
 
 void TraceRuntimeCommandOutcome(ecs::Entity entity,
-                                physics_backend::BodyId body,
+                                physics::backend::BodyId body,
                                 detail::RuntimeCommandTraceStage stage,
+                                bool has_pending_commands,
                                 detail::RuntimeCommandTraceOperation operation,
                                 detail::RuntimeCommandTraceOutcome outcome,
-                                detail::RuntimeCommandTraceFailureCause failure_cause) {
-    if (outcome == detail::RuntimeCommandTraceOutcome::None) {
-        return;
-    }
+                                detail::RuntimeCommandTraceFailureCause failure_cause,
+                                detail::RuntimeCommandTraceOperationPrecedence operation_precedence,
+                                detail::RuntimeCommandTraceFailureCausePrecedence failure_cause_precedence) {
+    const detail::RuntimeCommandTraceDecisionPath decision_path =
+        detail::ClassifyRuntimeCommandTraceDecisionPath(has_pending_commands, outcome);
     if (detail::IsRuntimeCommandTraceFailureOutcome(outcome)) {
         KARMA_TRACE("physics.system",
-                    "EcsSyncSystem: runtime-command stage='{}' operation='{}' outcome='{}' cause='{}' entity={} generation={} body={}",
+                    "EcsSyncSystem: runtime-command stage='{}' operation='{}' outcome='{}' cause='{}' operation_precedence='{}' cause_precedence='{}' decision_path='{}' entity={} generation={} body={}",
                     detail::RuntimeCommandTraceStageTag(stage),
                     detail::RuntimeCommandTraceOperationTag(operation),
                     detail::RuntimeCommandTraceOutcomeTag(outcome),
                     detail::RuntimeCommandTraceFailureCauseTag(failure_cause),
+                    detail::RuntimeCommandTraceOperationPrecedenceTag(operation_precedence),
+                    detail::RuntimeCommandTraceFailureCausePrecedenceTag(failure_cause_precedence),
+                    detail::RuntimeCommandTraceDecisionPathTag(decision_path),
                     entity.index,
                     entity.generation,
                     body);
         return;
     }
     KARMA_TRACE("physics.system",
-                "EcsSyncSystem: runtime-command stage='{}' operation='{}' outcome='{}' entity={} generation={} body={}",
+                "EcsSyncSystem: runtime-command stage='{}' operation='{}' outcome='{}' operation_precedence='{}' decision_path='{}' entity={} generation={} body={}",
                 detail::RuntimeCommandTraceStageTag(stage),
                 detail::RuntimeCommandTraceOperationTag(operation),
                 detail::RuntimeCommandTraceOutcomeTag(outcome),
+                detail::RuntimeCommandTraceOperationPrecedenceTag(operation_precedence),
+                detail::RuntimeCommandTraceDecisionPathTag(decision_path),
                 entity.index,
                 entity.generation,
                 body);
 }
 
 RuntimeCommandApplyResult ApplyRuntimeForceImpulseCommands(PhysicsSystem& physics_system,
-                                                           physics_backend::BodyId body,
+                                                           physics::backend::BodyId body,
                                                            scene::RigidBodyIntentComponent& rigidbody) {
     RuntimeCommandApplyResult result{};
     if (scene::HasRuntimeCommandClearRequest(rigidbody)) {
@@ -395,6 +598,8 @@ RuntimeCommandApplyResult ApplyRuntimeForceImpulseCommands(PhysicsSystem& physic
     result.has_pending_commands = has_force || has_impulse || has_torque || has_angular_impulse;
     result.trace_operation =
         detail::ClassifyRuntimeCommandTraceOperation(has_force, has_impulse, has_torque, has_angular_impulse);
+    result.trace_operation_precedence =
+        detail::ClassifyRuntimeCommandTraceOperationPrecedence(has_force, has_impulse, has_torque, has_angular_impulse);
     if (!has_force && !has_impulse && !has_torque && !has_angular_impulse) {
         return result;
     }
@@ -417,6 +622,8 @@ RuntimeCommandApplyResult ApplyRuntimeForceImpulseCommands(PhysicsSystem& physic
                                    ? detail::RuntimeCommandTraceOutcome::StaleRuntimeBindingBody
                                    : detail::RuntimeCommandTraceOutcome::RuntimeApplyFailed;
         result.trace_failure_cause = detail::ClassifyRuntimeCommandTraceFailureCause(stale_runtime_binding_body, true);
+        result.trace_failure_cause_precedence =
+            detail::ClassifyRuntimeCommandTraceFailureCausePrecedence(stale_runtime_binding_body, true);
         return result;
     }
     if (has_impulse) {
@@ -429,6 +636,8 @@ RuntimeCommandApplyResult ApplyRuntimeForceImpulseCommands(PhysicsSystem& physic
                                        : detail::RuntimeCommandTraceOutcome::RuntimeApplyFailed;
             result.trace_failure_cause =
                 detail::ClassifyRuntimeCommandTraceFailureCause(stale_runtime_binding_body, true);
+            result.trace_failure_cause_precedence =
+                detail::ClassifyRuntimeCommandTraceFailureCausePrecedence(stale_runtime_binding_body, true);
             return result;
         }
         rigidbody.linear_impulse = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -441,6 +650,8 @@ RuntimeCommandApplyResult ApplyRuntimeForceImpulseCommands(PhysicsSystem& physic
                                    ? detail::RuntimeCommandTraceOutcome::StaleRuntimeBindingBody
                                    : detail::RuntimeCommandTraceOutcome::RuntimeApplyFailed;
         result.trace_failure_cause = detail::ClassifyRuntimeCommandTraceFailureCause(stale_runtime_binding_body, true);
+        result.trace_failure_cause_precedence =
+            detail::ClassifyRuntimeCommandTraceFailureCausePrecedence(stale_runtime_binding_body, true);
         return result;
     }
     if (has_angular_impulse) {
@@ -453,6 +664,8 @@ RuntimeCommandApplyResult ApplyRuntimeForceImpulseCommands(PhysicsSystem& physic
                                        : detail::RuntimeCommandTraceOutcome::RuntimeApplyFailed;
             result.trace_failure_cause =
                 detail::ClassifyRuntimeCommandTraceFailureCause(stale_runtime_binding_body, true);
+            result.trace_failure_cause_precedence =
+                detail::ClassifyRuntimeCommandTraceFailureCausePrecedence(stale_runtime_binding_body, true);
             return result;
         }
         rigidbody.angular_impulse = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -461,7 +674,7 @@ RuntimeCommandApplyResult ApplyRuntimeForceImpulseCommands(PhysicsSystem& physic
 }
 
 struct PreservedRuntimeState {
-    physics_backend::BodyTransform transform{};
+    physics::backend::BodyTransform transform{};
     glm::vec3 linear_velocity{0.0f, 0.0f, 0.0f};
     glm::vec3 angular_velocity{0.0f, 0.0f, 0.0f};
 };
@@ -483,7 +696,7 @@ void ResolveControllerCapsuleShape(const scene::PlayerControllerIntentComponent&
 }
 
 bool CaptureRuntimeStateForRebuild(PhysicsSystem& physics_system,
-                                   physics_backend::BodyId body,
+                                   physics::backend::BodyId body,
                                    const scene::RigidBodyIntentComponent& rigidbody,
                                    PreservedRuntimeState& out_state) {
     if (!physics_system.getBodyTransform(body, out_state.transform)) {
@@ -504,13 +717,13 @@ void BuildBodyDesc(const scene::RigidBodyIntentComponent& rigidbody,
                    const scene::ColliderIntentComponent& collider,
                    const scene::PlayerControllerIntentComponent* controller,
                    scene::ControllerColliderCompatibility controller_compatibility,
-                   const physics_backend::BodyTransform& transform,
+                   const physics::backend::BodyTransform& transform,
                    const glm::vec3& linear_velocity,
                    const glm::vec3& angular_velocity,
-                   physics_backend::BodyDesc& out_desc) {
+                   physics::backend::BodyDesc& out_desc) {
     const bool use_controller_runtime_geometry =
         ShouldUseControllerRuntimeGeometry(controller, controller_compatibility);
-    out_desc = physics_backend::BodyDesc{};
+    out_desc = physics::backend::BodyDesc{};
     out_desc.transform = transform;
     out_desc.linear_velocity = linear_velocity;
     out_desc.angular_velocity = angular_velocity;
@@ -532,7 +745,7 @@ void BuildBodyDesc(const scene::RigidBodyIntentComponent& rigidbody,
 
     switch (collider.shape) {
         case scene::ColliderShapeKind::Box:
-            out_desc.collider_shape.kind = physics_backend::ColliderShapeKind::Box;
+            out_desc.collider_shape.kind = physics::backend::ColliderShapeKind::Box;
             if (use_controller_runtime_geometry && controller) {
                 out_desc.collider_shape.box_half_extents = ResolveControllerBoxHalfExtents(*controller);
                 out_desc.collider_shape.local_center = ResolveControllerShapeLocalCenter(*controller);
@@ -541,11 +754,11 @@ void BuildBodyDesc(const scene::RigidBodyIntentComponent& rigidbody,
             }
             break;
         case scene::ColliderShapeKind::Sphere:
-            out_desc.collider_shape.kind = physics_backend::ColliderShapeKind::Sphere;
+            out_desc.collider_shape.kind = physics::backend::ColliderShapeKind::Sphere;
             out_desc.collider_shape.sphere_radius = collider.radius;
             break;
         case scene::ColliderShapeKind::Capsule:
-            out_desc.collider_shape.kind = physics_backend::ColliderShapeKind::Capsule;
+            out_desc.collider_shape.kind = physics::backend::ColliderShapeKind::Capsule;
             if (use_controller_runtime_geometry && controller) {
                 ResolveControllerCapsuleShape(
                     *controller, out_desc.collider_shape.capsule_radius, out_desc.collider_shape.capsule_half_height);
@@ -556,9 +769,8 @@ void BuildBodyDesc(const scene::RigidBodyIntentComponent& rigidbody,
             }
             break;
         case scene::ColliderShapeKind::Mesh:
-            // Bounded placeholder path: mesh intent maps to static box proxy until mesh ingestion lands.
-            out_desc.collider_shape.kind = physics_backend::ColliderShapeKind::Box;
-            out_desc.collider_shape.box_half_extents = glm::vec3(0.5f, 0.5f, 0.5f);
+            out_desc.collider_shape.kind = physics::backend::ColliderShapeKind::Mesh;
+            out_desc.collider_shape.mesh_asset_path = collider.mesh_path;
             break;
         default:
             break;
@@ -579,11 +791,12 @@ size_t EcsSyncSystem::EntityHash::operator()(ecs::Entity entity) const noexcept 
 void EcsSyncSystem::clear() {
     for (auto& [entity, binding] : bindings_) {
         (void)entity;
-        if (binding.body != physics_backend::kInvalidBodyId) {
+        if (binding.body != physics::backend::kInvalidBodyId) {
             physics_system_.destroyBody(binding.body);
         }
     }
     bindings_.clear();
+    static_mesh_recovery_pending_.clear();
 }
 
 bool EcsSyncSystem::hasRuntimeBinding(ecs::Entity entity) const {
@@ -594,17 +807,17 @@ size_t EcsSyncSystem::runtimeBindingCount() const {
     return bindings_.size();
 }
 
-bool EcsSyncSystem::tryGetRuntimeBody(ecs::Entity entity, physics_backend::BodyId& out_body) const {
+bool EcsSyncSystem::tryGetRuntimeBody(ecs::Entity entity, physics::backend::BodyId& out_body) const {
     const auto it = bindings_.find(entity);
     if (it == bindings_.end()) {
         return false;
     }
     out_body = it->second.body;
-    return out_body != physics_backend::kInvalidBodyId;
+    return out_body != physics::backend::kInvalidBodyId;
 }
 
 bool EcsSyncSystem::tryGetRuntimeTransformSnapshot(ecs::Entity entity,
-                                                   physics_backend::BodyTransform& out_transform) const {
+                                                   physics::backend::BodyTransform& out_transform) const {
     const auto it = bindings_.find(entity);
     if (it == bindings_.end()) {
         return false;
@@ -657,6 +870,20 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
         auto* collider = world.tryGet<scene::ColliderIntentComponent>(entity);
         auto* ownership = world.tryGet<scene::PhysicsTransformOwnershipComponent>(entity);
         if (!transform || !rigidbody || !collider || !ownership) {
+            static_mesh_recovery_pending_.erase(entity);
+            teardown_entities.push_back(entity);
+            continue;
+        }
+        const bool has_mesh_shape_intent = collider->shape == scene::ColliderShapeKind::Mesh;
+        if (!has_mesh_shape_intent) {
+            static_mesh_recovery_pending_.erase(entity);
+        }
+
+        if (has_mesh_shape_intent && rigidbody->dynamic) {
+            TraceStaticMeshIngestOutcome(entity,
+                                         StaticMeshIngestTraceOutcome::Reject,
+                                         detail::StaticMeshIngestTraceCause::IneligibleDynamicMeshIntent);
+            static_mesh_recovery_pending_[entity] = true;
             teardown_entities.push_back(entity);
             continue;
         }
@@ -665,6 +892,12 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
             || !scene::ValidateColliderIntent(*collider)
             || !scene::ValidateTransformOwnership(*ownership)
             || !IsColliderShapeSupportedForRuntime(*rigidbody, *collider)) {
+            if (has_mesh_shape_intent) {
+                TraceStaticMeshIngestOutcome(entity,
+                                             StaticMeshIngestTraceOutcome::Reject,
+                                             detail::StaticMeshIngestTraceCause::InvalidIntent);
+                static_mesh_recovery_pending_[entity] = true;
+            }
             teardown_entities.push_back(entity);
             continue;
         }
@@ -689,7 +922,7 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
         const bool retain_controller_binding =
             has_controller_component && ShouldRetainControllerRuntimeBinding(controller_compatibility);
 
-        physics_backend::BodyTransform scene_transform{};
+        physics::backend::BodyTransform scene_transform{};
         if (!ReadSceneTransform(*transform, scene_transform)) {
             teardown_entities.push_back(entity);
             continue;
@@ -720,14 +953,14 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
                                      create_linear_velocity,
                                      create_angular_velocity);
 
-            physics_backend::BodyTransform create_transform = scene_transform;
+            physics::backend::BodyTransform create_transform = scene_transform;
             if (preserved_state) {
                 create_transform = preserved_state->transform;
                 create_linear_velocity = preserved_state->linear_velocity;
                 create_angular_velocity = preserved_state->angular_velocity;
             }
 
-            physics_backend::BodyDesc desc{};
+            physics::backend::BodyDesc desc{};
             BuildBodyDesc(*rigidbody,
                           *collider,
                           controller,
@@ -737,9 +970,26 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
                           create_angular_velocity,
                           desc);
 
-            const physics_backend::BodyId body = physics_system_.createBody(desc);
-            if (body == physics_backend::kInvalidBodyId) {
+            const bool trace_static_mesh_ingest =
+                collider->shape == scene::ColliderShapeKind::Mesh && !rigidbody->dynamic;
+            const physics::backend::BodyId body = physics_system_.createBody(desc);
+            if (body == physics::backend::kInvalidBodyId) {
+                if (trace_static_mesh_ingest) {
+                    TraceStaticMeshIngestOutcome(entity,
+                                                 StaticMeshIngestTraceOutcome::Reject,
+                                                 detail::ClassifyStaticMeshCreateRejectCause(collider->mesh_path));
+                    static_mesh_recovery_pending_[entity] = true;
+                }
                 return false;
+            }
+            if (trace_static_mesh_ingest) {
+                const bool recovered = static_mesh_recovery_pending_.erase(entity) > 0u;
+                TraceStaticMeshIngestOutcome(entity,
+                                             recovered
+                                                 ? StaticMeshIngestTraceOutcome::RecoveryRecreateSuccess
+                                                 : StaticMeshIngestTraceOutcome::CreateSuccess,
+                                             detail::StaticMeshIngestTraceCause::None,
+                                             body);
             }
 
             RuntimeBinding binding{};
@@ -782,9 +1032,12 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
                 entity,
                 body,
                 create_trace_stage,
+                create_command_result.has_pending_commands,
                 create_command_result.trace_operation,
                 create_command_result.trace_outcome,
-                create_command_result.trace_failure_cause);
+                create_command_result.trace_failure_cause,
+                create_command_result.trace_operation_precedence,
+                create_command_result.trace_failure_cause_precedence);
             if (!create_command_result.success) {
                 physics_system_.destroyBody(body);
                 return false;
@@ -794,6 +1047,7 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
                     entity,
                     body,
                     detail::RuntimeCommandTraceStage::Recovery,
+                    create_command_result.has_pending_commands,
                     create_command_result.trace_operation,
                     detail::ClassifyRuntimeCommandTraceOutcome(create_command_result.has_pending_commands,
                                                                rigidbody->dynamic,
@@ -801,7 +1055,9 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
                                                                false,
                                                                false,
                                                                true),
-                    detail::RuntimeCommandTraceFailureCause::None);
+                    detail::RuntimeCommandTraceFailureCause::None,
+                    create_command_result.trace_operation_precedence,
+                    detail::RuntimeCommandTraceFailureCausePrecedence::None);
             }
             binding.last_transform = create_transform;
             bindings_[entity] = binding;
@@ -849,6 +1105,12 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
             controller_geometry_source_changed || controller_geometry_change_rebuild;
 
         if (collider_action == scene::ColliderReconcileAction::RejectInvalidIntent) {
+            if (collider->shape == scene::ColliderShapeKind::Mesh) {
+                TraceStaticMeshIngestOutcome(entity,
+                                             StaticMeshIngestTraceOutcome::Reject,
+                                             detail::StaticMeshIngestTraceCause::InvalidIntent);
+                static_mesh_recovery_pending_[entity] = true;
+            }
             teardown_entities.push_back(entity);
             continue;
         }
@@ -881,7 +1143,7 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
 
         if (collider_action == scene::ColliderReconcileAction::UpdateRuntimeProperties) {
             const bool trigger_update_ok = physics_system_.setBodyTrigger(binding.body, collider->is_trigger);
-            physics_backend::CollisionMask collision_mask{};
+            physics::backend::CollisionMask collision_mask{};
             collision_mask.layer = collider->mask.layer;
             collision_mask.collides_with = collider->mask.collides_with;
             const bool filter_update_ok = physics_system_.setBodyCollisionMask(binding.body, collision_mask);
@@ -994,9 +1256,12 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
             entity,
             binding.body,
             detail::RuntimeCommandTraceStage::Update,
+            update_command_result.has_pending_commands,
             update_command_result.trace_operation,
             update_command_result.trace_outcome,
-            update_command_result.trace_failure_cause);
+            update_command_result.trace_failure_cause,
+            update_command_result.trace_operation_precedence,
+            update_command_result.trace_failure_cause_precedence);
         if (!update_command_result.success) {
             // Deterministic fallback path for runtime mutation failure: rebuild runtime object.
             physics_system_.destroyBody(binding.body);
@@ -1030,7 +1295,16 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
     for (auto it = bindings_.begin(); it != bindings_.end();) {
         if (!world.isAlive(it->first) || accepted_entities.find(it->first) == accepted_entities.end()) {
             physics_system_.destroyBody(it->second.body);
+            static_mesh_recovery_pending_.erase(it->first);
             it = bindings_.erase(it);
+            continue;
+        }
+        ++it;
+    }
+
+    for (auto it = static_mesh_recovery_pending_.begin(); it != static_mesh_recovery_pending_.end();) {
+        if (!world.isAlive(it->first)) {
+            it = static_mesh_recovery_pending_.erase(it);
             continue;
         }
         ++it;
@@ -1071,7 +1345,7 @@ void EcsSyncSystem::postSimulate(ecs::World& world) {
             continue;
         }
 
-        physics_backend::BodyTransform runtime_transform{};
+        physics::backend::BodyTransform runtime_transform{};
         if (!physics_system_.getBodyTransform(binding_it->second.body, runtime_transform)) {
             continue;
         }

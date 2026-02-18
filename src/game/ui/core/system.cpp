@@ -8,7 +8,7 @@
 
 UiSystem::UiSystem(platform::Window &window)
     : hudController(hudModel) {
-    backend = ui_backend::CreateUiBackend(window);
+    backend = ui::backend::CreateUiBackend(window);
 }
 
 UiSystem::~UiSystem() = default;

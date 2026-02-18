@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace bz3::server::runtime_detail {
+namespace bz3::server::runtime::detail {
 
 std::vector<net::SessionSnapshotEntry> ToNetSessionSnapshot(
     const std::vector<karma::network::ServerSessionSnapshotEntry>& sessions) {
@@ -60,4 +60,4 @@ void EmitJoinResultToEventSource(net::ServerEventSource& event_source,
                               *world_package);
 }
 
-} // namespace bz3::server::runtime_detail
+} // namespace bz3::server::runtime::detail

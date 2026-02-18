@@ -14,7 +14,7 @@ class Window;
 #include <RmlUi/Core/Input.h>
 #endif
 
-namespace ui::input_mapping {
+namespace ui::input::mapping {
 
 #if defined(KARMA_UI_BACKEND_IMGUI)
 ImGuiKey ToImGuiKey(platform::Key key);
@@ -30,4 +30,4 @@ int CurrentRmlMods(platform::Window *window);
 int RmlModsForEvent(const platform::Event &event, platform::Window *window);
 #endif
 
-} // namespace ui::input_mapping
+} // namespace ui::input::mapping

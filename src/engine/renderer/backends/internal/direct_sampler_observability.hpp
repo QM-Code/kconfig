@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <string>
 
-namespace karma::renderer_backend::detail {
+namespace karma::renderer::backend::detail {
 
 struct SamplerVariableAvailability {
     bool srb_ready = false;
@@ -333,4 +333,4 @@ inline DirectSamplerDrawInvariantReport EvaluateDirectSamplerDrawInvariants(
     return report;
 }
 
-} // namespace karma::renderer_backend::detail
+} // namespace karma::renderer::backend::detail

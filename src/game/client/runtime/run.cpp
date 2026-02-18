@@ -8,8 +8,8 @@
 namespace bz3::client {
 
 int RunRuntime(const karma::cli::client::AppOptions& options) {
-    const karma::app::client::EngineConfig config = runtime_detail::BuildEngineConfig(options);
-    const bz3::GameStartupOptions startup = runtime_detail::ResolveGameStartupOptions(options);
+    const karma::app::client::EngineConfig config = runtime::detail::BuildEngineConfig(options);
+    const bz3::GameStartupOptions startup = runtime::detail::ResolveGameStartupOptions(options);
 
     karma::app::client::Engine app;
     bz3::Game game{startup};

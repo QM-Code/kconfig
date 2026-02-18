@@ -1,6 +1,8 @@
 #include "karma/cli/client/backend_options.hpp"
 
+#include "karma/platform/window.hpp"
 #include "karma/renderer/backend.hpp"
+#include "ui/backend.hpp"
 
 #include <optional>
 #include <vector>
@@ -10,43 +12,38 @@ namespace {
 
 std::vector<std::string> RenderBackendChoices(bool include_auto) {
     std::vector<std::string> choices{};
-    const auto compiled = renderer_backend::CompiledBackends();
+    const auto compiled = renderer::backend::CompiledBackends();
     if (include_auto && compiled.size() > 1) {
         choices.emplace_back("auto");
     }
     for (const auto backend : compiled) {
-        choices.emplace_back(renderer_backend::BackendKindName(backend));
+        choices.emplace_back(renderer::backend::BackendKindName(backend));
     }
     return choices;
 }
 
 std::vector<std::string> UiBackendChoices() {
     std::vector<std::string> choices{};
-#if defined(KARMA_HAS_IMGUI)
-    choices.emplace_back("imgui");
-#endif
-#if defined(KARMA_HAS_RMLUI)
-    choices.emplace_back("rmlui");
-#endif
+    const auto compiled = ui::backend::CompiledBackends();
+    for (const auto backend : compiled) {
+        if (backend == ui::backend::BackendKind::ImGui || backend == ui::backend::BackendKind::RmlUi) {
+            choices.emplace_back(ui::backend::BackendKindName(backend));
+        }
+    }
     return choices;
 }
 
 std::vector<std::string> PlatformBackendChoices() {
     std::vector<std::string> choices{};
-#if defined(KARMA_WINDOW_BACKEND_SDL3)
-    choices.emplace_back("sdl3");
-#endif
-#if defined(KARMA_WINDOW_BACKEND_SDL2)
-    choices.emplace_back("sdl2");
-#endif
-#if defined(KARMA_WINDOW_BACKEND_GLFW)
-    choices.emplace_back("glfw");
-#endif
+    const auto compiled = platform::backend::CompiledBackends();
+    for (const auto backend : compiled) {
+        choices.emplace_back(platform::backend::BackendKindName(backend));
+    }
     return choices;
 }
 
 bool ShouldExposeRenderBackendOption() {
-    return renderer_backend::CompiledBackends().size() > 1;
+    return renderer::backend::CompiledBackends().size() > 1;
 }
 
 bool ShouldExposeUiBackendOption() {

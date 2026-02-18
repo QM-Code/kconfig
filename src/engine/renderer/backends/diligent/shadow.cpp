@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 struct DiligentShadowConstants {
@@ -986,4 +986,4 @@ void ResetDiligentShadowResources(DiligentShadowState& state) {
     state.point_shadow_slot_range->fill(0.0f);
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

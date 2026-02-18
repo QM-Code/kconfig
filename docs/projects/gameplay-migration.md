@@ -306,7 +306,7 @@ Handoff must include:
 - `2026-02-13`: G2 validation passed with assigned build profile (`abuild.py -c -d <build-dir>` + `test-server-net.sh <build-dir>`).
 - `2026-02-14`: D1 landed: rewrite client now has local drivable tank baseline (`tank_drive_controller` + in-game tank entity + follow camera).
 - `2026-02-14`: D1 movement proof passed with assigned build profile via `src/game/tank_drive_controller_test`.
-- `2026-02-14`: D1 hardening landed: reduced movement stutter via substep+visual smoothing, added FPS/chase camera modes (FPS default), and added startup-world collision blocking via engine-public geometry contract (`include/karma/geometry/mesh_loader.hpp`) with boundary-safe include usage in game paths.
+- `2026-02-14`: D1 hardening landed: reduced movement stutter via substep+visual smoothing, added FPS/chase camera modes (FPS default), and added startup-world collision blocking via engine-public renderer asset contract (`include/karma/renderer/assets/mesh_loader.hpp`) with boundary-safe include usage in game paths.
 - `2026-02-18`: consolidated gameplay netcode track into this project as Track D (netcode parity lane); standalone project retired to `docs/archive/gameplay-netcode-retired-2026-02-18.md`.
 - `2026-02-18`: added jump integration blueprint clarifying boundary ownership: jump semantics remain game-owned; engine physics remains game-agnostic command/query substrate.
 

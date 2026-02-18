@@ -2,7 +2,7 @@
 
 #if defined(KARMA_HAS_RMLUI)
 
-namespace karma::ui::rmlui {
+namespace karma::ui::backend::rmlui {
 
 int MapModifiers(const platform::Modifiers& mods) {
     int flags = 0;
@@ -128,6 +128,6 @@ int MapMouseButton(platform::MouseButton button) {
     }
 }
 
-} // namespace karma::ui::rmlui
+} // namespace karma::ui::backend::rmlui
 
 #endif // defined(KARMA_HAS_RMLUI)

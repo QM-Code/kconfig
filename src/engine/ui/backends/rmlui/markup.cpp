@@ -7,7 +7,7 @@
 #include <string>
 #include <utility>
 
-namespace karma::ui::rmlui {
+namespace karma::ui::backend::rmlui {
 
 std::string EscapeText(const std::string& text) {
     std::string out;
@@ -111,6 +111,6 @@ std::string BuildPanelsMarkup(const std::vector<UiDrawContext::TextPanel>& text_
     return markup;
 }
 
-} // namespace karma::ui::rmlui
+} // namespace karma::ui::backend::rmlui
 
 #endif // defined(KARMA_HAS_RMLUI)

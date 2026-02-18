@@ -11,7 +11,7 @@
 
 #include <imgui.h>
 
-namespace karma::ui::imgui {
+namespace karma::ui::backend::imgui {
 
 struct RasterStats {
     uint32_t cmd_lists = 0;
@@ -34,12 +34,12 @@ void RasterizeDrawData(const ImDrawData* draw_data,
                        std::vector<uint8_t>& target_pixels,
                        RasterStats& stats);
 
-} // namespace karma::ui::imgui
+} // namespace karma::ui::backend::imgui
 
 #endif // defined(KARMA_HAS_IMGUI)
 
-namespace karma::ui::imgui {
+namespace karma::ui::backend::imgui {
 
 std::unique_ptr<BackendDriver> CreateStubBackend();
 
-} // namespace karma::ui::imgui
+} // namespace karma::ui::backend::imgui

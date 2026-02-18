@@ -27,7 +27,7 @@ void Game::playOneShotAsset(const char* asset_key, float gain, float pitch) {
         return;
     }
 
-    karma::audio_backend::PlayRequest request{};
+    karma::audio::backend::PlayRequest request{};
     request.asset_path = asset_key;
     request.gain = gain;
     request.pitch = pitch;

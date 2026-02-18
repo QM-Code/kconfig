@@ -919,7 +919,7 @@ void RmlUiPanelSettings::updateStatus() {
     if (!statusLabel) {
         return;
     }
-    const auto banner = ui::status_banner::MakeStatusBanner(settingsModel.statusText,
+    const auto banner = ui::status::banner::MakeStatusBanner(settingsModel.statusText,
                                                             settingsModel.statusIsError);
     if (!banner.visible) {
         statusLabel->SetClass("hidden", true);
@@ -928,7 +928,7 @@ void RmlUiPanelSettings::updateStatus() {
     statusLabel->SetClass("hidden", false);
     statusLabel->SetClass("status-error", banner.tone == ui::MessageTone::Error);
     statusLabel->SetClass("status-pending", banner.tone == ui::MessageTone::Pending);
-    const std::string text = ui::status_banner::FormatStatusText(banner);
+    const std::string text = ui::status::banner::FormatStatusText(banner);
     statusLabel->SetInnerRML(escapeRmlText(text));
 }
 

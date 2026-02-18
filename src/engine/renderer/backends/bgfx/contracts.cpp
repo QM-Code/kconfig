@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <utility>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 std::string TrimAscii(const std::string& input) {
@@ -643,4 +643,4 @@ BgfxDirectSamplerShaderAlignment EvaluateBgfxDirectSamplerShaderAlignment() {
     return report;
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

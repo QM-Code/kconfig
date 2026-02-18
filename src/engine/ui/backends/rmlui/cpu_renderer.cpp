@@ -12,7 +12,7 @@
 #include <string>
 #include <utility>
 
-namespace karma::ui::rmlui {
+namespace karma::ui::backend::rmlui {
 namespace {
 
 inline int ClampInt(int value, int lo, int hi) {
@@ -372,6 +372,6 @@ void CpuRenderInterface::rasterizeTriangle(const Rml::Vertex& va,
     }
 }
 
-} // namespace karma::ui::rmlui
+} // namespace karma::ui::backend::rmlui
 
 #endif // defined(KARMA_HAS_RMLUI)

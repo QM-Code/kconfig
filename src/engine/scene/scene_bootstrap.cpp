@@ -1,10 +1,10 @@
 #include "karma/scene/scene_bootstrap.hpp"
 
-#include "karma/geometry/mesh_loader.hpp"
 #include "karma/common/config/store.hpp"
-#include "karma/common/logging/logging.hpp"
 #include "karma/common/data/path_resolver.hpp"
+#include "karma/common/logging/logging.hpp"
 #include "karma/ecs/world.hpp"
+#include "karma/renderer/assets/mesh_loader.hpp"
 #include "karma/renderer/device.hpp"
 #include "karma/renderer/layers.hpp"
 #include "karma/scene/components.hpp"
@@ -327,8 +327,8 @@ bool PopulateStartupWorld(renderer::GraphicsDevice& graphics,
     }
 
     KARMA_TRACE("render.mesh", "EngineApp: loading startup world '{}'", world_path.string());
-    std::vector<geometry::SceneMesh> scene_meshes;
-    if (!geometry::LoadScene(world_path, scene_meshes)) {
+    std::vector<renderer::assets::SceneMesh> scene_meshes;
+    if (!renderer::assets::LoadScene(world_path, scene_meshes)) {
         spdlog::error("EngineApp: failed to load startup world from {}", world_path.string());
         return false;
     }

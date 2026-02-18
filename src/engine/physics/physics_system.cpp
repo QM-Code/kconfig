@@ -9,7 +9,7 @@ namespace karma::physics {
 namespace {
 
 std::string CompiledBackendList() {
-    const auto compiled = physics_backend::CompiledBackends();
+    const auto compiled = physics::backend::CompiledBackends();
     if (compiled.empty()) {
         return "(none)";
     }
@@ -19,7 +19,7 @@ std::string CompiledBackendList() {
         if (i != 0) {
             out << ",";
         }
-        out << physics_backend::BackendKindName(compiled[i]);
+        out << physics::backend::BackendKindName(compiled[i]);
     }
     return out.str();
 }
@@ -27,7 +27,7 @@ std::string CompiledBackendList() {
 } // namespace
 
 const char* PhysicsSystem::selectedBackendName() const {
-    return physics_backend::BackendKindName(selected_backend_);
+    return physics::backend::BackendKindName(selected_backend_);
 }
 
 void PhysicsSystem::init() {
@@ -37,11 +37,11 @@ void PhysicsSystem::init() {
 
     KARMA_TRACE("physics.system",
                 "PhysicsSystem: creating backend requested='{}' compiled='{}'",
-                physics_backend::BackendKindName(requested_backend_),
+                physics::backend::BackendKindName(requested_backend_),
                 CompiledBackendList());
-    backend_ = physics_backend::CreateBackend(requested_backend_, &selected_backend_);
+    backend_ = physics::backend::CreateBackend(requested_backend_, &selected_backend_);
     if (!backend_) {
-        selected_backend_ = physics_backend::BackendKind::Auto;
+        selected_backend_ = physics::backend::BackendKind::Auto;
         return;
     }
 
@@ -50,7 +50,7 @@ void PhysicsSystem::init() {
                     "PhysicsSystem: backend '{}' init failed",
                     backend_->name());
         backend_.reset();
-        selected_backend_ = physics_backend::BackendKind::Auto;
+        selected_backend_ = physics::backend::BackendKind::Auto;
         return;
     }
 
@@ -63,14 +63,14 @@ void PhysicsSystem::init() {
 void PhysicsSystem::shutdown() {
     if (!backend_) {
         initialized_ = false;
-        selected_backend_ = physics_backend::BackendKind::Auto;
+        selected_backend_ = physics::backend::BackendKind::Auto;
         return;
     }
 
     backend_->shutdown();
     backend_.reset();
     initialized_ = false;
-    selected_backend_ = physics_backend::BackendKind::Auto;
+    selected_backend_ = physics::backend::BackendKind::Auto;
 }
 
 void PhysicsSystem::beginFrame(float dt) {
@@ -94,241 +94,241 @@ void PhysicsSystem::endFrame() {
     backend_->endFrame();
 }
 
-physics_backend::BodyId PhysicsSystem::createBody(const physics_backend::BodyDesc& desc) {
+physics::backend::BodyId PhysicsSystem::createBody(const physics::backend::BodyDesc& desc) {
     if (!backend_) {
-        return physics_backend::kInvalidBodyId;
+        return physics::backend::kInvalidBodyId;
     }
-    // BodyDesc is passed through as-is so backend shape-local offsets stay substrate-owned.
+    // BodyDesc is passed through as-is so backend shape-local offsets and mesh-ingestion intent stay substrate-owned.
     return backend_->createBody(desc);
 }
 
-void PhysicsSystem::destroyBody(physics_backend::BodyId body) {
+void PhysicsSystem::destroyBody(physics::backend::BodyId body) {
     if (!backend_) {
         return;
     }
     backend_->destroyBody(body);
 }
 
-bool PhysicsSystem::setBodyTransform(physics_backend::BodyId body,
-                                     const physics_backend::BodyTransform& transform) {
+bool PhysicsSystem::setBodyTransform(physics::backend::BodyId body,
+                                     const physics::backend::BodyTransform& transform) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyTransform(body, transform);
 }
 
-bool PhysicsSystem::getBodyTransform(physics_backend::BodyId body,
-                                     physics_backend::BodyTransform& out_transform) const {
+bool PhysicsSystem::getBodyTransform(physics::backend::BodyId body,
+                                     physics::backend::BodyTransform& out_transform) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyTransform(body, out_transform);
 }
 
-bool PhysicsSystem::setBodyGravityEnabled(physics_backend::BodyId body, bool enabled) {
+bool PhysicsSystem::setBodyGravityEnabled(physics::backend::BodyId body, bool enabled) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyGravityEnabled(body, enabled);
 }
 
-bool PhysicsSystem::getBodyGravityEnabled(physics_backend::BodyId body, bool& out_enabled) const {
+bool PhysicsSystem::getBodyGravityEnabled(physics::backend::BodyId body, bool& out_enabled) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyGravityEnabled(body, out_enabled);
 }
 
-bool PhysicsSystem::setBodyKinematic(physics_backend::BodyId body, bool enabled) {
+bool PhysicsSystem::setBodyKinematic(physics::backend::BodyId body, bool enabled) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyKinematic(body, enabled);
 }
 
-bool PhysicsSystem::getBodyKinematic(physics_backend::BodyId body, bool& out_enabled) const {
+bool PhysicsSystem::getBodyKinematic(physics::backend::BodyId body, bool& out_enabled) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyKinematic(body, out_enabled);
 }
 
-bool PhysicsSystem::setBodyAwake(physics_backend::BodyId body, bool enabled) {
+bool PhysicsSystem::setBodyAwake(physics::backend::BodyId body, bool enabled) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyAwake(body, enabled);
 }
 
-bool PhysicsSystem::getBodyAwake(physics_backend::BodyId body, bool& out_enabled) const {
+bool PhysicsSystem::getBodyAwake(physics::backend::BodyId body, bool& out_enabled) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyAwake(body, out_enabled);
 }
 
-bool PhysicsSystem::addBodyForce(physics_backend::BodyId body, const glm::vec3& force) {
+bool PhysicsSystem::addBodyForce(physics::backend::BodyId body, const glm::vec3& force) {
     if (!backend_) {
         return false;
     }
     return backend_->addBodyForce(body, force);
 }
 
-bool PhysicsSystem::addBodyLinearImpulse(physics_backend::BodyId body, const glm::vec3& impulse) {
+bool PhysicsSystem::addBodyLinearImpulse(physics::backend::BodyId body, const glm::vec3& impulse) {
     if (!backend_) {
         return false;
     }
     return backend_->addBodyLinearImpulse(body, impulse);
 }
 
-bool PhysicsSystem::addBodyTorque(physics_backend::BodyId body, const glm::vec3& torque) {
+bool PhysicsSystem::addBodyTorque(physics::backend::BodyId body, const glm::vec3& torque) {
     if (!backend_) {
         return false;
     }
     return backend_->addBodyTorque(body, torque);
 }
 
-bool PhysicsSystem::addBodyAngularImpulse(physics_backend::BodyId body, const glm::vec3& impulse) {
+bool PhysicsSystem::addBodyAngularImpulse(physics::backend::BodyId body, const glm::vec3& impulse) {
     if (!backend_) {
         return false;
     }
     return backend_->addBodyAngularImpulse(body, impulse);
 }
 
-bool PhysicsSystem::setBodyLinearVelocity(physics_backend::BodyId body, const glm::vec3& velocity) {
+bool PhysicsSystem::setBodyLinearVelocity(physics::backend::BodyId body, const glm::vec3& velocity) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyLinearVelocity(body, velocity);
 }
 
-bool PhysicsSystem::getBodyLinearVelocity(physics_backend::BodyId body, glm::vec3& out_velocity) const {
+bool PhysicsSystem::getBodyLinearVelocity(physics::backend::BodyId body, glm::vec3& out_velocity) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyLinearVelocity(body, out_velocity);
 }
 
-bool PhysicsSystem::setBodyAngularVelocity(physics_backend::BodyId body, const glm::vec3& velocity) {
+bool PhysicsSystem::setBodyAngularVelocity(physics::backend::BodyId body, const glm::vec3& velocity) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyAngularVelocity(body, velocity);
 }
 
-bool PhysicsSystem::getBodyAngularVelocity(physics_backend::BodyId body, glm::vec3& out_velocity) const {
+bool PhysicsSystem::getBodyAngularVelocity(physics::backend::BodyId body, glm::vec3& out_velocity) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyAngularVelocity(body, out_velocity);
 }
 
-bool PhysicsSystem::setBodyLinearDamping(physics_backend::BodyId body, float damping) {
+bool PhysicsSystem::setBodyLinearDamping(physics::backend::BodyId body, float damping) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyLinearDamping(body, damping);
 }
 
-bool PhysicsSystem::getBodyLinearDamping(physics_backend::BodyId body, float& out_damping) const {
+bool PhysicsSystem::getBodyLinearDamping(physics::backend::BodyId body, float& out_damping) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyLinearDamping(body, out_damping);
 }
 
-bool PhysicsSystem::setBodyAngularDamping(physics_backend::BodyId body, float damping) {
+bool PhysicsSystem::setBodyAngularDamping(physics::backend::BodyId body, float damping) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyAngularDamping(body, damping);
 }
 
-bool PhysicsSystem::getBodyAngularDamping(physics_backend::BodyId body, float& out_damping) const {
+bool PhysicsSystem::getBodyAngularDamping(physics::backend::BodyId body, float& out_damping) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyAngularDamping(body, out_damping);
 }
 
-bool PhysicsSystem::setBodyRotationLocked(physics_backend::BodyId body, bool locked) {
+bool PhysicsSystem::setBodyRotationLocked(physics::backend::BodyId body, bool locked) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyRotationLocked(body, locked);
 }
 
-bool PhysicsSystem::getBodyRotationLocked(physics_backend::BodyId body, bool& out_locked) const {
+bool PhysicsSystem::getBodyRotationLocked(physics::backend::BodyId body, bool& out_locked) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyRotationLocked(body, out_locked);
 }
 
-bool PhysicsSystem::setBodyTranslationLocked(physics_backend::BodyId body, bool locked) {
+bool PhysicsSystem::setBodyTranslationLocked(physics::backend::BodyId body, bool locked) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyTranslationLocked(body, locked);
 }
 
-bool PhysicsSystem::getBodyTranslationLocked(physics_backend::BodyId body, bool& out_locked) const {
+bool PhysicsSystem::getBodyTranslationLocked(physics::backend::BodyId body, bool& out_locked) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyTranslationLocked(body, out_locked);
 }
 
-bool PhysicsSystem::setBodyTrigger(physics_backend::BodyId body, bool enabled) {
+bool PhysicsSystem::setBodyTrigger(physics::backend::BodyId body, bool enabled) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyTrigger(body, enabled);
 }
 
-bool PhysicsSystem::getBodyTrigger(physics_backend::BodyId body, bool& out_enabled) const {
+bool PhysicsSystem::getBodyTrigger(physics::backend::BodyId body, bool& out_enabled) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyTrigger(body, out_enabled);
 }
 
-bool PhysicsSystem::setBodyCollisionMask(physics_backend::BodyId body, const physics_backend::CollisionMask& mask) {
+bool PhysicsSystem::setBodyCollisionMask(physics::backend::BodyId body, const physics::backend::CollisionMask& mask) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyCollisionMask(body, mask);
 }
 
-bool PhysicsSystem::getBodyCollisionMask(physics_backend::BodyId body, physics_backend::CollisionMask& out_mask) const {
+bool PhysicsSystem::getBodyCollisionMask(physics::backend::BodyId body, physics::backend::CollisionMask& out_mask) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyCollisionMask(body, out_mask);
 }
 
-bool PhysicsSystem::setBodyFriction(physics_backend::BodyId body, float friction) {
+bool PhysicsSystem::setBodyFriction(physics::backend::BodyId body, float friction) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyFriction(body, friction);
 }
 
-bool PhysicsSystem::getBodyFriction(physics_backend::BodyId body, float& out_friction) const {
+bool PhysicsSystem::getBodyFriction(physics::backend::BodyId body, float& out_friction) const {
     if (!backend_) {
         return false;
     }
     return backend_->getBodyFriction(body, out_friction);
 }
 
-bool PhysicsSystem::setBodyRestitution(physics_backend::BodyId body, float restitution) {
+bool PhysicsSystem::setBodyRestitution(physics::backend::BodyId body, float restitution) {
     if (!backend_) {
         return false;
     }
     return backend_->setBodyRestitution(body, restitution);
 }
 
-bool PhysicsSystem::getBodyRestitution(physics_backend::BodyId body, float& out_restitution) const {
+bool PhysicsSystem::getBodyRestitution(physics::backend::BodyId body, float& out_restitution) const {
     if (!backend_) {
         return false;
     }
@@ -338,7 +338,7 @@ bool PhysicsSystem::getBodyRestitution(physics_backend::BodyId body, float& out_
 bool PhysicsSystem::raycastClosest(const glm::vec3& origin,
                                    const glm::vec3& direction,
                                    float max_distance,
-                                   physics_backend::RaycastHit& out_hit) const {
+                                   physics::backend::RaycastHit& out_hit) const {
     if (!backend_) {
         return false;
     }

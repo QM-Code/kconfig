@@ -30,12 +30,12 @@ int RunRuntime(const karma::cli::server::AppOptions& options) {
         return 1;
     }
 
-    runtime_detail::InstallSignalHandlers(options.app_name.empty() ? std::string("server") : options.app_name);
+    runtime::detail::InstallSignalHandlers(options.app_name.empty() ? std::string("server") : options.app_name);
     karma::app::server::EngineConfig engine_config{};
     uint16_t listen_port = 0;
     karma::network::ServerPreAuthConfig pre_auth_config{};
     karma::network::CommunityHeartbeat community_heartbeat{};
-    runtime_detail::BuildRuntimeConfig(options,
+    runtime::detail::BuildRuntimeConfig(options,
                                        world_context->world_name,
                                        &engine_config,
                                        &listen_port,
@@ -84,7 +84,7 @@ int RunRuntime(const karma::cli::server::AppOptions& options) {
         .world_manifest = &world_manifest,
         .world_package = world_package};
 
-    runtime_detail::RunEventLoop(&app,
+    runtime::detail::RunEventLoop(&app,
                                  &game,
                                  event_source.get(),
                                  &shot_system,

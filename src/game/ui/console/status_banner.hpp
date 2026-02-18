@@ -5,7 +5,7 @@
 
 #include "ui/console/console_types.hpp"
 
-namespace ui::status_banner {
+namespace ui::status::banner {
 
 struct StatusBanner {
     std::string text;
@@ -59,4 +59,4 @@ inline std::string FormatStatusText(const StatusBanner &banner,
     return out;
 }
 
-} // namespace ui::status_banner
+} // namespace ui::status::banner

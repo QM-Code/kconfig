@@ -12,7 +12,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace karma::renderer_backend::detail {
+namespace karma::renderer::backend::detail {
 
 struct ResolvedDirectionalShadowSemantics {
     bool enabled = false;
@@ -1545,4 +1545,4 @@ inline float ComputeDirectionalShadowFactor(const DirectionalShadowMap& map, flo
     return std::clamp(1.0f - (safe_strength * (1.0f - safe_visibility)), 0.0f, 1.0f);
 }
 
-} // namespace karma::renderer_backend::detail
+} // namespace karma::renderer::backend::detail

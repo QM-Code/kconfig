@@ -12,7 +12,7 @@ namespace karma::app::server {
 namespace {
 
 std::string CompiledPhysicsBackendList() {
-    const auto compiled = physics_backend::CompiledBackends();
+    const auto compiled = physics::backend::CompiledBackends();
     if (compiled.empty()) {
         return "(none)";
     }
@@ -21,13 +21,13 @@ std::string CompiledPhysicsBackendList() {
         if (i != 0) {
             out << ",";
         }
-        out << physics_backend::BackendKindName(compiled[i]);
+        out << physics::backend::BackendKindName(compiled[i]);
     }
     return out.str();
 }
 
 std::string CompiledAudioBackendList() {
-    const auto compiled = audio_backend::CompiledBackends();
+    const auto compiled = audio::backend::CompiledBackends();
     if (compiled.empty()) {
         return "(none)";
     }
@@ -36,7 +36,7 @@ std::string CompiledAudioBackendList() {
         if (i != 0) {
             out << ",";
         }
-        out << audio_backend::BackendKindName(compiled[i]);
+        out << audio::backend::BackendKindName(compiled[i]);
     }
     return out.str();
 }
@@ -64,12 +64,12 @@ void Engine::start(GameInterface& game, const EngineConfig& config) {
     physics_system_.setBackend(config_.physics_backend);
     KARMA_TRACE("engine.server",
                 "Engine: creating physics backend (requested='{}', compiled='{}')",
-                physics_backend::BackendKindName(config_.physics_backend),
+                physics::backend::BackendKindName(config_.physics_backend),
                 CompiledPhysicsBackendList());
     physics_system_.init();
     if (!physics_system_.isInitialized()) {
         spdlog::error("Engine: physics backend failed to initialize (requested='{}', compiled='{}')",
-                      physics_backend::BackendKindName(config_.physics_backend),
+                      physics::backend::BackendKindName(config_.physics_backend),
                       CompiledPhysicsBackendList());
         game_ = nullptr;
         running_ = false;
@@ -82,12 +82,12 @@ void Engine::start(GameInterface& game, const EngineConfig& config) {
         audio_system_.setBackend(config_.audio_backend);
         KARMA_TRACE("engine.server",
                     "Engine: creating audio backend (requested='{}', compiled='{}')",
-                    audio_backend::BackendKindName(config_.audio_backend),
+                    audio::backend::BackendKindName(config_.audio_backend),
                     CompiledAudioBackendList());
         audio_system_.init();
         if (!audio_system_.isInitialized()) {
             spdlog::error("Engine: audio backend failed to initialize (requested='{}', compiled='{}')",
-                          audio_backend::BackendKindName(config_.audio_backend),
+                          audio::backend::BackendKindName(config_.audio_backend),
                           CompiledAudioBackendList());
             physics_system_.shutdown();
             game_ = nullptr;

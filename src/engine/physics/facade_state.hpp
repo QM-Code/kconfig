@@ -9,7 +9,7 @@
 namespace karma::physics::detail {
 
 struct BodyRuntimeHandle {
-    physics_backend::BodyId body = physics_backend::kInvalidBodyId;
+    physics::backend::BodyId body = physics::backend::kInvalidBodyId;
     uint64_t generation = 0;
 };
 
@@ -41,14 +41,14 @@ inline bool IsHandleAlive(const std::weak_ptr<WorldState>& state, const BodyRunt
     if (!system->isInitialized()) {
         return false;
     }
-    if (handle.body == physics_backend::kInvalidBodyId) {
+    if (handle.body == physics::backend::kInvalidBodyId) {
         return false;
     }
     return handle.generation == shared->generation;
 }
 
 inline void InvalidateHandle(BodyRuntimeHandle& handle) {
-    handle.body = physics_backend::kInvalidBodyId;
+    handle.body = physics::backend::kInvalidBodyId;
     handle.generation = 0;
 }
 

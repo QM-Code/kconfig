@@ -21,7 +21,7 @@ namespace platform {
 class Window;
 }
 
-namespace ui_backend {
+namespace ui::backend {
 class Backend;
 }
 
@@ -37,7 +37,7 @@ public:
     void update();
 
 private:
-    std::unique_ptr<ui_backend::Backend> backend;
+    std::unique_ptr<ui::backend::Backend> backend;
     ui::HudModel hudModel;
     ui::HudController hudController;
     uint64_t lastConfigRevision = 0;

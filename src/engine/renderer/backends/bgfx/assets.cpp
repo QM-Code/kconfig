@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 namespace {
 
 struct BgfxMeshVertex {
@@ -176,4 +176,4 @@ void DestroyBgfxMaterialAsset(
     materials.erase(it);
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

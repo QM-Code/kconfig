@@ -33,9 +33,9 @@ struct EngineConfig {
     int shadow_pcf_radius = 1;
     renderer::CameraData default_camera{};
     renderer::DirectionalLightData default_light{};
-    renderer_backend::BackendKind render_backend = renderer_backend::BackendKind::Auto;
-    physics_backend::BackendKind physics_backend = physics_backend::BackendKind::Auto;
-    audio_backend::BackendKind audio_backend = audio_backend::BackendKind::Auto;
+    renderer::backend::BackendKind render_backend = renderer::backend::BackendKind::Auto;
+    physics::backend::BackendKind physics_backend = physics::backend::BackendKind::Auto;
+    audio::backend::BackendKind audio_backend = audio::backend::BackendKind::Auto;
     std::optional<ui::Backend> ui_backend_override{};
     bool enable_audio = true;
     float simulation_fixed_hz = 60.0f;

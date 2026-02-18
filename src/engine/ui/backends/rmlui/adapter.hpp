@@ -5,7 +5,7 @@
 #include <memory>
 #include <vector>
 
-namespace karma::ui::rmlui {
+namespace karma::ui::backend::rmlui {
 
 class Adapter {
  public:
@@ -20,4 +20,4 @@ class Adapter {
 
 std::unique_ptr<Adapter> CreateAdapter();
 
-} // namespace karma::ui::rmlui
+} // namespace karma::ui::backend::rmlui

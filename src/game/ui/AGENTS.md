@@ -28,7 +28,7 @@ and what to tackle next.
 - `render_settings.*`: brightness state + dirty tracking.
 - `hud_settings.*`: HUD visibility toggles (scoreboard/chat/radar/fps/crosshair).
 - `render_scale.*`: UI render scale.
-- `input_mapping.*`: shared input mapping.
+- `input_mapping.*`: shared input mapping utilities (`ui::input::mapping`).
 - `config.*`: Start Server override config helpers.
 
 ### Frontend backends (ImGui + RmlUi)

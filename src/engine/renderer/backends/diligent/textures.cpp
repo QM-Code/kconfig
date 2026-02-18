@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace karma::renderer_backend {
+namespace karma::renderer::backend {
 
 Diligent::RefCntAutoPtr<Diligent::ITextureView> CreateDiligentWhiteTexture(
     Diligent::IRenderDevice* device) {
@@ -80,4 +80,4 @@ Diligent::RefCntAutoPtr<Diligent::ITextureView> CreateDiligentTextureView(
     return view;
 }
 
-} // namespace karma::renderer_backend
+} // namespace karma::renderer::backend

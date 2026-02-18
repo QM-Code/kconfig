@@ -43,8 +43,10 @@ set(ENGINE_CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/network/config/transport_mapping.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/audio/backend_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/audio/audio_system.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/audio/backends/backend_sdl3audio_stub.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/audio/backends/backend_miniaudio_stub.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/audio/backends/sdl3audio.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/audio/backends/sdl3audio_stub.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/audio/backends/miniaudio.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/audio/backends/miniaudio_stub.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/physics/backend_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/physics/physics_system.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/physics/world.cpp
@@ -64,6 +66,7 @@ set(ENGINE_CLIENT_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/cli/client/app_options.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/app/client/engine.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/input/input_system.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/ui/backend_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/backends/software/backend.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/backends/imgui/backend.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/backends/imgui/input.cpp
@@ -77,14 +80,17 @@ set(ENGINE_CLIENT_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/ui/backends/rmlui/system_interface.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/backends/rmlui/stub.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/system.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/geometry/mesh_loader.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/renderer/assets/mesh_loader.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/scene/roaming_camera.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/scene/scene_bootstrap.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/platform/window_factory.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/platform/backend_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/platform/backends/window_sdl3.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/platform/backends/window_sdl3_stub.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/renderer/backend_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/renderer/device.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/renderer/render_system.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/renderer/backends/bgfx/stub.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/renderer/backends/diligent/stub.cpp
 )
 
 if(KARMA_RENDER_BACKEND_BGFX_ENABLED)

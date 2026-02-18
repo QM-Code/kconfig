@@ -24,24 +24,24 @@ std::string ToLower(std::string value) {
 
 std::vector<std::string> PhysicsBackendChoices(bool include_auto) {
     std::vector<std::string> choices{};
-    const auto compiled = physics_backend::CompiledBackends();
+    const auto compiled = physics::backend::CompiledBackends();
     if (include_auto && compiled.size() > 1) {
         choices.emplace_back("auto");
     }
     for (const auto backend : compiled) {
-        choices.emplace_back(physics_backend::BackendKindName(backend));
+        choices.emplace_back(physics::backend::BackendKindName(backend));
     }
     return choices;
 }
 
 std::vector<std::string> AudioBackendChoices(bool include_auto) {
     std::vector<std::string> choices{};
-    const auto compiled = audio_backend::CompiledBackends();
+    const auto compiled = audio::backend::CompiledBackends();
     if (include_auto && compiled.size() > 1) {
         choices.emplace_back("auto");
     }
     for (const auto backend : compiled) {
-        choices.emplace_back(audio_backend::BackendKindName(backend));
+        choices.emplace_back(audio::backend::BackendKindName(backend));
     }
     return choices;
 }
@@ -416,11 +416,11 @@ ConsumeResult ConsumeAudioBackendOption(const std::string& arg,
 }
 
 bool ShouldExposePhysicsBackendOption() {
-    return physics_backend::CompiledBackends().size() > 1;
+    return physics::backend::CompiledBackends().size() > 1;
 }
 
 bool ShouldExposeAudioBackendOption() {
-    return audio_backend::CompiledBackends().size() > 1;
+    return audio::backend::CompiledBackends().size() > 1;
 }
 
 void AppendCommonHelp(std::ostream& out, bool include_user_config_option) {

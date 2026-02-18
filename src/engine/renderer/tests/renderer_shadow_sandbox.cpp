@@ -30,7 +30,7 @@ namespace {
 using Clock = std::chrono::steady_clock;
 
 struct SandboxOptions {
-    karma::renderer_backend::BackendKind backend = karma::renderer_backend::BackendKind::Auto;
+    karma::renderer::backend::BackendKind backend = karma::renderer::backend::BackendKind::Auto;
     int width = 1280;
     int height = 720;
     float duration_seconds = 0.0f;
@@ -198,7 +198,7 @@ SandboxOptions ParseOptions(int argc, char** argv) {
             std::exit(0);
         } else if (arg == "--backend-render") {
             const std::string value = require_value("--backend-render");
-            const auto parsed = karma::renderer_backend::ParseBackendKind(value);
+            const auto parsed = karma::renderer::backend::ParseBackendKind(value);
             if (!parsed) {
                 throw std::runtime_error(
                     "Invalid --backend-render value '" + value + "' (expected auto|bgfx|diligent)");
@@ -552,7 +552,7 @@ karma::renderer::CameraData BuildCamera(const OrbitCameraState& state) {
 }
 
 ShadowGridStats SampleGroundGridFactors(
-    const karma::renderer_backend::detail::DirectionalShadowMap& shadow_map,
+    const karma::renderer::backend::detail::DirectionalShadowMap& shadow_map,
     float ground_extent,
     int samples_per_axis) {
     ShadowGridStats stats{};
@@ -578,9 +578,9 @@ ShadowGridStats SampleGroundGridFactors(
                 glm::mix(-ground_extent, ground_extent, tz),
             };
             const float visibility =
-                karma::renderer_backend::detail::SampleDirectionalShadowVisibility(shadow_map, world_point);
+                karma::renderer::backend::detail::SampleDirectionalShadowVisibility(shadow_map, world_point);
             const float factor =
-                karma::renderer_backend::detail::ComputeDirectionalShadowFactor(shadow_map, visibility);
+                karma::renderer::backend::detail::ComputeDirectionalShadowFactor(shadow_map, visibility);
             stats.min_factor = std::min(stats.min_factor, factor);
             stats.max_factor = std::max(stats.max_factor, factor);
             sum += factor;
@@ -600,7 +600,7 @@ void LogShadowDiagnostics(const char* backend_name,
                           float ground_extent,
                           float frame_dt_avg,
                           float frame_dt_max) {
-    std::vector<karma::renderer_backend::detail::DirectionalShadowCaster> casters{};
+    std::vector<karma::renderer::backend::detail::DirectionalShadowCaster> casters{};
     casters.reserve(shadow_entities.size());
 
     for (const ShadowEntity& shadow_entity : shadow_entities) {
@@ -610,7 +610,7 @@ void LogShadowDiagnostics(const char* backend_name,
             continue;
         }
 
-        karma::renderer_backend::detail::DirectionalShadowCaster caster{};
+        karma::renderer::backend::detail::DirectionalShadowCaster caster{};
         caster.transform = transform->world;
         caster.positions = &shadow_entity.mesh->positions;
         caster.indices = &shadow_entity.mesh->indices;
@@ -620,8 +620,8 @@ void LogShadowDiagnostics(const char* backend_name,
     }
 
     const auto semantics =
-        karma::renderer_backend::detail::ResolveDirectionalShadowSemantics(light);
-    const auto shadow_map = karma::renderer_backend::detail::BuildDirectionalShadowMap(
+        karma::renderer::backend::detail::ResolveDirectionalShadowSemantics(light);
+    const auto shadow_map = karma::renderer::backend::detail::BuildDirectionalShadowMap(
         semantics, light.direction, casters);
 
     float ground_draw_min = 1.0f;
@@ -639,14 +639,14 @@ void LogShadowDiagnostics(const char* backend_name,
             continue;
         }
         const float visibility =
-            karma::renderer_backend::detail::ComputeDirectionalShadowVisibilityForReceiver(
+            karma::renderer::backend::detail::ComputeDirectionalShadowVisibilityForReceiver(
                 shadow_map,
                 transform->world,
                 &shadow_entity.mesh->positions,
                 &shadow_entity.mesh->indices,
                 shadow_entity.sample_center);
         const float factor =
-            karma::renderer_backend::detail::ComputeDirectionalShadowFactor(shadow_map, visibility);
+            karma::renderer::backend::detail::ComputeDirectionalShadowFactor(shadow_map, visibility);
         ground_draw_min = std::min(ground_draw_min, factor);
         ground_draw_max = std::max(ground_draw_max, factor);
         ground_draw_sum += factor;
@@ -855,7 +855,7 @@ int main(int argc, char** argv) {
         const int active_shadowed_point_lights = std::clamp(
             std::min(point_light_count, options.point_shadow_max_lights), 0, 4);
         const int recommended_point_face_budget =
-            active_shadowed_point_lights * karma::renderer_backend::detail::kPointShadowFaceCount;
+            active_shadowed_point_lights * karma::renderer::backend::detail::kPointShadowFaceCount;
         const int point_shadow_face_budget = options.point_shadow_face_budget_auto
             ? std::clamp(recommended_point_face_budget, 1, 24)
             : std::clamp(options.point_shadow_faces_per_frame_budget, 1, 24);
@@ -888,7 +888,7 @@ int main(int argc, char** argv) {
                 light.shadow.point_faces_per_frame_budget,
                 recommended_point_face_budget,
                 active_shadowed_point_lights,
-                karma::renderer_backend::detail::kPointShadowFaceCount);
+                karma::renderer::backend::detail::kPointShadowFaceCount);
         }
 
         karma::renderer::EnvironmentLightingData environment{};

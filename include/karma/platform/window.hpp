@@ -1,7 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "karma/platform/events.hpp"
@@ -38,6 +40,23 @@ class Window {
 
     virtual NativeWindowHandle nativeHandle() const = 0;
 };
+
+namespace backend {
+
+enum class BackendKind {
+    Auto,
+    Sdl3
+};
+
+const char* BackendKindName(BackendKind kind);
+std::optional<BackendKind> ParseBackendKind(std::string_view name);
+std::vector<BackendKind> CompiledBackends();
+
+std::unique_ptr<Window> CreateBackend(const WindowConfig& config,
+                                      BackendKind preferred = BackendKind::Auto,
+                                      BackendKind* out_selected = nullptr);
+
+} // namespace backend
 
 std::unique_ptr<Window> CreateWindow(const WindowConfig& config);
 

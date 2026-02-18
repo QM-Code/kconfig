@@ -3,13 +3,14 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-namespace karma::physics_backend {
+namespace karma::physics::backend {
 
 enum class BackendKind {
     Auto,
@@ -32,7 +33,8 @@ struct BodyTransform {
 enum class ColliderShapeKind {
     Box,
     Sphere,
-    Capsule
+    Capsule,
+    Mesh
 };
 
 struct CollisionMask {
@@ -46,6 +48,11 @@ struct ColliderShapeDesc {
     float sphere_radius = 0.5f;
     float capsule_radius = 0.5f;
     float capsule_half_height = 0.5f;
+    // Mesh collider path contract:
+    // - used only when kind == Mesh.
+    // - interpreted as an engine content asset path consumed at create time.
+    // - runtime mesh mutations are out-of-scope for this slice.
+    std::string mesh_asset_path{};
     glm::vec3 local_center{0.0f, 0.0f, 0.0f};
 };
 
@@ -181,4 +188,4 @@ class Backend {
 std::unique_ptr<Backend> CreateBackend(BackendKind preferred = BackendKind::Auto,
                                        BackendKind* out_selected = nullptr);
 
-} // namespace karma::physics_backend
+} // namespace karma::physics::backend

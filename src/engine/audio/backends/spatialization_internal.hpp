@@ -6,7 +6,7 @@
 #include <cmath>
 #include <optional>
 
-namespace karma::audio_backend::detail {
+namespace karma::audio::backend::detail {
 
 inline bool IsFiniteVec3(const glm::vec3& value) {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
@@ -128,4 +128,4 @@ inline float ChannelSpatialGain(const SpatialGains& gains, int channel, int chan
     return gains.master;
 }
 
-} // namespace karma::audio_backend::detail
+} // namespace karma::audio::backend::detail

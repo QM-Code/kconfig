@@ -8,7 +8,7 @@
 
 namespace karma::app::client {
 
-renderer_backend::BackendKind ResolveRenderBackendFromOption(
+renderer::backend::BackendKind ResolveRenderBackendFromOption(
     const std::string& option_value,
     bool option_explicit);
 std::string CompiledPlatformBackendName();
