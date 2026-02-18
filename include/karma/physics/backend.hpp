@@ -90,6 +90,8 @@ class Backend {
     // Body flag/constraint contract:
     // - Gravity enablement currently applies only to dynamic bodies.
     // - For invalid, unknown, or non-dynamic bodies, calls return false.
+    // - Dynamic bodies with both rotation_locked and translation_locked enabled are invalid for this contract.
+    //   Backends reject these create/mutation requests deterministically.
     // - Rotation/translation lock runtime mutation support is backend-dependent;
     //   unsupported transitions return false so callers can apply deterministic fallback behavior.
     virtual bool setBodyGravityEnabled(BodyId body, bool enabled) = 0;

@@ -306,6 +306,9 @@ class JoltBackend final : public Backend {
         }
 
         const bool is_dynamic = !desc.is_static;
+        if (is_dynamic && desc.rotation_locked && desc.translation_locked) {
+            return kInvalidBodyId;
+        }
         JPH::RefConst<JPH::Shape> shape{};
         switch (desc.collider_shape.kind) {
             case ColliderShapeKind::Box:

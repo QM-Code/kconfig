@@ -185,6 +185,9 @@ class PhysXBackend final : public Backend {
             || desc.angular_damping < 0.0f) {
             return kInvalidBodyId;
         }
+        if (!desc.is_static && desc.rotation_locked && desc.translation_locked) {
+            return kInvalidBodyId;
+        }
 
         const physx::PxTransform transform(ToPxVec3(desc.transform.position), ToPxQuat(desc.transform.rotation));
         physx::PxGeometryHolder geometry{};
@@ -514,6 +517,14 @@ class PhysXBackend final : public Backend {
             physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X
             | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Y
             | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
+        const physx::PxRigidDynamicLockFlags translation_mask =
+            physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_X
+            | physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Y
+            | physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Z;
+        const bool translation_locked = (lock_flags & translation_mask) == translation_mask;
+        if (locked && translation_locked) {
+            return false;
+        }
         if (locked) {
             lock_flags |= rotation_mask;
         } else {
@@ -557,10 +568,18 @@ class PhysXBackend final : public Backend {
         }
 
         physx::PxRigidDynamicLockFlags lock_flags = dynamic_actor->getRigidDynamicLockFlags();
+        const physx::PxRigidDynamicLockFlags rotation_mask =
+            physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_X
+            | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Y
+            | physx::PxRigidDynamicLockFlag::eLOCK_ANGULAR_Z;
         const physx::PxRigidDynamicLockFlags translation_mask =
             physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_X
             | physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Y
             | physx::PxRigidDynamicLockFlag::eLOCK_LINEAR_Z;
+        const bool rotation_locked = (lock_flags & rotation_mask) == rotation_mask;
+        if (locked && rotation_locked) {
+            return false;
+        }
         if (locked) {
             lock_flags |= translation_mask;
         } else {

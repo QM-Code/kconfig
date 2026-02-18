@@ -1,14 +1,14 @@
 #pragma once
 
-#include "karma/cli/cli_parse_scaffold.hpp"
+#include "karma/cli/shared/parse.hpp"
 
 #include <string>
 #include <string_view>
 #include <vector>
 
-namespace karma::cli {
+namespace karma::cli::client {
 
-struct ClientAppOptions {
+struct AppOptions {
     std::string app_name{};
     std::string username{};
     std::string password{};
@@ -39,10 +39,10 @@ struct ClientAppOptions {
     bool timestamp_logging = false;
 };
 
-ClientAppOptions ParseClientAppCliOptions(
+AppOptions ParseAppOptions(
     int argc,
     char** argv,
     std::string_view fallback_app_name = "app",
-    const std::vector<CliRegisteredOption>& extra_options = {});
+    const std::vector<shared::RegisteredOption>& extra_options = {});
 
-} // namespace karma::cli
+} // namespace karma::cli::client

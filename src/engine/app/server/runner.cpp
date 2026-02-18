@@ -2,7 +2,7 @@
 
 #include "karma/app/server/bootstrap.hpp"
 #include "karma/app/shared/bootstrap.hpp"
-#include "karma/cli/cli_parse_scaffold.hpp"
+#include "karma/cli/shared/parse.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -22,10 +22,10 @@ int Run(int argc,
         : std::string(spec.bootstrap_app_name);
 
     std::string app_name =
-        karma::cli::ResolveExecutableName((argc > 0 && argv) ? argv[0] : nullptr, parse_app_name);
+        karma::cli::shared::ResolveExecutableName((argc > 0 && argv) ? argv[0] : nullptr, parse_app_name);
     try {
-        karma::cli::ServerAppOptions options =
-            karma::cli::ParseServerAppCliOptions(argc, argv, parse_app_name);
+        karma::cli::server::AppOptions options =
+            karma::cli::server::ParseAppOptions(argc, argv, parse_app_name);
         app_name = options.app_name;
         RunBootstrap(options, argc, argv, bootstrap_app_name);
         options.app_name = shared::ResolveConfiguredAppName(options.app_name);

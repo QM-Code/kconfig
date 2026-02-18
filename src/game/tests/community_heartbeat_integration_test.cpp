@@ -1,4 +1,4 @@
-#include "karma/cli/server_app_options.hpp"
+#include "karma/cli/server/app_options.hpp"
 #include "karma/common/json.hpp"
 #include "karma/network/community/heartbeat.hpp"
 #include "karma/network/community/heartbeat_client.hpp"
@@ -56,8 +56,8 @@ bool TestCommunityOverrideDispatchesHeartbeat() {
         argv.push_back(arg.data());
     }
 
-    const karma::cli::ServerAppOptions options =
-        karma::cli::ParseServerAppCliOptions(static_cast<int>(argv.size()), argv.data(), "bz3-server");
+    const karma::cli::server::AppOptions options =
+        karma::cli::server::ParseAppOptions(static_cast<int>(argv.size()), argv.data(), "bz3-server");
     if (!Expect(options.community_explicit, "expected --community to set community_explicit")) {
         return false;
     }

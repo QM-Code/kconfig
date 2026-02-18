@@ -1038,6 +1038,10 @@ Validation gate for this slice:
 
 ## Context
 - Current backend selection parsing already lives in game host/runtime code (client/server), which is correct.
+- CLI ownership is now explicitly split by lifecycle surface:
+  - `src/engine/cli/client/*` + `include/karma/cli/client/*` (`karma::cli::client`)
+  - `src/engine/cli/server/*` + `include/karma/cli/server/*` (`karma::cli::server`)
+  - `src/engine/cli/shared/*` + `include/karma/cli/shared/*` (`karma::cli::shared`)
 - One boundary leak remains: engine/common data-dir override logic currently parses `argc/argv` directly.
 
 ## Why this matters

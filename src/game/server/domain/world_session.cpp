@@ -1,6 +1,6 @@
 #include "server/domain/world_session.hpp"
 
-#include "karma/cli/server_runtime_options.hpp"
+#include "karma/cli/server/runtime_options.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/content/archive.hpp"
 #include "karma/common/content/manifest.hpp"
@@ -53,12 +53,12 @@ WorldManifestSummary ComputeWorldManifestSummary(const std::filesystem::path& wo
 } // namespace
 
 std::optional<WorldSessionContext> LoadWorldSessionContext(
-    const karma::cli::ServerAppOptions& options) {
+    const karma::cli::server::AppOptions& options) {
     WorldSessionContext context{};
     const std::string app_name = options.app_name.empty() ? std::string("server") : options.app_name;
     context.world_package_enabled = options.server_config_explicit;
 
-    const auto overlay_path = karma::cli::ResolveServerConfigOverlayPath(options.server_config_path,
+    const auto overlay_path = karma::cli::server::ResolveConfigOverlayPath(options.server_config_path,
                                                                          options.server_config_explicit);
     if (overlay_path.has_value()) {
         const std::filesystem::path overlay_base_dir = overlay_path->parent_path();

@@ -13,7 +13,7 @@
 
 namespace karma::app::client {
 
-void RunBootstrap(const karma::cli::ClientAppOptions& options,
+void RunBootstrap(const karma::cli::client::AppOptions& options,
                   int argc,
                   char** argv,
                   std::string_view app_name) {

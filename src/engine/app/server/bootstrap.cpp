@@ -1,7 +1,7 @@
 #include "karma/app/server/bootstrap.hpp"
 
 #include "karma/app/shared/bootstrap.hpp"
-#include "karma/cli/server_runtime_options.hpp"
+#include "karma/cli/server/runtime_options.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -9,7 +9,7 @@
 
 namespace karma::app::server {
 
-void RunBootstrap(const karma::cli::ServerAppOptions& options,
+void RunBootstrap(const karma::cli::server::AppOptions& options,
                   int argc,
                   char** argv,
                   std::string_view app_name) {
@@ -28,7 +28,7 @@ void RunBootstrap(const karma::cli::ServerAppOptions& options,
     };
     shared::ConfigureDataAndConfigFromSpec(spec, argc, argv);
 
-    (void)karma::cli::ApplyServerConfigOverlay(options.server_config_path, options.server_config_explicit);
+    (void)karma::cli::server::ApplyConfigOverlay(options.server_config_path, options.server_config_explicit);
 }
 
 } // namespace karma::app::server

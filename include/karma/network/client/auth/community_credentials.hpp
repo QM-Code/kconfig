@@ -1,6 +1,6 @@
 #pragma once
 
-#include "karma/cli/client_runtime_options.hpp"
+#include "karma/cli/client/runtime_options.hpp"
 
 #include <optional>
 #include <string>
@@ -14,7 +14,7 @@ struct CommunityCredential {
 };
 
 std::optional<CommunityCredential> ResolveCommunityCredential(
-    const std::optional<karma::cli::ClientServerEndpoint>& endpoint,
+    const std::optional<karma::cli::client::ServerEndpoint>& endpoint,
     const std::string& server_option_raw);
 
 } // namespace karma::network::client::auth

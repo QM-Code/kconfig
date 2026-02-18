@@ -2,9 +2,9 @@
 
 ## Project Snapshot
 - Current owner: `specialist-physics-refactor`
-- Status: `in progress` (Phase 4h implemented: runtime motion-lock mutation parity is wired across substrate/backends/ECS sync; full validation currently blocked by unrelated `src/engine/app/*` compile failures)
+- Status: `in progress` (Phase 4h validated in `build-a3`; Jolt lock-assert blocker closed with deterministic invalid-intent contract for dynamic both-lock configuration)
 - Supersedes: `docs/projects/physics-backend.md` (retired to `docs/archive/physics-backend-retired-2026-02-17.md`)
-- Immediate next task: resolve/route around unrelated `src/engine/app/*` compile blockers, then rerun Phase 4h validation and proceed with the next bounded Phase 4 runtime-mutation parity follow-up.
+- Immediate next task: execute a bounded Phase 4 runtime-mutation follow-up slice for backend-neutral runtime material-property parity (`friction`/`restitution`) and deterministic ECS fallback behavior.
 - Validation gate: `./scripts/test-engine-backends.sh <build-dir>`
 
 ## Mission
@@ -529,6 +529,11 @@ Landed in this bounded slice:
   - runtime motion-lock API behavior (roundtrip where supported, deterministic unsupported semantics where not),
   - invalid/unknown/non-dynamic rejection checks,
   - ECS lock-mutation behavior (runtime update on supported backend, deterministic rebuild fallback on unsupported backend).
+- Phase 4h blocker closure landed:
+  - dynamic bodies with both `rotation_locked` and `translation_locked` are now engine-contract invalid intent,
+  - scene intent validation rejects this combination before runtime (`ConflictingMotionLocks`),
+  - Jolt/PhysX backends reject create/mutation paths deterministically for this combination,
+  - ECS sync parity checks now assert teardown/stable rejection/recovery behavior for invalid both-lock intent.
 
 Explicit remaining deferrals after Phase 4h:
 - No backend-native player-controller runtime object.
@@ -659,12 +664,16 @@ Explicit remaining deferrals after Phase 4h:
   - substrate/backends/`PhysicsSystem` runtime lock APIs added,
   - ECS sync lock-mutation runtime-first + deterministic rebuild fallback path landed,
   - parity tests extended for motion-lock API and ECS fallback behavior.
-- `2026-02-18`: Phase 4h validation attempt in `build-a3` hit unrelated compile blockers outside owned slice:
-  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (failed: unrelated `src/engine/app/server/bootstrap.cpp` compile errors)
-  - `./scripts/test-engine-backends.sh build-a3` (failed: same unrelated `src/engine/app/server/bootstrap.cpp` compile errors)
+- `2026-02-18`: Phase 4h blocker-fix follow-up landed:
+  - dynamic both-lock motion intent is now explicitly invalid (`ConflictingMotionLocks`) for dynamic rigidbodies,
+  - Jolt/PhysX now reject dynamic both-lock create/mutation paths deterministically (prevents Jolt SIGTRAP assert),
+  - ECS parity coverage now asserts deterministic invalid-intent teardown and stable reject/recovery behavior.
+- `2026-02-18`: Phase 4h validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
   - `./docs/scripts/lint-project-docs.sh` (pass)
   - `./abuild.py --lock-status -d build-a3` (owner verified)
-- Next implementation slice: clear/route around unrelated app-layer compile blockers, re-run Phase 4h validation, then execute the next bounded Phase 4 runtime-mutation parity follow-up.
+- Next implementation slice: execute a bounded Phase 4 runtime material-property mutation parity follow-up (`friction`/`restitution`) with deterministic substrate/ECS fallback semantics across Jolt/PhysX.
 
 ## Handoff Checklist
 - [x] `physics-refactor.md` remains the single active physics project doc in `docs/projects/`.

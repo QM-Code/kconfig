@@ -1,5 +1,5 @@
-#include "karma/cli/client_app_options.hpp"
-#include "karma/cli/client_runtime_options.hpp"
+#include "karma/cli/client/app_options.hpp"
+#include "karma/cli/client/runtime_options.hpp"
 
 #include <iostream>
 #include <string>
@@ -34,8 +34,8 @@ bool TestClientRuntimeFlagsRouteThroughParseCliOptions() {
         argv.push_back(arg.data());
     }
 
-    const karma::cli::ClientAppOptions options =
-        karma::cli::ParseClientAppCliOptions(static_cast<int>(argv.size()), argv.data(), "bz3");
+    const karma::cli::client::AppOptions options =
+        karma::cli::client::ParseAppOptions(static_cast<int>(argv.size()), argv.data(), "bz3");
     return Expect(options.username_explicit, "expected --username to set username_explicit")
            && Expect(options.username == "alice", "expected --username value to round-trip")
            && Expect(options.password_explicit, "expected --password to set password_explicit")
@@ -46,7 +46,7 @@ bool TestClientRuntimeFlagsRouteThroughParseCliOptions() {
 
 bool TestClientServerEndpointResolution() {
     std::string error{};
-    const auto endpoint = karma::cli::ResolveClientServerEndpoint("127.0.0.1:3000", true, &error);
+    const auto endpoint = karma::cli::client::ResolveServerEndpoint("127.0.0.1:3000", true, &error);
     if (!Expect(endpoint.has_value(), "expected valid --server endpoint to resolve")) {
         return false;
     }
@@ -57,17 +57,17 @@ bool TestClientServerEndpointResolution() {
         return false;
     }
 
-    const auto fallback_name = karma::cli::ResolveClientPlayerName("", false, "Player");
+    const auto fallback_name = karma::cli::client::ResolvePlayerName("", false, "Player");
     if (!Expect(fallback_name == "Player", "expected fallback player name when username is omitted")) {
         return false;
     }
-    const auto explicit_name = karma::cli::ResolveClientPlayerName("alice", true, "Player");
+    const auto explicit_name = karma::cli::client::ResolvePlayerName("alice", true, "Player");
     if (!Expect(explicit_name == "alice", "expected explicit username to win")) {
         return false;
     }
 
     error.clear();
-    const auto invalid = karma::cli::ResolveClientServerEndpoint("localhost:notaport", true, &error);
+    const auto invalid = karma::cli::client::ResolveServerEndpoint("localhost:notaport", true, &error);
     return Expect(!invalid.has_value(), "expected invalid --server endpoint to fail resolution")
            && Expect(!error.empty(), "expected endpoint parse error message");
 }
@@ -86,7 +86,7 @@ bool TestNoLegacyAliasConsumption() {
     bool password_explicit = false;
     bool server_explicit = false;
 
-    const auto name_result = karma::cli::ConsumeClientRuntimeCliOption("--name",
+    const auto name_result = karma::cli::client::ConsumeRuntimeOption("--name",
                                                                         index_name,
                                                                         0,
                                                                         argv_stub,
@@ -96,7 +96,7 @@ bool TestNoLegacyAliasConsumption() {
                                                                         password_explicit,
                                                                         server,
                                                                         server_explicit);
-    const auto addr_result = karma::cli::ConsumeClientRuntimeCliOption("--addr=localhost:1",
+    const auto addr_result = karma::cli::client::ConsumeRuntimeOption("--addr=localhost:1",
                                                                         index_addr,
                                                                         0,
                                                                         argv_stub,
@@ -106,7 +106,7 @@ bool TestNoLegacyAliasConsumption() {
                                                                         password_explicit,
                                                                         server,
                                                                         server_explicit);
-    const auto credentials_result = karma::cli::ConsumeClientRuntimeCliOption("--credentials=opaque",
+    const auto credentials_result = karma::cli::client::ConsumeRuntimeOption("--credentials=opaque",
                                                                         index_credentials,
                                                                         0,
                                                                         argv_stub,
@@ -116,7 +116,7 @@ bool TestNoLegacyAliasConsumption() {
                                                                         password_explicit,
                                                                         server,
                                                                         server_explicit);
-    const auto dev_quick_start_result = karma::cli::ConsumeClientRuntimeCliOption("--dev-quick-start",
+    const auto dev_quick_start_result = karma::cli::client::ConsumeRuntimeOption("--dev-quick-start",
                                                                         index_dev_quick_start,
                                                                         0,
                                                                         argv_stub,
@@ -127,7 +127,7 @@ bool TestNoLegacyAliasConsumption() {
                                                                         server,
                                                                         server_explicit);
     const auto community_list_active_result =
-        karma::cli::ConsumeClientRuntimeCliOption("--community-list-active=localhost:8080",
+        karma::cli::client::ConsumeRuntimeOption("--community-list-active=localhost:8080",
                                                   index_community_list_active,
                                                   0,
                                                   argv_stub,

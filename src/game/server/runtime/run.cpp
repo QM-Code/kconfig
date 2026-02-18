@@ -19,7 +19,7 @@
 
 namespace bz3::server {
 
-int RunRuntime(const karma::cli::ServerAppOptions& options) {
+int RunRuntime(const karma::cli::server::AppOptions& options) {
     const auto issues = karma::config::ValidateRequiredKeys(karma::config::ServerRequiredKeys());
     if (!karma::app::shared::ReportRequiredConfigIssues(issues, options.strict_config)) {
         return 1;

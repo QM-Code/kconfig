@@ -1,30 +1,30 @@
-#include "karma/cli/server_app_options.hpp"
+#include "karma/cli/server/app_options.hpp"
 
-#include "karma/cli/server_runtime_options.hpp"
+#include "karma/cli/server/runtime_options.hpp"
 #include "karma/common/logging.hpp"
 
 #include <cstdlib>
 #include <iostream>
 #include <string>
 
-namespace karma::cli {
+namespace karma::cli::server {
 namespace {
 
 void PrintHelp(std::string_view app_name,
-               const std::vector<CliRegisteredOption>& extra_options) {
+               const std::vector<shared::RegisteredOption>& extra_options) {
     std::cout
         << "Usage: " << app_name << " [options]\n"
         << "\n"
         << "Options:\n";
-    AppendCommonCliHelp(std::cout, false);
-    AppendCoreBackendCliHelp(std::cout);
-    AppendServerRuntimeCliHelp(std::cout);
-    AppendRegisteredCliHelp(std::cout, extra_options);
+    shared::AppendCommonHelp(std::cout, false);
+    shared::AppendCoreBackendHelp(std::cout);
+    AppendRuntimeHelp(std::cout);
+    shared::AppendRegisteredHelp(std::cout, extra_options);
 }
 
 [[noreturn]] void Fail(const std::string& message,
                        std::string_view app_name,
-                       const std::vector<CliRegisteredOption>& extra_options) {
+                       const std::vector<shared::RegisteredOption>& extra_options) {
     std::cerr << "Error: " << message << "\n\n";
     PrintHelp(app_name, extra_options);
     std::exit(1);
@@ -32,20 +32,20 @@ void PrintHelp(std::string_view app_name,
 
 } // namespace
 
-ServerAppOptions ParseServerAppCliOptions(int argc,
-                                          char** argv,
-                                          std::string_view fallback_app_name,
-                                          const std::vector<CliRegisteredOption>& extra_options) {
-    RequireTraceList(argc, argv);
+AppOptions ParseAppOptions(int argc,
+                           char** argv,
+                           std::string_view fallback_app_name,
+                           const std::vector<shared::RegisteredOption>& extra_options) {
+    shared::RequireTraceList(argc, argv);
 
-    ServerAppOptions opts{};
-    opts.app_name = ResolveExecutableName((argc > 0 && argv) ? argv[0] : nullptr, fallback_app_name);
-    CliCommonState common{};
+    AppOptions opts{};
+    opts.app_name = shared::ResolveExecutableName((argc > 0 && argv) ? argv[0] : nullptr, fallback_app_name);
+    shared::CommonState common{};
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
 
-        const auto common_result = ConsumeCommonCliOption(arg, i, argc, argv, common);
+        const auto common_result = shared::ConsumeCommonOption(arg, i, argc, argv, common);
         if (common_result.consumed) {
             if (!common_result.error.empty()) {
                 Fail(common_result.error, opts.app_name, extra_options);
@@ -57,12 +57,12 @@ ServerAppOptions ParseServerAppCliOptions(int argc,
             continue;
         }
 
-        const auto physics_result = ConsumePhysicsBackendCliOption(arg,
-                                                                   i,
-                                                                   argc,
-                                                                   argv,
-                                                                   opts.backend_physics,
-                                                                   opts.backend_physics_explicit);
+        const auto physics_result = shared::ConsumePhysicsBackendOption(arg,
+                                                                        i,
+                                                                        argc,
+                                                                        argv,
+                                                                        opts.backend_physics,
+                                                                        opts.backend_physics_explicit);
         if (physics_result.consumed) {
             if (!physics_result.error.empty()) {
                 Fail(physics_result.error, opts.app_name, extra_options);
@@ -71,7 +71,7 @@ ServerAppOptions ParseServerAppCliOptions(int argc,
         }
 
         const auto audio_result =
-            ConsumeAudioBackendCliOption(arg, i, argc, argv, opts.backend_audio, opts.backend_audio_explicit);
+            shared::ConsumeAudioBackendOption(arg, i, argc, argv, opts.backend_audio, opts.backend_audio_explicit);
         if (audio_result.consumed) {
             if (!audio_result.error.empty()) {
                 Fail(audio_result.error, opts.app_name, extra_options);
@@ -79,16 +79,16 @@ ServerAppOptions ParseServerAppCliOptions(int argc,
             continue;
         }
 
-        const auto runtime_result = ConsumeServerRuntimeCliOption(arg,
-                                                                  i,
-                                                                  argc,
-                                                                  argv,
-                                                                  opts.server_config_path,
-                                                                  opts.server_config_explicit,
-                                                                  opts.listen_port,
-                                                                  opts.listen_port_explicit,
-                                                                  opts.community,
-                                                                  opts.community_explicit);
+        const auto runtime_result = ConsumeRuntimeOption(arg,
+                                                         i,
+                                                         argc,
+                                                         argv,
+                                                         opts.server_config_path,
+                                                         opts.server_config_explicit,
+                                                         opts.listen_port,
+                                                         opts.listen_port_explicit,
+                                                         opts.community,
+                                                         opts.community_explicit);
         if (runtime_result.consumed) {
             if (!runtime_result.error.empty()) {
                 Fail(runtime_result.error, opts.app_name, extra_options);
@@ -96,7 +96,7 @@ ServerAppOptions ParseServerAppCliOptions(int argc,
             continue;
         }
 
-        const auto extra_result = ConsumeRegisteredCliOption(arg, i, argc, argv, extra_options);
+        const auto extra_result = shared::ConsumeRegisteredOption(arg, i, argc, argv, extra_options);
         if (extra_result.consumed) {
             if (!extra_result.error.empty()) {
                 Fail(extra_result.error, opts.app_name, extra_options);
@@ -126,4 +126,4 @@ ServerAppOptions ParseServerAppCliOptions(int argc,
     return opts;
 }
 
-} // namespace karma::cli
+} // namespace karma::cli::server

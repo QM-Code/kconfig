@@ -4,7 +4,7 @@
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
 #include "karma/common/logging.hpp"
-#include "karma/cli/server_runtime_options.hpp"
+#include "karma/cli/server/runtime_options.hpp"
 
 #include <algorithm>
 #include <string>
@@ -13,7 +13,7 @@
 
 namespace bz3::server::runtime_detail {
 
-void BuildRuntimeConfig(const karma::cli::ServerAppOptions& options,
+void BuildRuntimeConfig(const karma::cli::server::AppOptions& options,
                         std::string_view world_name,
                         karma::app::server::EngineConfig* engine_config,
                         uint16_t* listen_port,
@@ -38,7 +38,7 @@ void BuildRuntimeConfig(const karma::cli::ServerAppOptions& options,
     engine_config->enable_audio = options.backend_audio_explicit
         || karma::config::ReadBoolConfig({"audio.serverEnabled"}, false);
 
-    *listen_port = karma::cli::ResolveServerListenPort(options.listen_port,
+    *listen_port = karma::cli::server::ResolveListenPort(options.listen_port,
                                                        options.listen_port_explicit,
                                                        static_cast<uint16_t>(11899));
 

@@ -3,7 +3,7 @@
 #include "server/net/transport_event_source.hpp"
 #include "server/net/event_source.hpp"
 
-#include "karma/cli/server_app_options.hpp"
+#include "karma/cli/server/app_options.hpp"
 #include "karma/common/content/archive.hpp"
 #include "karma/common/content/manifest.hpp"
 #include "karma/common/content/sync_facade.hpp"
@@ -450,7 +450,7 @@ bool TestScriptedSourceParsesSpawnAndShot() {
         return Fail("failed to initialize config for scripted source spawn/shot test");
     }
 
-    karma::cli::ServerAppOptions options{};
+    karma::cli::server::AppOptions options{};
     const auto source = bz3::server::net::CreateServerEventSource(options, 0);
     if (!source) {
         return Fail("CreateServerEventSource returned null for scripted source test");
@@ -497,7 +497,7 @@ bool TestScriptedSourceSortsOutOfOrderAndClampsNegativeTimes() {
         return Fail("failed to initialize config for scripted source ordering test");
     }
 
-    karma::cli::ServerAppOptions options{};
+    karma::cli::server::AppOptions options{};
     const auto source = bz3::server::net::CreateServerEventSource(options, 0);
     if (!source) {
         return Fail("CreateServerEventSource returned null for ordering scripted source test");
@@ -544,7 +544,7 @@ bool TestScriptedSourceSkipsInvalidShotData() {
         return Fail("failed to initialize config for scripted source invalid-shot test");
     }
 
-    karma::cli::ServerAppOptions options{};
+    karma::cli::server::AppOptions options{};
     const auto source = bz3::server::net::CreateServerEventSource(options, 0);
     if (!source) {
         return Fail("CreateServerEventSource returned null for invalid-shot scripted source test");
@@ -569,7 +569,7 @@ bool TestScriptedSourceJoinAuthPayload() {
         return Fail("failed to initialize config for scripted source join-auth test");
     }
 
-    karma::cli::ServerAppOptions options{};
+    karma::cli::server::AppOptions options{};
     const auto source = bz3::server::net::CreateServerEventSource(options, 0);
     if (!source) {
         return Fail("CreateServerEventSource returned null for join-auth scripted source test");

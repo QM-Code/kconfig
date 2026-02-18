@@ -30,7 +30,7 @@ glm::vec4 ReadRequiredColor(const char* path) {
     throw std::runtime_error(std::string("Config '") + path + "' must have 3 or 4 elements");
 }
 
-karma::app::client::EngineConfig BuildEngineConfig(const karma::cli::ClientAppOptions& options) {
+karma::app::client::EngineConfig BuildEngineConfig(const karma::cli::client::AppOptions& options) {
     karma::app::client::EngineConfig config;
     config.window.title = karma::config::ReadRequiredStringConfig("platform.WindowTitle");
     config.window.width = karma::config::ReadRequiredUInt16Config("platform.WindowWidth");

@@ -22,10 +22,10 @@ set(ENGINE_CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/app/shared/bootstrap.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/app/server/bootstrap.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/app/server/runner.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/cli/cli_parse_scaffold.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/cli/client_runtime_options.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/cli/server_app_options.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/cli/server_runtime_options.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/cli/shared/parse.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/cli/client/runtime_options.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/cli/server/app_options.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/cli/server/runtime_options.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/app/server/engine.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/config/reconnect_policy.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/auth/structured_payload.cpp
@@ -61,8 +61,8 @@ set(ENGINE_CLIENT_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/app/client/backend_resolution.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/app/client/bootstrap.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/app/client/runner.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/cli/cli_client_backend_options.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/cli/client_app_options.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/cli/client/backend_options.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/cli/client/app_options.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/app/client/engine.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/input/input_system.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/backends/software/backend.cpp

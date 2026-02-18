@@ -1,11 +1,11 @@
-#include "karma/cli/cli_client_backend_options.hpp"
+#include "karma/cli/client/backend_options.hpp"
 
 #include "karma/renderer/backend.hpp"
 
 #include <optional>
 #include <vector>
 
-namespace karma::cli {
+namespace karma::cli::client {
 namespace {
 
 std::vector<std::string> RenderBackendChoices(bool include_auto) {
@@ -45,52 +45,52 @@ std::vector<std::string> PlatformBackendChoices() {
     return choices;
 }
 
-bool ShouldExposeRenderBackendCliOption() {
+bool ShouldExposeRenderBackendOption() {
     return renderer_backend::CompiledBackends().size() > 1;
 }
 
-bool ShouldExposeUiBackendCliOption() {
+bool ShouldExposeUiBackendOption() {
     return UiBackendChoices().size() > 1;
 }
 
-bool ShouldExposePlatformBackendCliOption() {
+bool ShouldExposePlatformBackendOption() {
     return PlatformBackendChoices().size() > 1;
 }
 
 } // namespace
 
-CliConsumeResult ConsumeRenderBackendCliOption(const std::string& arg,
-                                               int& index,
-                                               int argc,
-                                               char** argv,
-                                               std::string& backend_out,
-                                               bool& explicit_out) {
-    CliConsumeResult out{};
-    if (!ShouldExposeRenderBackendCliOption()) {
+shared::ConsumeResult ConsumeRenderBackendOption(const std::string& arg,
+                                                 int& index,
+                                                 int argc,
+                                                 char** argv,
+                                                 std::string& backend_out,
+                                                 bool& explicit_out) {
+    shared::ConsumeResult out{};
+    if (!ShouldExposeRenderBackendOption()) {
         return out;
     }
 
     std::optional<std::string> raw_value{};
     if (arg == "--backend-render") {
         std::string error{};
-        raw_value = RequireValue(arg, index, argc, argv, &error);
+        raw_value = shared::RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
         if (!raw_value) {
             out.error = error;
             return out;
         }
-    } else if (StartsWith(arg, "--backend-render=")) {
-        raw_value = ValueAfterEquals(arg, "--backend-render=");
+    } else if (shared::StartsWith(arg, "--backend-render=")) {
+        raw_value = shared::ValueAfterEquals(arg, "--backend-render=");
         out.consumed = true;
     } else {
         return out;
     }
 
     const auto choices = RenderBackendChoices(true);
-    const auto parsed = ParseChoiceLower(*raw_value, choices);
+    const auto parsed = shared::ParseChoiceLower(*raw_value, choices);
     if (!parsed) {
         out.error = "Invalid value '" + *raw_value + "' for --backend-render. Expected: "
-            + JoinChoices(choices) + ".";
+            + shared::JoinChoices(choices) + ".";
         return out;
     }
     backend_out = *parsed;
@@ -98,38 +98,38 @@ CliConsumeResult ConsumeRenderBackendCliOption(const std::string& arg,
     return out;
 }
 
-CliConsumeResult ConsumeUiBackendCliOption(const std::string& arg,
-                                           int& index,
-                                           int argc,
-                                           char** argv,
-                                           std::string& backend_out,
-                                           bool& explicit_out) {
-    CliConsumeResult out{};
-    if (!ShouldExposeUiBackendCliOption()) {
+shared::ConsumeResult ConsumeUiBackendOption(const std::string& arg,
+                                             int& index,
+                                             int argc,
+                                             char** argv,
+                                             std::string& backend_out,
+                                             bool& explicit_out) {
+    shared::ConsumeResult out{};
+    if (!ShouldExposeUiBackendOption()) {
         return out;
     }
 
     std::optional<std::string> raw_value{};
     if (arg == "--backend-ui") {
         std::string error{};
-        raw_value = RequireValue(arg, index, argc, argv, &error);
+        raw_value = shared::RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
         if (!raw_value) {
             out.error = error;
             return out;
         }
-    } else if (StartsWith(arg, "--backend-ui=")) {
-        raw_value = ValueAfterEquals(arg, "--backend-ui=");
+    } else if (shared::StartsWith(arg, "--backend-ui=")) {
+        raw_value = shared::ValueAfterEquals(arg, "--backend-ui=");
         out.consumed = true;
     } else {
         return out;
     }
 
     const auto choices = UiBackendChoices();
-    const auto parsed = ParseChoiceLower(*raw_value, choices);
+    const auto parsed = shared::ParseChoiceLower(*raw_value, choices);
     if (!parsed) {
         out.error = "Invalid value '" + *raw_value + "' for --backend-ui. Expected: "
-            + JoinChoices(choices) + ".";
+            + shared::JoinChoices(choices) + ".";
         return out;
     }
     backend_out = *parsed;
@@ -137,38 +137,38 @@ CliConsumeResult ConsumeUiBackendCliOption(const std::string& arg,
     return out;
 }
 
-CliConsumeResult ConsumePlatformBackendCliOption(const std::string& arg,
-                                                 int& index,
-                                                 int argc,
-                                                 char** argv,
-                                                 std::string& backend_out,
-                                                 bool& explicit_out) {
-    CliConsumeResult out{};
-    if (!ShouldExposePlatformBackendCliOption()) {
+shared::ConsumeResult ConsumePlatformBackendOption(const std::string& arg,
+                                                   int& index,
+                                                   int argc,
+                                                   char** argv,
+                                                   std::string& backend_out,
+                                                   bool& explicit_out) {
+    shared::ConsumeResult out{};
+    if (!ShouldExposePlatformBackendOption()) {
         return out;
     }
 
     std::optional<std::string> raw_value{};
     if (arg == "--backend-platform") {
         std::string error{};
-        raw_value = RequireValue(arg, index, argc, argv, &error);
+        raw_value = shared::RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
         if (!raw_value) {
             out.error = error;
             return out;
         }
-    } else if (StartsWith(arg, "--backend-platform=")) {
-        raw_value = ValueAfterEquals(arg, "--backend-platform=");
+    } else if (shared::StartsWith(arg, "--backend-platform=")) {
+        raw_value = shared::ValueAfterEquals(arg, "--backend-platform=");
         out.consumed = true;
     } else {
         return out;
     }
 
     const auto choices = PlatformBackendChoices();
-    const auto parsed = ParseChoiceLower(*raw_value, choices);
+    const auto parsed = shared::ParseChoiceLower(*raw_value, choices);
     if (!parsed) {
         out.error = "Invalid value '" + *raw_value + "' for --backend-platform. Expected: "
-            + JoinChoices(choices) + ".";
+            + shared::JoinChoices(choices) + ".";
         return out;
     }
     backend_out = *parsed;
@@ -176,22 +176,22 @@ CliConsumeResult ConsumePlatformBackendCliOption(const std::string& arg,
     return out;
 }
 
-void AppendClientBackendCliHelp(std::ostream& out) {
-    if (ShouldExposeRenderBackendCliOption()) {
+void AppendBackendHelp(std::ostream& out) {
+    if (ShouldExposeRenderBackendOption()) {
         const auto choices = RenderBackendChoices(true);
         out << "      --backend-render <name>     Render backend override ("
-            << JoinChoices(choices) << ")\n";
+            << shared::JoinChoices(choices) << ")\n";
     }
-    if (ShouldExposeUiBackendCliOption()) {
+    if (ShouldExposeUiBackendOption()) {
         const auto choices = UiBackendChoices();
         out << "      --backend-ui <name>         UI backend override ("
-            << JoinChoices(choices) << ")\n";
+            << shared::JoinChoices(choices) << ")\n";
     }
-    if (ShouldExposePlatformBackendCliOption()) {
+    if (ShouldExposePlatformBackendOption()) {
         const auto choices = PlatformBackendChoices();
         out << "      --backend-platform <name>   Platform backend override ("
-            << JoinChoices(choices) << ")\n";
+            << shared::JoinChoices(choices) << ")\n";
     }
 }
 
-} // namespace karma::cli
+} // namespace karma::cli::client

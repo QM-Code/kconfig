@@ -239,7 +239,7 @@ std::vector<ScheduledEvent> LoadScriptedEventsFromConfig() {
 
 } // namespace
 
-std::unique_ptr<ServerEventSource> CreateServerEventSource(const karma::cli::ServerAppOptions& options,
+std::unique_ptr<ServerEventSource> CreateServerEventSource(const karma::cli::server::AppOptions& options,
                                                            uint16_t listen_port) {
     const std::string app_name = options.app_name.empty() ? std::string("server") : options.app_name;
     auto scripted_events = LoadScriptedEventsFromConfig();

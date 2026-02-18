@@ -1,4 +1,4 @@
-#include "karma/cli/server_runtime_options.hpp"
+#include "karma/cli/server/runtime_options.hpp"
 
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/config_store.hpp"
@@ -11,7 +11,7 @@
 #include <filesystem>
 #include <stdexcept>
 
-namespace karma::cli {
+namespace karma::cli::server {
 namespace {
 
 std::filesystem::path TryCanonical(const std::filesystem::path& path) {
@@ -29,21 +29,21 @@ std::filesystem::path TryCanonical(const std::filesystem::path& path) {
 
 } // namespace
 
-CliConsumeResult ConsumeServerRuntimeCliOption(const std::string& arg,
-                                               int& index,
-                                               int argc,
-                                               char** argv,
-                                               std::string& server_config_path_out,
-                                               bool& server_config_explicit_out,
-                                               uint16_t& listen_port_out,
-                                               bool& listen_port_explicit_out,
-                                               std::string& community_out,
-                                               bool& community_explicit_out) {
-    CliConsumeResult out{};
+shared::ConsumeResult ConsumeRuntimeOption(const std::string& arg,
+                                           int& index,
+                                           int argc,
+                                           char** argv,
+                                           std::string& server_config_path_out,
+                                           bool& server_config_explicit_out,
+                                           uint16_t& listen_port_out,
+                                           bool& listen_port_explicit_out,
+                                           std::string& community_out,
+                                           bool& community_explicit_out) {
+    shared::ConsumeResult out{};
 
     if (arg == "--server-config") {
         std::string error{};
-        auto value = RequireValue(arg, index, argc, argv, &error);
+        auto value = shared::RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
         if (!value) {
             out.error = error;
@@ -53,8 +53,8 @@ CliConsumeResult ConsumeServerRuntimeCliOption(const std::string& arg,
         server_config_explicit_out = true;
         return out;
     }
-    if (StartsWith(arg, "--server-config=")) {
-        server_config_path_out = ValueAfterEquals(arg, "--server-config=");
+    if (shared::StartsWith(arg, "--server-config=")) {
+        server_config_path_out = shared::ValueAfterEquals(arg, "--server-config=");
         server_config_explicit_out = true;
         out.consumed = true;
         return out;
@@ -62,13 +62,13 @@ CliConsumeResult ConsumeServerRuntimeCliOption(const std::string& arg,
 
     if (arg == "--listen-port") {
         std::string error{};
-        auto value = RequireValue(arg, index, argc, argv, &error);
+        auto value = shared::RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
         if (!value) {
             out.error = error;
             return out;
         }
-        const auto parsed = ParseUInt16Port(*value, &error);
+        const auto parsed = shared::ParseUInt16Port(*value, &error);
         if (!parsed) {
             out.error = error;
             return out;
@@ -77,10 +77,10 @@ CliConsumeResult ConsumeServerRuntimeCliOption(const std::string& arg,
         listen_port_explicit_out = true;
         return out;
     }
-    if (StartsWith(arg, "--listen-port=")) {
-        const std::string raw = ValueAfterEquals(arg, "--listen-port=");
+    if (shared::StartsWith(arg, "--listen-port=")) {
+        const std::string raw = shared::ValueAfterEquals(arg, "--listen-port=");
         std::string error{};
-        const auto parsed = ParseUInt16Port(raw, &error);
+        const auto parsed = shared::ParseUInt16Port(raw, &error);
         out.consumed = true;
         if (!parsed) {
             out.error = error;
@@ -93,7 +93,7 @@ CliConsumeResult ConsumeServerRuntimeCliOption(const std::string& arg,
 
     if (arg == "--community") {
         std::string error{};
-        auto value = RequireValue(arg, index, argc, argv, &error);
+        auto value = shared::RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
         if (!value) {
             out.error = error;
@@ -103,8 +103,8 @@ CliConsumeResult ConsumeServerRuntimeCliOption(const std::string& arg,
         community_explicit_out = true;
         return out;
     }
-    if (StartsWith(arg, "--community=")) {
-        community_out = ValueAfterEquals(arg, "--community=");
+    if (shared::StartsWith(arg, "--community=")) {
+        community_out = shared::ValueAfterEquals(arg, "--community=");
         community_explicit_out = true;
         out.consumed = true;
         return out;
@@ -113,14 +113,14 @@ CliConsumeResult ConsumeServerRuntimeCliOption(const std::string& arg,
     return out;
 }
 
-void AppendServerRuntimeCliHelp(std::ostream& out) {
+void AppendRuntimeHelp(std::ostream& out) {
     out << "      --server-config <path>      Server config overlay file\n"
         << "      --listen-port <port>        Server listen port\n"
         << "      --community <url>           Community endpoint (http://host:port or host:port)\n";
 }
 
-std::optional<std::filesystem::path> ResolveServerConfigOverlayPath(const std::string& server_config_path,
-                                                                    bool server_config_explicit) {
+std::optional<std::filesystem::path> ResolveConfigOverlayPath(const std::string& server_config_path,
+                                                              bool server_config_explicit) {
     if (!server_config_explicit) {
         return std::nullopt;
     }
@@ -131,9 +131,9 @@ std::optional<std::filesystem::path> ResolveServerConfigOverlayPath(const std::s
     return TryCanonical(path);
 }
 
-std::optional<std::filesystem::path> ApplyServerConfigOverlay(const std::string& server_config_path,
-                                                              bool server_config_explicit) {
-    const auto overlay_path = ResolveServerConfigOverlayPath(server_config_path, server_config_explicit);
+std::optional<std::filesystem::path> ApplyConfigOverlay(const std::string& server_config_path,
+                                                        bool server_config_explicit) {
+    const auto overlay_path = ResolveConfigOverlayPath(server_config_path, server_config_explicit);
     if (!overlay_path.has_value()) {
         return std::nullopt;
     }
@@ -162,13 +162,13 @@ std::optional<std::filesystem::path> ApplyServerConfigOverlay(const std::string&
     return overlay_path;
 }
 
-uint16_t ResolveServerListenPort(uint16_t listen_port,
-                                 bool listen_port_explicit,
-                                 uint16_t fallback_port) {
+uint16_t ResolveListenPort(uint16_t listen_port,
+                           bool listen_port_explicit,
+                           uint16_t fallback_port) {
     if (listen_port_explicit) {
         return listen_port;
     }
     return config::ReadUInt16Config({"network.ServerPort"}, fallback_port);
 }
 
-} // namespace karma::cli
+} // namespace karma::cli::server

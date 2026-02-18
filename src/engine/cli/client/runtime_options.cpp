@@ -1,25 +1,25 @@
-#include "karma/cli/client_runtime_options.hpp"
+#include "karma/cli/client/runtime_options.hpp"
 
 #include <limits>
 #include <stdexcept>
 
-namespace karma::cli {
+namespace karma::cli::client {
 
-CliConsumeResult ConsumeClientRuntimeCliOption(const std::string& arg,
-                                               int& index,
-                                               int argc,
-                                               char** argv,
-                                               std::string& username_out,
-                                               bool& username_explicit_out,
-                                               std::string& password_out,
-                                               bool& password_explicit_out,
-                                               std::string& server_out,
-                                               bool& server_explicit_out) {
-    CliConsumeResult out{};
+shared::ConsumeResult ConsumeRuntimeOption(const std::string& arg,
+                                           int& index,
+                                           int argc,
+                                           char** argv,
+                                           std::string& username_out,
+                                           bool& username_explicit_out,
+                                           std::string& password_out,
+                                           bool& password_explicit_out,
+                                           std::string& server_out,
+                                           bool& server_explicit_out) {
+    shared::ConsumeResult out{};
 
     if (arg == "--username") {
         std::string error{};
-        auto value = RequireValue(arg, index, argc, argv, &error);
+        auto value = shared::RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
         if (!value) {
             out.error = error;
@@ -29,8 +29,8 @@ CliConsumeResult ConsumeClientRuntimeCliOption(const std::string& arg,
         username_explicit_out = true;
         return out;
     }
-    if (StartsWith(arg, "--username=")) {
-        username_out = ValueAfterEquals(arg, "--username=");
+    if (shared::StartsWith(arg, "--username=")) {
+        username_out = shared::ValueAfterEquals(arg, "--username=");
         username_explicit_out = true;
         out.consumed = true;
         return out;
@@ -38,7 +38,7 @@ CliConsumeResult ConsumeClientRuntimeCliOption(const std::string& arg,
 
     if (arg == "--password") {
         std::string error{};
-        auto value = RequireValue(arg, index, argc, argv, &error);
+        auto value = shared::RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
         if (!value) {
             out.error = error;
@@ -48,8 +48,8 @@ CliConsumeResult ConsumeClientRuntimeCliOption(const std::string& arg,
         password_explicit_out = true;
         return out;
     }
-    if (StartsWith(arg, "--password=")) {
-        password_out = ValueAfterEquals(arg, "--password=");
+    if (shared::StartsWith(arg, "--password=")) {
+        password_out = shared::ValueAfterEquals(arg, "--password=");
         password_explicit_out = true;
         out.consumed = true;
         return out;
@@ -57,7 +57,7 @@ CliConsumeResult ConsumeClientRuntimeCliOption(const std::string& arg,
 
     if (arg == "--server") {
         std::string error{};
-        auto value = RequireValue(arg, index, argc, argv, &error);
+        auto value = shared::RequireValue(arg, index, argc, argv, &error);
         out.consumed = true;
         if (!value) {
             out.error = error;
@@ -67,8 +67,8 @@ CliConsumeResult ConsumeClientRuntimeCliOption(const std::string& arg,
         server_explicit_out = true;
         return out;
     }
-    if (StartsWith(arg, "--server=")) {
-        server_out = ValueAfterEquals(arg, "--server=");
+    if (shared::StartsWith(arg, "--server=")) {
+        server_out = shared::ValueAfterEquals(arg, "--server=");
         server_explicit_out = true;
         out.consumed = true;
         return out;
@@ -77,24 +77,24 @@ CliConsumeResult ConsumeClientRuntimeCliOption(const std::string& arg,
     return out;
 }
 
-void AppendClientRuntimeCliHelp(std::ostream& out) {
+void AppendRuntimeHelp(std::ostream& out) {
     out << "      --username <name>           Player name for join request\n"
         << "      --password <value>          Password/auth payload for pre-auth join\n"
         << "      --server <host:port>        Server endpoint to connect\n";
 }
 
-std::string ResolveClientPlayerName(const std::string& username,
-                                    bool username_explicit,
-                                    const std::string& fallback_player_name) {
+std::string ResolvePlayerName(const std::string& username,
+                              bool username_explicit,
+                              const std::string& fallback_player_name) {
     if (username_explicit) {
         return username;
     }
     return fallback_player_name;
 }
 
-std::optional<ClientServerEndpoint> ResolveClientServerEndpoint(const std::string& server,
-                                                                bool server_explicit,
-                                                                std::string* out_error) {
+std::optional<ServerEndpoint> ResolveServerEndpoint(const std::string& server,
+                                                    bool server_explicit,
+                                                    std::string* out_error) {
     if (!server_explicit) {
         return std::nullopt;
     }
@@ -122,10 +122,10 @@ std::optional<ClientServerEndpoint> ResolveClientServerEndpoint(const std::strin
         return std::nullopt;
     }
 
-    ClientServerEndpoint endpoint{};
+    ServerEndpoint endpoint{};
     endpoint.host = server.substr(0, split);
     endpoint.port = parsed_port;
     return endpoint;
 }
 
-} // namespace karma::cli
+} // namespace karma::cli::client

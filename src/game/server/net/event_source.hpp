@@ -8,7 +8,7 @@
 #include <string_view>
 #include <vector>
 
-#include "karma/cli/server_app_options.hpp"
+#include "karma/cli/server/app_options.hpp"
 
 namespace bz3::server::net {
 
@@ -133,7 +133,7 @@ class ServerEventSource {
     }
 };
 
-std::unique_ptr<ServerEventSource> CreateServerEventSource(const karma::cli::ServerAppOptions& options,
+std::unique_ptr<ServerEventSource> CreateServerEventSource(const karma::cli::server::AppOptions& options,
                                                            uint16_t listen_port);
 
 } // namespace bz3::server::net

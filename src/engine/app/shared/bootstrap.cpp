@@ -1,6 +1,6 @@
 #include "karma/app/shared/bootstrap.hpp"
 
-#include "karma/cli/cli_parse_scaffold.hpp"
+#include "karma/cli/shared/parse.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/common/data_dir_override.hpp"
 #include "karma/common/data_path_resolver.hpp"
@@ -15,11 +15,11 @@ namespace karma::app::shared {
 
 namespace {
 
-karma::cli::CliCommonState ParseCommonCliState(int argc, char** argv) {
-    karma::cli::CliCommonState state{};
+karma::cli::shared::CommonState ParseCommonCliState(int argc, char** argv) {
+    karma::cli::shared::CommonState state{};
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        const auto result = karma::cli::ConsumeCommonCliOption(arg, i, argc, argv, state);
+        const auto result = karma::cli::shared::ConsumeCommonOption(arg, i, argc, argv, state);
         if (result.consumed && !result.error.empty()) {
             throw std::runtime_error(result.error);
         }
@@ -27,7 +27,7 @@ karma::cli::CliCommonState ParseCommonCliState(int argc, char** argv) {
     return state;
 }
 
-void ApplyCommonCliConfigOverrides(const karma::cli::CliCommonState& state) {
+void ApplyCommonCliConfigOverrides(const karma::cli::shared::CommonState& state) {
     if (!state.language_explicit) {
         return;
     }

@@ -1,4 +1,4 @@
-#include "karma/cli/cli_parse_scaffold.hpp"
+#include "karma/cli/shared/parse.hpp"
 
 #include "karma/audio/backend.hpp"
 #include "karma/common/logging.hpp"
@@ -11,7 +11,7 @@
 #include <iostream>
 #include <utility>
 
-namespace karma::cli {
+namespace karma::cli::shared {
 namespace {
 
 std::string ToLower(std::string value) {
@@ -46,7 +46,7 @@ std::vector<std::string> AudioBackendChoices(bool include_auto) {
     return choices;
 }
 
-std::string ComposeOptionLabel(const CliRegisteredOption& option) {
+std::string ComposeOptionLabel(const RegisteredOption& option) {
     std::string label{};
     if (!option.short_name.empty()) {
         label += option.short_name;
@@ -57,7 +57,7 @@ std::string ComposeOptionLabel(const CliRegisteredOption& option) {
         }
         label += option.long_name;
     }
-    if (option.kind != CliRegisteredOptionKind::Flag) {
+    if (option.kind != RegisteredOptionKind::Flag) {
         const std::string value_name = option.value_name.empty() ? "<value>" : option.value_name;
         if (!value_name.empty()) {
             label += " ";
@@ -67,56 +67,56 @@ std::string ComposeOptionLabel(const CliRegisteredOption& option) {
     return label;
 }
 
-bool MatchesExactOptionName(const std::string& arg, const CliRegisteredOption& option) {
+bool MatchesExactOptionName(const std::string& arg, const RegisteredOption& option) {
     return (!option.short_name.empty() && arg == option.short_name)
         || (!option.long_name.empty() && arg == option.long_name);
 }
 
 } // namespace
 
-CliRegisteredOption DefineFlagOption(std::string short_name,
+RegisteredOption DefineFlag(std::string short_name,
                                      std::string long_name,
                                      std::string help,
                                      std::function<void()> on_flag) {
-    CliRegisteredOption out{};
+    RegisteredOption out{};
     out.short_name = std::move(short_name);
     out.long_name = std::move(long_name);
     out.help = std::move(help);
-    out.kind = CliRegisteredOptionKind::Flag;
+    out.kind = RegisteredOptionKind::Flag;
     out.on_flag = std::move(on_flag);
     out.allow_equals_form = false;
     return out;
 }
 
-CliRegisteredOption DefineStringOption(std::string short_name,
+RegisteredOption DefineString(std::string short_name,
                                        std::string long_name,
                                        std::string value_name,
                                        std::string help,
                                        std::function<void(const std::string&)> on_string,
                                        bool allow_equals_form) {
-    CliRegisteredOption out{};
+    RegisteredOption out{};
     out.short_name = std::move(short_name);
     out.long_name = std::move(long_name);
     out.value_name = std::move(value_name);
     out.help = std::move(help);
-    out.kind = CliRegisteredOptionKind::String;
+    out.kind = RegisteredOptionKind::String;
     out.on_string = std::move(on_string);
     out.allow_equals_form = allow_equals_form;
     return out;
 }
 
-CliRegisteredOption DefineUInt16Option(std::string short_name,
+RegisteredOption DefineUInt16(std::string short_name,
                                        std::string long_name,
                                        std::string value_name,
                                        std::string help,
                                        std::function<void(uint16_t)> on_uint16,
                                        bool allow_equals_form) {
-    CliRegisteredOption out{};
+    RegisteredOption out{};
     out.short_name = std::move(short_name);
     out.long_name = std::move(long_name);
     out.value_name = std::move(value_name);
     out.help = std::move(help);
-    out.kind = CliRegisteredOptionKind::UInt16;
+    out.kind = RegisteredOptionKind::UInt16;
     out.on_uint16 = std::move(on_uint16);
     out.allow_equals_form = allow_equals_form;
     return out;
@@ -228,12 +228,12 @@ void RequireTraceList(int argc, char** argv) {
     }
 }
 
-CliConsumeResult ConsumeCommonCliOption(const std::string& arg,
+ConsumeResult ConsumeCommonOption(const std::string& arg,
                                         int& index,
                                         int argc,
                                         char** argv,
-                                        CliCommonState& state) {
-    CliConsumeResult out{};
+                                        CommonState& state) {
+    ConsumeResult out{};
 
     if (arg == "-h" || arg == "--help") {
         out.consumed = true;
@@ -337,14 +337,14 @@ CliConsumeResult ConsumeCommonCliOption(const std::string& arg,
     return out;
 }
 
-CliConsumeResult ConsumePhysicsBackendCliOption(const std::string& arg,
+ConsumeResult ConsumePhysicsBackendOption(const std::string& arg,
                                                 int& index,
                                                 int argc,
                                                 char** argv,
                                                 std::string& backend_out,
                                                 bool& explicit_out) {
-    CliConsumeResult out{};
-    if (!ShouldExposePhysicsBackendCliOption()) {
+    ConsumeResult out{};
+    if (!ShouldExposePhysicsBackendOption()) {
         return out;
     }
 
@@ -376,14 +376,14 @@ CliConsumeResult ConsumePhysicsBackendCliOption(const std::string& arg,
     return out;
 }
 
-CliConsumeResult ConsumeAudioBackendCliOption(const std::string& arg,
+ConsumeResult ConsumeAudioBackendOption(const std::string& arg,
                                               int& index,
                                               int argc,
                                               char** argv,
                                               std::string& backend_out,
                                               bool& explicit_out) {
-    CliConsumeResult out{};
-    if (!ShouldExposeAudioBackendCliOption()) {
+    ConsumeResult out{};
+    if (!ShouldExposeAudioBackendOption()) {
         return out;
     }
 
@@ -415,15 +415,15 @@ CliConsumeResult ConsumeAudioBackendCliOption(const std::string& arg,
     return out;
 }
 
-bool ShouldExposePhysicsBackendCliOption() {
+bool ShouldExposePhysicsBackendOption() {
     return physics_backend::CompiledBackends().size() > 1;
 }
 
-bool ShouldExposeAudioBackendCliOption() {
+bool ShouldExposeAudioBackendOption() {
     return audio_backend::CompiledBackends().size() > 1;
 }
 
-void AppendCommonCliHelp(std::ostream& out, bool include_user_config_option) {
+void AppendCommonHelp(std::ostream& out, bool include_user_config_option) {
     out
         << "  -h, --help                      Show this help message\n"
         << "      --trace <channels>          Enable comma-separated trace channels\n"
@@ -436,31 +436,31 @@ void AppendCommonCliHelp(std::ostream& out, bool include_user_config_option) {
     }
 }
 
-void AppendCoreBackendCliHelp(std::ostream& out) {
-    if (ShouldExposePhysicsBackendCliOption()) {
+void AppendCoreBackendHelp(std::ostream& out) {
+    if (ShouldExposePhysicsBackendOption()) {
         const auto choices = PhysicsBackendChoices(true);
         out << "      --backend-physics <name>    Physics backend override ("
             << JoinChoices(choices) << ")\n";
     }
-    if (ShouldExposeAudioBackendCliOption()) {
+    if (ShouldExposeAudioBackendOption()) {
         const auto choices = AudioBackendChoices(true);
         out << "      --backend-audio <name>      Audio backend override ("
             << JoinChoices(choices) << ")\n";
     }
 }
 
-CliConsumeResult ConsumeRegisteredCliOption(const std::string& arg,
+ConsumeResult ConsumeRegisteredOption(const std::string& arg,
                                             int& index,
                                             int argc,
                                             char** argv,
-                                            const std::vector<CliRegisteredOption>& options) {
-    CliConsumeResult out{};
+                                            const std::vector<RegisteredOption>& options) {
+    ConsumeResult out{};
     for (const auto& option : options) {
         if (option.short_name.empty() && option.long_name.empty()) {
             continue;
         }
 
-        if (option.kind == CliRegisteredOptionKind::Flag) {
+        if (option.kind == RegisteredOptionKind::Flag) {
             if (!MatchesExactOptionName(arg, option)) {
                 continue;
             }
@@ -492,7 +492,7 @@ CliConsumeResult ConsumeRegisteredCliOption(const std::string& arg,
             continue;
         }
 
-        if (option.kind == CliRegisteredOptionKind::String) {
+        if (option.kind == RegisteredOptionKind::String) {
             if (!option.on_string) {
                 out.error = "Internal CLI configuration error for option '" + option_name + "'.";
                 return out;
@@ -501,7 +501,7 @@ CliConsumeResult ConsumeRegisteredCliOption(const std::string& arg,
             return out;
         }
 
-        if (option.kind == CliRegisteredOptionKind::UInt16) {
+        if (option.kind == RegisteredOptionKind::UInt16) {
             if (!option.on_uint16) {
                 out.error = "Internal CLI configuration error for option '" + option_name + "'.";
                 return out;
@@ -519,7 +519,7 @@ CliConsumeResult ConsumeRegisteredCliOption(const std::string& arg,
     return out;
 }
 
-void AppendRegisteredCliHelp(std::ostream& out, const std::vector<CliRegisteredOption>& options) {
+void AppendRegisteredHelp(std::ostream& out, const std::vector<RegisteredOption>& options) {
     constexpr size_t kColumnWidth = 33;
     for (const auto& option : options) {
         const std::string label = ComposeOptionLabel(option);
@@ -536,4 +536,4 @@ void AppendRegisteredCliHelp(std::ostream& out, const std::vector<CliRegisteredO
     }
 }
 
-} // namespace karma::cli
+} // namespace karma::cli::shared

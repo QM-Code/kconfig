@@ -101,7 +101,7 @@ std::optional<CommunityCredential> ReadCommunityCredentialEntry(const karma::jso
 } // namespace
 
 std::optional<CommunityCredential> ResolveCommunityCredential(
-    const std::optional<karma::cli::ClientServerEndpoint>& endpoint,
+    const std::optional<karma::cli::client::ServerEndpoint>& endpoint,
     const std::string& server_option_raw) {
     const auto* credentials = karma::config::ConfigStore::Get("communityCredentials");
     if (!credentials || !credentials->is_object()) {

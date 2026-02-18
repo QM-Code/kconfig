@@ -1,6 +1,6 @@
 #pragma once
 
-#include "karma/cli/server_app_options.hpp"
+#include "karma/cli/server/app_options.hpp"
 
 #include <functional>
 #include <string_view>
@@ -12,7 +12,7 @@ struct RunSpec {
     std::string_view bootstrap_app_name = "app";
 };
 
-using RuntimeHook = std::function<int(const karma::cli::ServerAppOptions&)>;
+using RuntimeHook = std::function<int(const karma::cli::server::AppOptions&)>;
 
 int Run(int argc,
         char** argv,

@@ -1,6 +1,6 @@
 #include "client/runtime/internal.hpp"
 
-#include "karma/cli/client_runtime_options.hpp"
+#include "karma/cli/client/runtime_options.hpp"
 #include "karma/common/config_helpers.hpp"
 #include "karma/network/auth/structured_payload.hpp"
 #include "karma/network/client/auth/community_credentials.hpp"
@@ -11,19 +11,19 @@
 
 namespace bz3::client::runtime_detail {
 
-bz3::GameStartupOptions ResolveGameStartupOptions(const karma::cli::ClientAppOptions& options) {
+bz3::GameStartupOptions ResolveGameStartupOptions(const karma::cli::client::AppOptions& options) {
     bz3::GameStartupOptions startup{};
 
     std::string connect_error{};
     const auto endpoint =
-        karma::cli::ResolveClientServerEndpoint(options.server, options.server_explicit, &connect_error);
+        karma::cli::client::ResolveServerEndpoint(options.server, options.server_explicit, &connect_error);
 
     const auto credential =
         karma::network::client::auth::ResolveCommunityCredential(endpoint, options.server);
     const std::string default_player_name = (credential.has_value() && !credential->username.empty())
         ? credential->username
         : karma::config::ReadStringConfig({"userDefaults.username"}, "Player");
-    startup.player_name = karma::cli::ResolveClientPlayerName(
+    startup.player_name = karma::cli::client::ResolvePlayerName(
         options.username,
         options.username_explicit,
         default_player_name);

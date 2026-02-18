@@ -1,15 +1,15 @@
 #pragma once
 
-#include "karma/cli/cli_parse_scaffold.hpp"
+#include "karma/cli/shared/parse.hpp"
 
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
 
-namespace karma::cli {
+namespace karma::cli::server {
 
-struct ServerAppOptions {
+struct AppOptions {
     std::string app_name{};
     bool trace_explicit = false;
     bool server_config_explicit = false;
@@ -31,10 +31,10 @@ struct ServerAppOptions {
     std::string server_config_path{};
 };
 
-ServerAppOptions ParseServerAppCliOptions(
+AppOptions ParseAppOptions(
     int argc,
     char** argv,
     std::string_view fallback_app_name = "app",
-    const std::vector<CliRegisteredOption>& extra_options = {});
+    const std::vector<shared::RegisteredOption>& extra_options = {});
 
-} // namespace karma::cli
+} // namespace karma::cli::server

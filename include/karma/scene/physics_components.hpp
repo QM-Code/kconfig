@@ -70,7 +70,8 @@ enum class PhysicsComponentValidationError {
     NonPositiveDimension,
     EmptyMeshPath,
     InvalidMass,
-    EmptyCollisionMask
+    EmptyCollisionMask,
+    ConflictingMotionLocks
 };
 
 enum class TransformOwnershipValidationError {
@@ -161,6 +162,12 @@ inline bool ValidateRigidBodyIntent(const RigidBodyIntentComponent& intent,
     if (intent.dynamic && intent.mass <= 0.0f) {
         if (out_error) {
             *out_error = PhysicsComponentValidationError::InvalidMass;
+        }
+        return false;
+    }
+    if (intent.dynamic && intent.rotation_locked && intent.translation_locked) {
+        if (out_error) {
+            *out_error = PhysicsComponentValidationError::ConflictingMotionLocks;
         }
         return false;
     }
