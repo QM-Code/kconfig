@@ -1,7 +1,7 @@
 #include "karma/common/logging/logging.hpp"
 #include "karma/common/data/path_resolver.hpp"
 #include "karma/ecs/world.hpp"
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 #include "karma/renderer/backend.hpp"
 #include "karma/renderer/device.hpp"
 #include "karma/renderer/render_system.hpp"
@@ -484,7 +484,7 @@ void AnglesFromDirection(const glm::vec3& direction,
     out_azimuth_degrees = glm::degrees(std::atan2(normalized.z, normalized.x));
 }
 
-void UpdateInteractiveControls(const karma::platform::Window& window,
+void UpdateInteractiveControls(const karma::window::Window& window,
                                float dt,
                                OrbitCameraState& camera,
                                float& sun_azimuth_degrees,
@@ -495,35 +495,35 @@ void UpdateInteractiveControls(const karma::platform::Window& window,
     const float sun_azimuth_speed = 60.0f;
     const float sun_elevation_speed = 50.0f;
 
-    if (window.isKeyDown(karma::platform::Key::Left)) {
+    if (window.isKeyDown(karma::window::Key::Left)) {
         camera.yaw_degrees -= camera_yaw_speed * dt;
     }
-    if (window.isKeyDown(karma::platform::Key::Right)) {
+    if (window.isKeyDown(karma::window::Key::Right)) {
         camera.yaw_degrees += camera_yaw_speed * dt;
     }
-    if (window.isKeyDown(karma::platform::Key::Up)) {
+    if (window.isKeyDown(karma::window::Key::Up)) {
         camera.pitch_degrees += camera_pitch_speed * dt;
     }
-    if (window.isKeyDown(karma::platform::Key::Down)) {
+    if (window.isKeyDown(karma::window::Key::Down)) {
         camera.pitch_degrees -= camera_pitch_speed * dt;
     }
-    if (window.isKeyDown(karma::platform::Key::PageUp)) {
+    if (window.isKeyDown(karma::window::Key::PageUp)) {
         camera.radius -= camera_zoom_speed * dt;
     }
-    if (window.isKeyDown(karma::platform::Key::PageDown)) {
+    if (window.isKeyDown(karma::window::Key::PageDown)) {
         camera.radius += camera_zoom_speed * dt;
     }
 
-    if (window.isKeyDown(karma::platform::Key::A)) {
+    if (window.isKeyDown(karma::window::Key::A)) {
         sun_azimuth_degrees -= sun_azimuth_speed * dt;
     }
-    if (window.isKeyDown(karma::platform::Key::D)) {
+    if (window.isKeyDown(karma::window::Key::D)) {
         sun_azimuth_degrees += sun_azimuth_speed * dt;
     }
-    if (window.isKeyDown(karma::platform::Key::W)) {
+    if (window.isKeyDown(karma::window::Key::W)) {
         sun_elevation_degrees += sun_elevation_speed * dt;
     }
-    if (window.isKeyDown(karma::platform::Key::S)) {
+    if (window.isKeyDown(karma::window::Key::S)) {
         sun_elevation_degrees -= sun_elevation_speed * dt;
     }
 
@@ -682,14 +682,14 @@ void LogShadowDiagnostics(const char* backend_name,
         frame_dt_max);
 }
 
-bool ShouldQuitFromEvents(const std::vector<karma::platform::Event>& events) {
+bool ShouldQuitFromEvents(const std::vector<karma::window::Event>& events) {
     for (const auto& event : events) {
-        if (event.type == karma::platform::EventType::Quit ||
-            event.type == karma::platform::EventType::WindowClose) {
+        if (event.type == karma::window::EventType::Quit ||
+            event.type == karma::window::EventType::WindowClose) {
             return true;
         }
-        if (event.type == karma::platform::EventType::KeyDown &&
-            event.key == karma::platform::Key::Escape) {
+        if (event.type == karma::window::EventType::KeyDown &&
+            event.key == karma::window::Key::Escape) {
             return true;
         }
     }
@@ -728,14 +728,14 @@ int main(int argc, char** argv) {
             karma::common::data::SetDataRootOverride(repo_data_root);
         }
 
-        karma::platform::WindowConfig window_config{};
+        karma::window::WindowConfig window_config{};
         window_config.title = "Renderer Shadow Sandbox";
         window_config.width = options.width;
         window_config.height = options.height;
         window_config.resizable = true;
         window_config.preferredVideoDriver = options.preferred_video_driver;
 
-        std::unique_ptr<karma::platform::Window> window = karma::platform::CreateWindow(window_config);
+        std::unique_ptr<karma::window::Window> window = karma::window::CreateWindow(window_config);
         if (!window) {
             throw std::runtime_error("Failed to create sandbox window");
         }
@@ -961,7 +961,7 @@ int main(int argc, char** argv) {
             UpdateInteractiveControls(*window, dt, orbit, sun_azimuth, sun_elevation);
             light.direction = DirectionFromAngles(sun_azimuth, sun_elevation);
 
-            const bool space_down = window->isKeyDown(karma::platform::Key::Space);
+            const bool space_down = window->isKeyDown(karma::window::Key::Space);
             if (space_down && !space_was_down) {
                 simulation_paused = !simulation_paused;
             }

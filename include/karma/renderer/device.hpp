@@ -9,7 +9,7 @@ namespace karma::renderer {
 
 class GraphicsDevice {
  public:
-    explicit GraphicsDevice(karma::platform::Window& window,
+    explicit GraphicsDevice(karma::window::Window& window,
                             renderer::backend::BackendKind preferred_backend = renderer::backend::BackendKind::Auto);
     ~GraphicsDevice();
 

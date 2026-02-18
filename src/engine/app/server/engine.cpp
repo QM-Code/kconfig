@@ -1,6 +1,7 @@
 #include "karma/app/server/engine.hpp"
 
 #include "karma/common/logging/logging.hpp"
+#include "physics/engine_fixed_step_sync.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -43,6 +44,8 @@ std::string CompiledAudioBackendList() {
 
 } // namespace
 
+Engine::Engine() = default;
+
 Engine::~Engine() {
     shutdown();
 }
@@ -78,6 +81,7 @@ void Engine::start(GameInterface& game, const EngineConfig& config) {
     KARMA_TRACE("engine.server",
                 "Engine: physics backend ready backend='{}'",
                 physics_system_.selectedBackendName());
+    physics_sync_system_ = physics::detail::CreateEngineSyncIfPhysicsInitialized(physics_system_);
     if (config_.enable_audio) {
         audio_system_.setBackend(config_.audio_backend);
         KARMA_TRACE("engine.server",
@@ -89,6 +93,7 @@ void Engine::start(GameInterface& game, const EngineConfig& config) {
             spdlog::error("Engine: audio backend failed to initialize (requested='{}', compiled='{}')",
                           audio::backend::BackendKindName(config_.audio_backend),
                           CompiledAudioBackendList());
+            physics::detail::ResetEngineSyncBeforePhysicsShutdown(physics_sync_system_);
             physics_system_.shutdown();
             game_ = nullptr;
             running_ = false;
@@ -173,9 +178,8 @@ void Engine::tick() {
     }
 
     physics_system_.beginFrame(dt);
-    for (int i = 0; i < sim_steps; ++i) {
-        physics_system_.simulateFixedStep(simulation_clock_.fixedDeltaTime());
-    }
+    physics::detail::SimulateFixedStepsWithSync(
+        physics_system_, physics_sync_system_.get(), world_, sim_steps, simulation_clock_.fixedDeltaTime());
     physics_system_.endFrame();
     if (config_.enable_audio) {
         audio_system_.beginFrame(dt);
@@ -201,6 +205,7 @@ void Engine::shutdown() {
     if (config_.enable_audio) {
         audio_system_.shutdown();
     }
+    physics::detail::ResetEngineSyncBeforePhysicsShutdown(physics_sync_system_);
     physics_system_.shutdown();
     KARMA_TRACE("engine.server",
                 "Engine: shutdown world_entities={}",

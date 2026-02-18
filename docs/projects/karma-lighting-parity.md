@@ -102,7 +102,7 @@ Implement every lighting/shadow technique that is actively used in KARMA demo pa
   - screenshot evidence remains supplemental/operator evidence (not sole CI gate), especially while Diligent non-interactive capture remains environment-limited.
 
 ## Owned Paths
-- `docs/projects/karma-lighting-shadow-parity.md`
+- `docs/projects/karma-lighting-parity.md`
 - `src/engine/renderer/backends/internal/directional_shadow.hpp`
 - `src/engine/renderer/backends/bgfx/core.cpp`
 - `src/engine/renderer/backends/diligent/core.cpp`

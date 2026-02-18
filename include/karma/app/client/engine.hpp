@@ -7,7 +7,7 @@
 #include "karma/audio/audio_system.hpp"
 #include "karma/audio/backend.hpp"
 #include "karma/app/shared/simulation_clock.hpp"
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 #include "karma/renderer/device.hpp"
 #include "karma/renderer/render_system.hpp"
 #include "karma/input/input_system.hpp"
@@ -19,10 +19,14 @@
 #include "karma/scene/scene.hpp"
 #include "karma/scene/scene_bootstrap.hpp"
 
+namespace karma::physics {
+class EcsSyncSystem;
+}
+
 namespace karma::app::client {
 
 struct EngineConfig {
-    platform::WindowConfig window{};
+    window::WindowConfig window{};
     bool vsync = true;
     int samples = 1;
     bool cursor_visible = true;
@@ -59,7 +63,7 @@ class Engine {
 
     GameInterface* game_ = nullptr;
     EngineConfig config_{};
-    std::unique_ptr<platform::Window> window_;
+    std::unique_ptr<window::Window> window_;
     std::unique_ptr<renderer::GraphicsDevice> graphics_;
     std::unique_ptr<renderer::RenderSystem> render_system_;
     ecs::World world_{};
@@ -68,6 +72,7 @@ class Engine {
     input::InputContext input_system_{};
     audio::AudioSystem audio_system_{};
     physics::PhysicsSystem physics_system_{};
+    std::unique_ptr<physics::EcsSyncSystem> physics_sync_system_{};
     scene::RoamingCameraController roaming_camera_{};
     ui::UiSystem ui_system_{};
     shared::SimulationClock simulation_clock_{};

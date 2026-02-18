@@ -17,7 +17,7 @@ std::string Lower(std::string_view input) {
     return text;
 }
 
-std::unique_ptr<Backend> CreateBackendForKind(karma::platform::Window& window, BackendKind kind) {
+std::unique_ptr<Backend> CreateBackendForKind(karma::window::Window& window, BackendKind kind) {
     switch (kind) {
         case BackendKind::Bgfx:
 #if defined(KARMA_HAS_RENDER_BGFX)
@@ -73,7 +73,7 @@ std::vector<BackendKind> CompiledBackends() {
     return backends;
 }
 
-std::unique_ptr<Backend> CreateBackend(karma::platform::Window& window,
+std::unique_ptr<Backend> CreateBackend(karma::window::Window& window,
                                        BackendKind preferred,
                                        BackendKind* out_selected) {
     if (out_selected) {

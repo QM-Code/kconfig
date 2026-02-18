@@ -2,9 +2,9 @@
 
 ## Project Snapshot
 - Current owner: `specialist-physics-refactor`
-- Status: `Phase 4 complete / paused` (final Phase 4 shared-helper closeout validated in `build-a3`; paused for backend naming/split handoff before Phase 5)
+- Status: `in progress` (Phase 5b validation coverage landed in `build-a3`; fixed-step ECS sync ordering and lifecycle teardown invariants now have deterministic parity coverage)
 - Supersedes: `docs/projects/physics-backend.md` (retired to `docs/archive/physics-backend-retired-2026-02-17.md`)
-- Immediate next task: hand off to backend naming/split agent, then re-open planning for Phase 5 (no new Phase 5 implementation work in this track until rename/split handoff is complete).
+- Immediate next task: execute a bounded Phase 5c engine-loop hardening slice to add app-level smoke coverage for fixed-step sync lifecycle behavior across init-failure and shutdown paths (engine-only, game-agnostic).
 - Validation gate: `./scripts/test-engine-backends.sh <build-dir>`
 
 ## Mission
@@ -333,7 +333,7 @@ Landed in this bounded slice:
   - `BodyDesc` now carries backend-neutral collider shape descriptor (`Box`/`Sphere`/`Capsule`) and shape parameters.
   - Added backend-neutral runtime collider property APIs for trigger state and collision layer/filter mask (`set/get`).
 - Implemented `PhysicsSystem` passthroughs in `src/engine/physics/physics_system.cpp` for the new runtime collider property APIs.
-- Implemented backend behavior in `backend_jolt_stub.cpp` and `backend_physx_stub.cpp`:
+- Implemented backend behavior in `jolt.cpp` and `physx.cpp`:
   - `createBody` now consumes shape descriptor for `Box`/`Sphere`/`Capsule` creation.
   - runtime trigger/filter APIs now expose deterministic success/failure and coherent reported state.
   - bounded deterministic fallback behavior is explicit where runtime mutation is unsupported:
@@ -361,7 +361,7 @@ Landed in this bounded slice:
   - `set/get` angular velocity,
   - deterministic `false` on invalid/unknown/non-dynamic bodies.
 - Implemented `PhysicsSystem` passthrough methods in `src/engine/physics/physics_system.cpp` for the new runtime velocity APIs.
-- Implemented backend support in `backend_jolt_stub.cpp` and `backend_physx_stub.cpp`:
+- Implemented backend support in `jolt.cpp` and `physx.cpp`:
   - valid dynamic bodies support linear/angular velocity set/get,
   - static/invalid/unknown/destroyed bodies deterministically return failure.
 - Updated ECS sync (`src/engine/physics/ecs_sync_system.hpp/.cpp`) controller path:
@@ -467,8 +467,8 @@ Explicit remaining deferrals after Phase 4e boundary correction:
 Landed in this bounded slice:
 - Extended backend-neutral substrate shape descriptor in `include/karma/physics/backend.hpp` with `ColliderShapeDesc.local_center` (create-time collider local offset).
 - Implemented offset-aware shape creation in both compiled backends:
-  - `src/engine/physics/backends/backend_jolt_stub.cpp`: wraps Box/Sphere/Capsule shapes in a translated shape when `local_center` is non-zero.
-  - `src/engine/physics/backends/backend_physx_stub.cpp`: applies `PxShape::setLocalPose` from `local_center` for Box/Sphere/Capsule.
+  - `src/engine/physics/backends/jolt.cpp`: wraps Box/Sphere/Capsule shapes in a translated shape when `local_center` is non-zero.
+  - `src/engine/physics/backends/physx.cpp`: applies `PxShape::setLocalPose` from `local_center` for Box/Sphere/Capsule.
 - Kept deterministic invalid-input behavior for the new offset path by rejecting non-finite local-center input in both backends.
 - Updated ECS sync runtime shape build path in `src/engine/physics/ecs_sync_system.cpp`:
   - removed controller-center placeholder extents expansion,
@@ -493,7 +493,7 @@ Landed in this bounded slice:
   - `BodyDesc` now carries create-time linear/angular damping,
   - added runtime damping APIs (`set/get` linear damping, `set/get` angular damping).
 - Implemented `PhysicsSystem` passthroughs in `src/engine/physics/physics_system.cpp` for damping APIs.
-- Implemented backend runtime damping behavior in `backend_jolt_stub.cpp` + `backend_physx_stub.cpp`:
+- Implemented backend runtime damping behavior in `jolt.cpp` + `physx.cpp`:
   - create-time damping is consumed for dynamic bodies,
   - runtime damping set/get works for valid dynamic bodies,
   - deterministic `false` is returned for invalid/unknown/non-dynamic bodies and invalid damping values.
@@ -519,8 +519,8 @@ Landed in this bounded slice:
   - added runtime motion-lock APIs (`set/get` rotation lock, `set/get` translation lock).
 - Implemented `PhysicsSystem` passthroughs in `src/engine/physics/physics_system.cpp` for motion-lock APIs.
 - Implemented backend runtime behavior:
-  - `src/engine/physics/backends/backend_physx_stub.cpp`: true runtime lock mutation for dynamic bodies using PhysX lock flags.
-  - `src/engine/physics/backends/backend_jolt_stub.cpp`: deterministic unsupported runtime mutation for lock changes (`false`), with coherent lock-state query support for current runtime state.
+  - `src/engine/physics/backends/physx.cpp`: true runtime lock mutation for dynamic bodies using PhysX lock flags.
+  - `src/engine/physics/backends/jolt.cpp`: deterministic unsupported runtime mutation for lock changes (`false`), with coherent lock-state query support for current runtime state.
 - Updated ECS sync in `src/engine/physics/ecs_sync_system.cpp`:
   - lock transitions are no longer unconditional rebuild triggers,
   - runtime lock mutation is attempted first,
@@ -553,10 +553,10 @@ Landed in this bounded slice:
   - added runtime APIs (`set/get` friction, `set/get` restitution),
   - `include/karma/physics/physics_system.hpp` + `src/engine/physics/physics_system.cpp` passthroughs added.
 - Backend implementation details:
-  - `src/engine/physics/backends/backend_physx_stub.cpp`:
+  - `src/engine/physics/backends/physx.cpp`:
     - per-body material allocation at runtime body create,
     - runtime friction/restitution set/get implemented (deterministic invalid/unknown rejection).
-  - `src/engine/physics/backends/backend_jolt_stub.cpp`:
+  - `src/engine/physics/backends/jolt.cpp`:
     - create-time friction/restitution ingestion implemented,
     - runtime friction set/get supported,
     - runtime restitution mutation intentionally reports unsupported on value change (deterministic `false`) to drive fallback coverage.
@@ -587,11 +587,11 @@ Landed in this bounded slice:
   - added runtime APIs (`set/get` kinematic enabled state),
   - `include/karma/physics/physics_system.hpp` + `src/engine/physics/physics_system.cpp` passthroughs landed.
 - Backend implementation details:
-  - `src/engine/physics/backends/backend_jolt_stub.cpp`:
+  - `src/engine/physics/backends/jolt.cpp`:
     - create-time dynamic kinematic ingestion mapped to Jolt `EMotionType::Kinematic`,
     - runtime set/get kinematic mutation support for dynamic bodies,
     - deterministic `false` for invalid/unknown/non-dynamic/static-kinematic-invalid requests.
-  - `src/engine/physics/backends/backend_physx_stub.cpp`:
+  - `src/engine/physics/backends/physx.cpp`:
     - create-time kinematic ingestion via `PxRigidBodyFlag::eKINEMATIC`,
     - runtime set/get kinematic mutation support for dynamic bodies,
     - deterministic `false` for invalid/unknown/non-dynamic/static-kinematic-invalid requests.
@@ -621,11 +621,11 @@ Landed in this bounded slice:
   - added runtime awake APIs (`setBodyAwake`/`getBodyAwake`) on backend + `PhysicsSystem` contracts,
   - `include/karma/physics/physics_system.hpp` + `src/engine/physics/physics_system.cpp` passthroughs landed.
 - Backend implementation details:
-  - `src/engine/physics/backends/backend_jolt_stub.cpp`:
+  - `src/engine/physics/backends/jolt.cpp`:
     - create-time awake ingestion mapped to activation/deactivation behavior for dynamic bodies,
     - runtime awake set/get supported for dynamic bodies,
     - deterministic `false` for invalid/unknown/non-dynamic requests.
-  - `src/engine/physics/backends/backend_physx_stub.cpp`:
+  - `src/engine/physics/backends/physx.cpp`:
     - create-time awake ingestion mapped to `wakeUp`/`putToSleep` for dynamic bodies,
     - runtime awake set/get supported for dynamic bodies,
     - deterministic `false` for invalid/unknown/non-dynamic requests.
@@ -662,11 +662,11 @@ Landed in this bounded slice:
   - `include/karma/physics/physics_system.hpp` + `src/engine/physics/physics_system.cpp`:
     - passthrough methods for force/impulse runtime command APIs landed.
 - Backend implementation details:
-  - `src/engine/physics/backends/backend_jolt_stub.cpp`:
+  - `src/engine/physics/backends/jolt.cpp`:
     - runtime force/impulse command support added for dynamic non-kinematic bodies,
     - deterministic `false` returned for invalid/unknown/non-dynamic/ineligible requests,
     - zero-vector commands treated as deterministic bounded no-op success.
-  - `src/engine/physics/backends/backend_physx_stub.cpp`:
+  - `src/engine/physics/backends/physx.cpp`:
     - runtime force (`PxForceMode::eFORCE`) and impulse (`PxForceMode::eIMPULSE`) support added for dynamic non-kinematic bodies,
     - deterministic `false` returned for invalid/unknown/non-dynamic/ineligible requests,
     - zero-vector commands treated as deterministic bounded no-op success.
@@ -707,11 +707,11 @@ Landed in this bounded slice:
   - `include/karma/physics/physics_system.hpp` + `src/engine/physics/physics_system.cpp`:
     - passthrough methods for torque/angular-impulse runtime command APIs landed.
 - Backend implementation details:
-  - `src/engine/physics/backends/backend_jolt_stub.cpp`:
+  - `src/engine/physics/backends/jolt.cpp`:
     - runtime torque/angular-impulse command support added for dynamic non-kinematic bodies,
     - deterministic `false` returned for invalid/unknown/non-dynamic/ineligible requests,
     - zero-vector commands treated as deterministic bounded no-op success.
-  - `src/engine/physics/backends/backend_physx_stub.cpp`:
+  - `src/engine/physics/backends/physx.cpp`:
     - runtime torque (`PxForceMode::eFORCE`) and angular impulse (`PxForceMode::eIMPULSE`) support added for dynamic non-kinematic bodies,
     - deterministic `false` returned for invalid/unknown/non-dynamic/ineligible requests,
     - zero-vector commands treated as deterministic bounded no-op success.
@@ -1043,6 +1043,54 @@ Explicit remaining deferrals after this Phase 4 follow-up:
 - No engine loop integration in `src/engine/app/*`.
 - No gameplay migration wiring.
 
+## Phase 5a Planning/Entry Slice (2026-02-18)
+Landed in this bounded slice:
+- Re-opened this track from paused state after backend naming/split handoff completion.
+- Locked Phase 5a entry scope to one engine-owned, game-agnostic implementation target:
+  - introduce deterministic fixed-step physics sync ordering hooks in engine lifecycle flow:
+    - run ECS pre-sim reconciliation before physics simulate step,
+    - run ECS post-sim writeback after simulate step,
+    - keep ownership boundaries inside engine physics/app shared runtime without gameplay-specific semantics.
+- Confirmed this slice is planning/entry only:
+  - no gameplay wiring,
+  - no behavior/API expansion in this update.
+
+## Phase 5a Engine Lifecycle Hook Wiring Slice (2026-02-18)
+Landed in this bounded slice:
+- Wired deterministic fixed-step ECS physics sync ordering hooks in both engine loops:
+  - `src/engine/app/server/engine.cpp`:
+    - `preSimulate(world_)` runs immediately before each `simulateFixedStep(...)`,
+    - `postSimulate(world_)` runs immediately after each `simulateFixedStep(...)`.
+  - `src/engine/app/client/engine.cpp`:
+    - `preSimulate(world_)` runs immediately before each `simulateFixedStep(...)`,
+    - `postSimulate(world_)` runs immediately after each `simulateFixedStep(...)`.
+- Added clean lifecycle ownership for sync object in both engines:
+  - sync object is created only after successful physics initialization,
+  - sync object is cleared/reset before physics shutdown paths.
+- Scope guardrails preserved:
+  - no gameplay wiring,
+  - no gameplay semantics added,
+  - no backend refactor/rename work,
+  - no API expansion beyond hook wiring.
+
+## Phase 5b Validation Coverage Slice (2026-02-18)
+Landed in this bounded slice:
+- Added deterministic fixed-step ordering/lifecycle validation seams under engine physics internals:
+  - `src/engine/physics/engine_fixed_step_sync.hpp` now centralizes:
+    - create sync only when physics is initialized,
+    - clear/reset sync before physics shutdown,
+    - fixed-step helper that enforces `preSimulate -> simulateFixedStep -> postSimulate` ordering per substep.
+- Added bounded parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp`:
+  - `RunEngineFixedStepSyncValidationChecks(...)` validates:
+    - zero-substep path emits no pre/sim/post events,
+    - per-substep ordering is exactly pre/sim/post with no inversions/missing calls,
+    - lifecycle constraints for uninitialized-physics sync creation rejection,
+    - reset/teardown invariants (no stale sync pointer, no stale runtime body after clear, idempotent reset path).
+- Scope guardrails preserved:
+  - no gameplay wiring,
+  - no gameplay semantics,
+  - no backend behavior changes.
+
 ## Current Status
 - `2026-02-17`: Project created as full replacement for backend-only parity track.
 - `2026-02-17`: `physics-backend.md` retired and subsumed into this plan.
@@ -1331,7 +1379,24 @@ Explicit remaining deferrals after this Phase 4 follow-up:
   - shared static-mesh reject-cause helper unification is landed as the final Phase 4 task,
   - Phase 4 is complete and this track is paused for backend naming/split handoff,
   - no Phase 5 implementation work started in this slice.
-- Next implementation slice: after backend naming/split handoff completion, resume with a new bounded Phase 5 planning/entry slice.
+- `2026-02-18`: Post-rename resume confirmed:
+  - backend naming/split handoff is complete,
+  - track re-opened to active state with bounded Phase 5a planning/entry scope.
+- `2026-02-18`: Phase 5a engine lifecycle hook wiring slice landed:
+  - client/server engine fixed-step loops now bracket every physics step with ECS sync `preSimulate`/`postSimulate`,
+  - sync object lifecycle ownership now enforces create-on-physics-init and clear/reset-before-physics-shutdown.
+- `2026-02-18`: Phase 5a wiring validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+- `2026-02-18`: Phase 5b validation coverage slice landed:
+  - added deterministic fixed-step ordering/lifecycle helper seams in `engine_fixed_step_sync.hpp`,
+  - added backend parity coverage for fixed-step pre/sim/post ordering and sync lifecycle teardown invariants.
+- `2026-02-18`: Phase 5b validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+- Next implementation slice: execute bounded Phase 5c engine-loop hardening coverage for fixed-step sync lifecycle on init-failure/shutdown app paths (engine-only, game-agnostic).
 
 ## Handoff Checklist
 - [x] `physics-refactor.md` remains the single active physics project doc in `docs/projects/`.

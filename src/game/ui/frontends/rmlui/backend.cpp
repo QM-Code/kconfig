@@ -25,7 +25,7 @@
 #endif
 #include "ui/frontends/rmlui/console/emoji_utils.hpp"
 #include "ui/frontends/rmlui/translate.hpp"
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 #include "karma/common/i18n/i18n.hpp"
 #include "ui/frontends/rmlui/hud/hud.hpp"
 #include "ui/frontends/rmlui/console/console.hpp"
@@ -69,7 +69,7 @@ ui::RmlUiPanel *findPanelByKey(const std::vector<std::unique_ptr<ui::RmlUiPanel>
 
 class SystemInterface_Platform final : public Rml::SystemInterface {
 public:
-    void SetWindow(platform::Window *window) {
+    void SetWindow(window::Window *window) {
         windowRef = window;
         startTime = std::chrono::steady_clock::now();
         hasStart = true;
@@ -129,7 +129,7 @@ public:
     }
 
 private:
-    platform::Window *windowRef = nullptr;
+    window::Window *windowRef = nullptr;
     std::chrono::steady_clock::time_point startTime{};
     bool hasStart = false;
 };
@@ -206,7 +206,7 @@ struct RmlUiBackend::RmlUiState {
     bool outputVisible = false;
 };
 
-RmlUiBackend::RmlUiBackend(platform::Window &windowRefIn) : windowRef(&windowRefIn) {
+RmlUiBackend::RmlUiBackend(window::Window &windowRefIn) : windowRef(&windowRefIn) {
     state = std::make_unique<RmlUiState>();
     consoleView = std::make_unique<ui::RmlUiConsole>();
     state->systemInterface.SetWindow(windowRef);
@@ -359,7 +359,7 @@ const ui::ConsoleInterface &RmlUiBackend::console() const {
     return *consoleView;
 }
 
-void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
+void RmlUiBackend::handleEvents(const std::vector<window::Event> &events) {
     if (!state || !state->context) {
         return;
     }
@@ -370,9 +370,9 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
 
     for (const auto &event : events) {
         switch (event.type) {
-            case platform::EventType::KeyDown: {
+            case window::EventType::KeyDown: {
                 const int mods = ui::input::mapping::RmlModsForEvent(event, windowRef);
-                if (event.key == platform::Key::R && (mods & Rml::Input::KM_CTRL)) {
+                if (event.key == window::Key::R && (mods & Rml::Input::KM_CTRL)) {
                     state->reloadRequested = true;
                     state->reloadArmed = true;
                     if (mods & Rml::Input::KM_SHIFT) {
@@ -386,7 +386,7 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 state->context->ProcessKeyDown(ui::input::mapping::ToRmlKey(event.key), mods);
                 break;
             }
-            case platform::EventType::KeyUp: {
+            case window::EventType::KeyUp: {
                 if (!isUiInputEnabled()) {
                     break;
                 }
@@ -394,7 +394,7 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 state->context->ProcessKeyUp(ui::input::mapping::ToRmlKey(event.key), mods);
                 break;
             }
-            case platform::EventType::TextInput: {
+            case window::EventType::TextInput: {
                 if (!isUiInputEnabled()) {
                     break;
                 }
@@ -404,7 +404,7 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 state->context->ProcessTextInput(static_cast<Rml::Character>(event.codepoint));
                 break;
             }
-            case platform::EventType::MouseButtonDown: {
+            case window::EventType::MouseButtonDown: {
                 if (!(consoleVisible || hudVisible)) {
                     break;
                 }
@@ -412,7 +412,7 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 state->context->ProcessMouseButtonDown(ui::input::mapping::ToRmlMouseButton(event.mouseButton), mods);
                 break;
             }
-            case platform::EventType::MouseButtonUp: {
+            case window::EventType::MouseButtonUp: {
                 if (!(consoleVisible || hudVisible)) {
                     break;
                 }
@@ -420,7 +420,7 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 state->context->ProcessMouseButtonUp(ui::input::mapping::ToRmlMouseButton(event.mouseButton), mods);
                 break;
             }
-            case platform::EventType::MouseMove: {
+            case window::EventType::MouseMove: {
                 if (!(consoleVisible || hudVisible)) {
                     break;
                 }
@@ -430,7 +430,7 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 state->context->ProcessMouseMove(x, y, mods);
                 break;
             }
-            case platform::EventType::MouseScroll: {
+            case window::EventType::MouseScroll: {
                 if (!(consoleVisible || hudVisible)) {
                     break;
                 }
@@ -438,13 +438,13 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 state->context->ProcessMouseWheel(-static_cast<float>(event.scrollY), mods);
                 break;
             }
-            case platform::EventType::WindowFocus: {
+            case window::EventType::WindowFocus: {
                 if (!event.focused) {
                     state->context->ProcessMouseLeave();
                 }
                 break;
             }
-            case platform::EventType::WindowResize: {
+            case window::EventType::WindowResize: {
                 const int targetWidth = std::max(1, static_cast<int>(std::lround(event.width * renderScale)));
                 const int targetHeight = std::max(1, static_cast<int>(std::lround(event.height * renderScale)));
                 state->lastWidth = targetWidth;
@@ -453,7 +453,7 @@ void RmlUiBackend::handleEvents(const std::vector<platform::Event> &events) {
                 state->context->SetDimensions(Rml::Vector2i(targetWidth, targetHeight));
                 break;
             }
-            case platform::EventType::WindowClose: {
+            case window::EventType::WindowClose: {
                 state->context->ProcessMouseLeave();
                 break;
             }

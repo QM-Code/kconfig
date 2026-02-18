@@ -2,7 +2,7 @@
 
 #include "karma/common/config/helpers.hpp"
 #include "karma/common/logging/logging.hpp"
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 
 #include <cctype>
 #include <optional>
@@ -22,179 +22,179 @@ std::string toLowerKeyName(const std::string& name) {
     return out;
 }
 
-platform::Key parseKeyName(const std::string& name) {
+window::Key parseKeyName(const std::string& name) {
     const std::string token = toLowerKeyName(name);
     if (token.size() == 1) {
         const char ch = token[0];
         if (ch >= 'a' && ch <= 'z') {
-            return static_cast<platform::Key>(
-                static_cast<int>(platform::Key::A) + (ch - 'a'));
+            return static_cast<window::Key>(
+                static_cast<int>(window::Key::A) + (ch - 'a'));
         }
         if (ch >= '0' && ch <= '9') {
-            return static_cast<platform::Key>(
-                static_cast<int>(platform::Key::Num0) + (ch - '0'));
+            return static_cast<window::Key>(
+                static_cast<int>(window::Key::Num0) + (ch - '0'));
         }
     }
     if (token.size() > 1 && token[0] == 'f') {
         try {
             const int num = std::stoi(token.substr(1));
             if (num >= 1 && num <= 12) {
-                return static_cast<platform::Key>(
-                    static_cast<int>(platform::Key::F1) + (num - 1));
+                return static_cast<window::Key>(
+                    static_cast<int>(window::Key::F1) + (num - 1));
             }
         } catch (...) {
         }
     }
-    static const std::unordered_map<std::string, platform::Key> kNamedKeys = {
-        {"left", platform::Key::Left},
-        {"right", platform::Key::Right},
-        {"up", platform::Key::Up},
-        {"down", platform::Key::Down},
-        {"minus", platform::Key::Minus},
-        {"equals", platform::Key::Equals},
-        {"left_bracket", platform::Key::LeftBracket},
-        {"right_bracket", platform::Key::RightBracket},
-        {"backslash", platform::Key::Backslash},
-        {"semicolon", platform::Key::Semicolon},
-        {"apostrophe", platform::Key::Apostrophe},
-        {"comma", platform::Key::Comma},
-        {"slash", platform::Key::Slash},
-        {"grave", platform::Key::Grave},
-        {"left_shift", platform::Key::LeftShift},
-        {"right_shift", platform::Key::RightShift},
-        {"left_ctrl", platform::Key::LeftControl},
-        {"right_ctrl", platform::Key::RightControl},
-        {"left_alt", platform::Key::LeftAlt},
-        {"right_alt", platform::Key::RightAlt},
-        {"left_super", platform::Key::LeftSuper},
-        {"right_super", platform::Key::RightSuper},
-        {"menu", platform::Key::Menu},
-        {"home", platform::Key::Home},
-        {"end", platform::Key::End},
-        {"page_up", platform::Key::PageUp},
-        {"page_down", platform::Key::PageDown},
-        {"insert", platform::Key::Insert},
-        {"delete", platform::Key::Delete},
-        {"caps_lock", platform::Key::CapsLock},
-        {"num_lock", platform::Key::NumLock},
-        {"scroll_lock", platform::Key::ScrollLock},
-        {"enter", platform::Key::Enter},
-        {"space", platform::Key::Space},
-        {"tab", platform::Key::Tab},
-        {"period", platform::Key::Period},
-        {"backspace", platform::Key::Backspace},
-        {"escape", platform::Key::Escape}
+    static const std::unordered_map<std::string, window::Key> kNamedKeys = {
+        {"left", window::Key::Left},
+        {"right", window::Key::Right},
+        {"up", window::Key::Up},
+        {"down", window::Key::Down},
+        {"minus", window::Key::Minus},
+        {"equals", window::Key::Equals},
+        {"left_bracket", window::Key::LeftBracket},
+        {"right_bracket", window::Key::RightBracket},
+        {"backslash", window::Key::Backslash},
+        {"semicolon", window::Key::Semicolon},
+        {"apostrophe", window::Key::Apostrophe},
+        {"comma", window::Key::Comma},
+        {"slash", window::Key::Slash},
+        {"grave", window::Key::Grave},
+        {"left_shift", window::Key::LeftShift},
+        {"right_shift", window::Key::RightShift},
+        {"left_ctrl", window::Key::LeftControl},
+        {"right_ctrl", window::Key::RightControl},
+        {"left_alt", window::Key::LeftAlt},
+        {"right_alt", window::Key::RightAlt},
+        {"left_super", window::Key::LeftSuper},
+        {"right_super", window::Key::RightSuper},
+        {"menu", window::Key::Menu},
+        {"home", window::Key::Home},
+        {"end", window::Key::End},
+        {"page_up", window::Key::PageUp},
+        {"page_down", window::Key::PageDown},
+        {"insert", window::Key::Insert},
+        {"delete", window::Key::Delete},
+        {"caps_lock", window::Key::CapsLock},
+        {"num_lock", window::Key::NumLock},
+        {"scroll_lock", window::Key::ScrollLock},
+        {"enter", window::Key::Enter},
+        {"space", window::Key::Space},
+        {"tab", window::Key::Tab},
+        {"period", window::Key::Period},
+        {"backspace", window::Key::Backspace},
+        {"escape", window::Key::Escape}
     };
     if (const auto it = kNamedKeys.find(token); it != kNamedKeys.end()) {
         return it->second;
     }
-    return platform::Key::Unknown;
+    return window::Key::Unknown;
 }
 
-std::optional<platform::MouseButton> parseMouseButtonName(const std::string& name) {
+std::optional<window::MouseButton> parseMouseButtonName(const std::string& name) {
     const std::string token = toLowerKeyName(name);
-    if (token == "left_mouse") return platform::MouseButton::Left;
-    if (token == "right_mouse") return platform::MouseButton::Right;
-    if (token == "middle_mouse") return platform::MouseButton::Middle;
+    if (token == "left_mouse") return window::MouseButton::Left;
+    if (token == "right_mouse") return window::MouseButton::Right;
+    if (token == "middle_mouse") return window::MouseButton::Middle;
     return std::nullopt;
 }
 
-bool isKeyDown(const platform::Window& window, platform::Key key) {
+bool isKeyDown(const window::Window& window, window::Key key) {
     return window.isKeyDown(key);
 }
 
-bool isMouseDown(const platform::Window& window, platform::MouseButton button) {
+bool isMouseDown(const window::Window& window, window::MouseButton button) {
     return window.isMouseDown(button);
 }
 
-bool isKeyEvent(const platform::Event& event, platform::Key key, platform::EventType type) {
+bool isKeyEvent(const window::Event& event, window::Key key, window::EventType type) {
     return event.type == type && event.key == key;
 }
 
-bool isMouseEvent(const platform::Event& event, platform::MouseButton button,
-                  platform::EventType type) {
+bool isMouseEvent(const window::Event& event, window::MouseButton button,
+                  window::EventType type) {
     return event.type == type && event.mouse_button == button;
 }
 
-std::string keyToName(platform::Key key) {
+std::string keyToName(window::Key key) {
     const int key_value = static_cast<int>(key);
-    const int a_value = static_cast<int>(platform::Key::A);
-    const int z_value = static_cast<int>(platform::Key::Z);
+    const int a_value = static_cast<int>(window::Key::A);
+    const int z_value = static_cast<int>(window::Key::Z);
     if (key_value >= a_value && key_value <= z_value) {
         char ch = static_cast<char>('a' + (key_value - a_value));
         return std::string(1, ch);
     }
-    const int n0_value = static_cast<int>(platform::Key::Num0);
-    const int n9_value = static_cast<int>(platform::Key::Num9);
+    const int n0_value = static_cast<int>(window::Key::Num0);
+    const int n9_value = static_cast<int>(window::Key::Num9);
     if (key_value >= n0_value && key_value <= n9_value) {
         char ch = static_cast<char>('0' + (key_value - n0_value));
         return std::string(1, ch);
     }
-    const int f1_value = static_cast<int>(platform::Key::F1);
-    const int f12_value = static_cast<int>(platform::Key::F12);
+    const int f1_value = static_cast<int>(window::Key::F1);
+    const int f12_value = static_cast<int>(window::Key::F12);
     if (key_value >= f1_value && key_value <= f12_value) {
         return std::string("f") + std::to_string(1 + (key_value - f1_value));
     }
     switch (key) {
-        case platform::Key::Left: return "left";
-        case platform::Key::Right: return "right";
-        case platform::Key::Up: return "up";
-        case platform::Key::Down: return "down";
-        case platform::Key::Minus: return "minus";
-        case platform::Key::Equals: return "equals";
-        case platform::Key::LeftBracket: return "left_bracket";
-        case platform::Key::RightBracket: return "right_bracket";
-        case platform::Key::Backslash: return "backslash";
-        case platform::Key::Semicolon: return "semicolon";
-        case platform::Key::Apostrophe: return "apostrophe";
-        case platform::Key::Comma: return "comma";
-        case platform::Key::Slash: return "slash";
-        case platform::Key::Grave: return "grave";
-        case platform::Key::LeftShift: return "left_shift";
-        case platform::Key::RightShift: return "right_shift";
-        case platform::Key::LeftControl: return "left_ctrl";
-        case platform::Key::RightControl: return "right_ctrl";
-        case platform::Key::LeftAlt: return "left_alt";
-        case platform::Key::RightAlt: return "right_alt";
-        case platform::Key::LeftSuper: return "left_super";
-        case platform::Key::RightSuper: return "right_super";
-        case platform::Key::Menu: return "menu";
-        case platform::Key::Home: return "home";
-        case platform::Key::End: return "end";
-        case platform::Key::PageUp: return "page_up";
-        case platform::Key::PageDown: return "page_down";
-        case platform::Key::Insert: return "insert";
-        case platform::Key::Delete: return "delete";
-        case platform::Key::CapsLock: return "caps_lock";
-        case platform::Key::NumLock: return "num_lock";
-        case platform::Key::ScrollLock: return "scroll_lock";
-        case platform::Key::Enter: return "enter";
-        case platform::Key::Space: return "space";
-        case platform::Key::Tab: return "tab";
-        case platform::Key::Period: return "period";
-        case platform::Key::Backspace: return "backspace";
-        case platform::Key::Escape: return "escape";
+        case window::Key::Left: return "left";
+        case window::Key::Right: return "right";
+        case window::Key::Up: return "up";
+        case window::Key::Down: return "down";
+        case window::Key::Minus: return "minus";
+        case window::Key::Equals: return "equals";
+        case window::Key::LeftBracket: return "left_bracket";
+        case window::Key::RightBracket: return "right_bracket";
+        case window::Key::Backslash: return "backslash";
+        case window::Key::Semicolon: return "semicolon";
+        case window::Key::Apostrophe: return "apostrophe";
+        case window::Key::Comma: return "comma";
+        case window::Key::Slash: return "slash";
+        case window::Key::Grave: return "grave";
+        case window::Key::LeftShift: return "left_shift";
+        case window::Key::RightShift: return "right_shift";
+        case window::Key::LeftControl: return "left_ctrl";
+        case window::Key::RightControl: return "right_ctrl";
+        case window::Key::LeftAlt: return "left_alt";
+        case window::Key::RightAlt: return "right_alt";
+        case window::Key::LeftSuper: return "left_super";
+        case window::Key::RightSuper: return "right_super";
+        case window::Key::Menu: return "menu";
+        case window::Key::Home: return "home";
+        case window::Key::End: return "end";
+        case window::Key::PageUp: return "page_up";
+        case window::Key::PageDown: return "page_down";
+        case window::Key::Insert: return "insert";
+        case window::Key::Delete: return "delete";
+        case window::Key::CapsLock: return "caps_lock";
+        case window::Key::NumLock: return "num_lock";
+        case window::Key::ScrollLock: return "scroll_lock";
+        case window::Key::Enter: return "enter";
+        case window::Key::Space: return "space";
+        case window::Key::Tab: return "tab";
+        case window::Key::Period: return "period";
+        case window::Key::Backspace: return "backspace";
+        case window::Key::Escape: return "escape";
         default: break;
     }
     return "key_" + std::to_string(key_value);
 }
 
-std::string mouseToName(platform::MouseButton button) {
+std::string mouseToName(window::MouseButton button) {
     switch (button) {
-        case platform::MouseButton::Left: return "left_mouse";
-        case platform::MouseButton::Right: return "right_mouse";
-        case platform::MouseButton::Middle: return "middle_mouse";
-        case platform::MouseButton::Button4: return "mouse4";
-        case platform::MouseButton::Button5: return "mouse5";
-        case platform::MouseButton::Button6: return "mouse6";
-        case platform::MouseButton::Button7: return "mouse7";
-        case platform::MouseButton::Button8: return "mouse8";
+        case window::MouseButton::Left: return "left_mouse";
+        case window::MouseButton::Right: return "right_mouse";
+        case window::MouseButton::Middle: return "middle_mouse";
+        case window::MouseButton::Button4: return "mouse4";
+        case window::MouseButton::Button5: return "mouse5";
+        case window::MouseButton::Button6: return "mouse6";
+        case window::MouseButton::Button7: return "mouse7";
+        case window::MouseButton::Button8: return "mouse8";
         default: break;
     }
     return "mouse_unknown";
 }
 
-std::string modsToString(const platform::Modifiers& mods) {
+std::string modsToString(const window::Modifiers& mods) {
     std::string out;
     if (mods.shift) out += "shift+";
     if (mods.ctrl) out += "ctrl+";
@@ -208,23 +208,23 @@ std::string modsToString(const platform::Modifiers& mods) {
 
 } // namespace
 
-void InputSystem::bindKey(const std::string& action, platform::Key key, Trigger trigger) {
+void InputSystem::bindKey(const std::string& action, window::Key key, Trigger trigger) {
     bindings_[action].push_back(Binding{.trigger = trigger, .key = key, .use_key = true});
 }
 
-void InputSystem::bindMouse(const std::string& action, platform::MouseButton button,
+void InputSystem::bindMouse(const std::string& action, window::MouseButton button,
                             Trigger trigger) {
     bindings_[action].push_back(Binding{.trigger = trigger, .mouse = button, .use_key = false});
 }
 
-void InputSystem::setRequiredModifiers(const std::string& action, platform::Modifiers mods) {
+void InputSystem::setRequiredModifiers(const std::string& action, window::Modifiers mods) {
     for (auto& binding : bindings_[action]) {
         binding.mods = mods;
     }
 }
 
-bool InputSystem::matchesModifiers(const platform::Modifiers& event_mods,
-                                   const platform::Modifiers& required_mods) const {
+bool InputSystem::matchesModifiers(const window::Modifiers& event_mods,
+                                   const window::Modifiers& required_mods) const {
     if (required_mods.shift && !event_mods.shift) {
         return false;
     }
@@ -240,7 +240,7 @@ bool InputSystem::matchesModifiers(const platform::Modifiers& event_mods,
     return true;
 }
 
-void InputSystem::update(const std::vector<platform::Event>& events) {
+void InputSystem::update(const std::vector<window::Event>& events) {
     pressed_this_frame_.clear();
     down_this_frame_.clear();
     mouse_delta_x_ = 0.0f;
@@ -262,7 +262,7 @@ void InputSystem::update(const std::vector<platform::Event>& events) {
     }
 
     for (const auto& event : events) {
-        if (event.type == platform::EventType::MouseMove) {
+        if (event.type == window::EventType::MouseMove) {
             if (has_mouse_pos_) {
                 mouse_delta_x_ += static_cast<float>(event.mouse_x - last_mouse_x_);
                 mouse_delta_y_ += static_cast<float>(event.mouse_y - last_mouse_y_);
@@ -280,11 +280,11 @@ void InputSystem::update(const std::vector<platform::Event>& events) {
                     continue;
                 }
                 if (binding.use_key &&
-                    isKeyEvent(event, binding.key, platform::EventType::KeyDown)) {
+                    isKeyEvent(event, binding.key, window::EventType::KeyDown)) {
                     pressed_this_frame_.insert(action);
                 }
                 if (!binding.use_key &&
-                    isMouseEvent(event, binding.mouse, platform::EventType::MouseButtonDown)) {
+                    isMouseEvent(event, binding.mouse, window::EventType::MouseButtonDown)) {
                     pressed_this_frame_.insert(action);
                 }
             }
@@ -307,29 +307,29 @@ void InputSystem::clear() {
     mouse_delta_y_ = 0.0f;
 }
 
-void InputContext::setWindow(const platform::Window* window) {
+void InputContext::setWindow(const window::Window* window) {
     global_.setWindow(window);
     game_.setWindow(window);
     roaming_.setWindow(window);
 }
 
-void InputContext::update(const std::vector<platform::Event>& events) {
+void InputContext::update(const std::vector<window::Event>& events) {
     for (const auto& event : events) {
-        if (event.type == platform::EventType::KeyDown) {
+        if (event.type == window::EventType::KeyDown) {
             const int key_code = static_cast<int>(event.key);
             if (logged_keys_down_.insert(key_code).second) {
                 KARMA_TRACE("input.events", "KeyDown {} mods={}", keyToName(event.key),
                             modsToString(event.mods));
             }
-        } else if (event.type == platform::EventType::KeyUp) {
+        } else if (event.type == window::EventType::KeyUp) {
             logged_keys_down_.erase(static_cast<int>(event.key));
-        } else if (event.type == platform::EventType::MouseButtonDown) {
+        } else if (event.type == window::EventType::MouseButtonDown) {
             const int button_code = static_cast<int>(event.mouse_button);
             if (logged_mouse_down_.insert(button_code).second) {
                 KARMA_TRACE("input.events", "MouseDown {} mods={}", mouseToName(event.mouse_button),
                             modsToString(event.mods));
             }
-        } else if (event.type == platform::EventType::MouseButtonUp) {
+        } else if (event.type == window::EventType::MouseButtonUp) {
             logged_mouse_down_.erase(static_cast<int>(event.mouse_button));
         }
     }
@@ -395,8 +395,8 @@ void LoadBindingSection(const karma::common::serialization::Value& section,
             if (!allow_reserved && kReserved.find(token) != kReserved.end()) {
                 throw std::runtime_error("Binding '" + label + "." + action + "' uses reserved key '" + keyName + "'");
             }
-            const platform::Key key = parseKeyName(keyName);
-            if (key != platform::Key::Unknown) {
+            const window::Key key = parseKeyName(keyName);
+            if (key != window::Key::Unknown) {
                 system.bindKey(action, key, Trigger::Down);
                 KARMA_TRACE("config.bindings", "Binding {}.{} -> {}", label, action, keyName);
                 continue;

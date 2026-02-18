@@ -25,12 +25,12 @@ namespace ui::backend {
 
 class RmlUiBackend final : public Backend {
 public:
-    explicit RmlUiBackend(platform::Window &window);
+    explicit RmlUiBackend(window::Window &window);
     ~RmlUiBackend() override;
 
     ui::ConsoleInterface &console() override;
     const ui::ConsoleInterface &console() const override;
-    void handleEvents(const std::vector<platform::Event> &events) override;
+    void handleEvents(const std::vector<window::Event> &events) override;
     void update() override;
     void reloadFonts() override;
     bool buildDrawData(karma::app::UIContext &ctx) override;
@@ -53,7 +53,7 @@ public:
     ui::HudRenderState getHudRenderState() const override { return lastHudRenderState; }
 
 private:
-    platform::Window *windowRef = nullptr;
+    window::Window *windowRef = nullptr;
     struct RmlUiState;
     std::unique_ptr<RmlUiState> state;
     std::unique_ptr<ui::RmlUiConsole> consoleView;

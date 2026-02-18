@@ -9,7 +9,7 @@
 #include "../internal/material_semantics.hpp"
 
 #include "karma/common/logging/logging.hpp"
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 #include "karma/renderer/layers.hpp"
 
 #include <spdlog/spdlog.h>
@@ -85,7 +85,7 @@ void DILIGENT_CALL_TYPE DiligentMessageCallback(Diligent::DEBUG_MESSAGE_SEVERITY
 
 class DiligentBackend final : public Backend {
  public:
-    explicit DiligentBackend(karma::platform::Window& window) {
+    explicit DiligentBackend(karma::window::Window& window) {
         auto* factory = Diligent::GetEngineFactoryVk();
         if (!factory) {
             spdlog::error("Failed to get Diligent Vulkan factory");
@@ -949,7 +949,7 @@ class DiligentBackend final : public Backend {
     bool initialized_ = false;
 };
 
-std::unique_ptr<Backend> CreateDiligentBackend(karma::platform::Window& window) {
+std::unique_ptr<Backend> CreateDiligentBackend(karma::window::Window& window) {
     return std::make_unique<DiligentBackend>(window);
 }
 

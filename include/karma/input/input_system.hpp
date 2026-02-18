@@ -5,9 +5,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include "karma/platform/events.hpp"
+#include "karma/window/events.hpp"
 
-namespace karma::platform {
+namespace karma::window {
 class Window;
 }
 
@@ -20,22 +20,22 @@ enum class Trigger {
 
 struct Binding {
     Trigger trigger = Trigger::Down;
-    platform::Key key = platform::Key::Unknown;
-    platform::MouseButton mouse = platform::MouseButton::Left;
-    platform::Modifiers mods{};
+    window::Key key = window::Key::Unknown;
+    window::MouseButton mouse = window::MouseButton::Left;
+    window::Modifiers mods{};
     bool use_key = true;
 };
 
 class InputSystem {
  public:
-    void setWindow(const platform::Window* window) { window_ = window; }
+    void setWindow(const window::Window* window) { window_ = window; }
 
-    void bindKey(const std::string& action, platform::Key key, Trigger trigger = Trigger::Down);
-    void bindMouse(const std::string& action, platform::MouseButton button,
+    void bindKey(const std::string& action, window::Key key, Trigger trigger = Trigger::Down);
+    void bindMouse(const std::string& action, window::MouseButton button,
                    Trigger trigger = Trigger::Down);
-    void setRequiredModifiers(const std::string& action, platform::Modifiers mods);
+    void setRequiredModifiers(const std::string& action, window::Modifiers mods);
 
-    void update(const std::vector<platform::Event>& events);
+    void update(const std::vector<window::Event>& events);
 
     bool actionDown(const std::string& action) const;
     bool actionPressed(const std::string& action) const;
@@ -45,13 +45,13 @@ class InputSystem {
     void clear();
 
  private:
-    bool matchesModifiers(const platform::Modifiers& event_mods,
-                          const platform::Modifiers& required_mods) const;
+    bool matchesModifiers(const window::Modifiers& event_mods,
+                          const window::Modifiers& required_mods) const;
 
     std::unordered_map<std::string, std::vector<Binding>> bindings_;
     std::unordered_set<std::string> pressed_this_frame_;
     std::unordered_set<std::string> down_this_frame_;
-    const platform::Window* window_ = nullptr;
+    const window::Window* window_ = nullptr;
     float mouse_delta_x_ = 0.0f;
     float mouse_delta_y_ = 0.0f;
     bool has_mouse_pos_ = false;
@@ -66,8 +66,8 @@ enum class InputMode {
 
 class InputContext {
  public:
-    void setWindow(const platform::Window* window);
-    void update(const std::vector<platform::Event>& events);
+    void setWindow(const window::Window* window);
+    void update(const std::vector<window::Event>& events);
     void clear();
 
     void setMode(InputMode mode) { mode_ = mode; }

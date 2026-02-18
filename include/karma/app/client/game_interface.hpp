@@ -1,6 +1,6 @@
 #pragma once
 
-namespace karma::platform { class Window; }
+namespace karma::window { class Window; }
 namespace karma::renderer { class GraphicsDevice; class RenderSystem; }
 namespace karma::input { class InputContext; }
 namespace karma::ecs { class World; }
@@ -24,7 +24,7 @@ class GameInterface {
     virtual void onShutdown() = 0;
 
  protected:
-    platform::Window* window = nullptr;
+    window::Window* window = nullptr;
     renderer::GraphicsDevice* graphics = nullptr;
     renderer::RenderSystem* render = nullptr;
     ecs::World* world = nullptr;
@@ -34,7 +34,7 @@ class GameInterface {
 
  private:
     friend class Engine;
-    void bind(platform::Window& w, renderer::GraphicsDevice& g, renderer::RenderSystem& r, ecs::World& world_ref, scene::Scene& s,
+    void bind(window::Window& w, renderer::GraphicsDevice& g, renderer::RenderSystem& r, ecs::World& world_ref, scene::Scene& s,
               input::InputContext& in, audio::AudioSystem& audio_system) {
         window = &w;
         graphics = &g;

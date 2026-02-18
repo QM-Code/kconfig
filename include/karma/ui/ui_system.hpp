@@ -1,6 +1,6 @@
 #pragma once
 
-#include "karma/platform/events.hpp"
+#include "karma/window/events.hpp"
 #include "karma/renderer/types.hpp"
 #include "karma/ui/ui_draw_context.hpp"
 
@@ -38,7 +38,7 @@ class UiSystem : public UiDrawContext {
 
     void init(renderer::GraphicsDevice& graphics);
     void shutdown(renderer::GraphicsDevice& graphics);
-    void beginFrame(float dt, const std::vector<platform::Event>& events);
+    void beginFrame(float dt, const std::vector<window::Event>& events);
     void update(renderer::RenderSystem& render);
     void endFrame();
     UiDrawContext& drawContext() { return *this; }

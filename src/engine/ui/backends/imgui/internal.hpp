@@ -20,9 +20,9 @@ struct RasterStats {
     uint32_t indices = 0;
 };
 
-ImGuiKey MapKey(platform::Key key);
-int MapMouseButton(platform::MouseButton button);
-void PushModifiers(ImGuiIO& io, const platform::Modifiers& mods);
+ImGuiKey MapKey(window::Key key);
+int MapMouseButton(window::MouseButton button);
+void PushModifiers(ImGuiIO& io, const window::Modifiers& mods);
 
 void RasterizeDrawData(const ImDrawData* draw_data,
                        int target_w,

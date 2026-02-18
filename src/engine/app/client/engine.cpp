@@ -7,6 +7,7 @@
 
 #include "karma/common/logging/logging.hpp"
 #include "karma/renderer/render_system.hpp"
+#include "physics/engine_fixed_step_sync.hpp"
 #include <glm/glm.hpp>
 
 namespace karma::app::client {
@@ -71,7 +72,7 @@ Engine::~Engine() {
 
 void Engine::initSubsystems() {
     KARMA_TRACE("engine.app", "Engine: creating window");
-    window_ = platform::CreateWindow(config_.window);
+    window_ = window::CreateWindow(config_.window);
     if (!window_) {
         KARMA_TRACE("engine.app", "Engine: window creation failed");
         return;
@@ -104,6 +105,7 @@ void Engine::initSubsystems() {
     KARMA_TRACE("engine.app",
                 "Engine: physics backend ready backend='{}'",
                 physics_system_.selectedBackendName());
+    physics_sync_system_ = physics::detail::CreateEngineSyncIfPhysicsInitialized(physics_system_);
     if (config_.enable_audio) {
         audio_system_.setBackend(config_.audio_backend);
         KARMA_TRACE("engine.app",
@@ -162,6 +164,7 @@ void Engine::shutdownSubsystems() {
     render_system_.reset();
     graphics_.reset();
     audio_system_.shutdown();
+    physics::detail::ResetEngineSyncBeforePhysicsShutdown(physics_sync_system_);
     physics_system_.shutdown();
     window_.reset();
     running_ = false;
@@ -229,9 +232,8 @@ void Engine::tick() {
     game_->onUpdate(dt);
     physics_system_.beginFrame(dt);
     const int physics_steps = simulation_clock_.beginFrame(dt);
-    for (int i = 0; i < physics_steps; ++i) {
-        physics_system_.simulateFixedStep(simulation_clock_.fixedDeltaTime());
-    }
+    physics::detail::SimulateFixedStepsWithSync(
+        physics_system_, physics_sync_system_.get(), world_, physics_steps, simulation_clock_.fixedDeltaTime());
     if (common::logging::ShouldTraceChannel("engine.sim.frames")) {
         const float frame_ms = raw_dt * 1000.0f;
         const float fps = (raw_dt > 1e-6f) ? (1.0f / raw_dt) : 0.0f;

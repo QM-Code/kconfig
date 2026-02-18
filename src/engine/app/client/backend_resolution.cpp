@@ -2,7 +2,7 @@
 
 #include "karma/common/config/helpers.hpp"
 #include "karma/common/config/store.hpp"
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 #include "ui/backend.hpp"
 
 #include <algorithm>
@@ -37,11 +37,11 @@ renderer::backend::BackendKind ResolveRenderBackendFromOption(const std::string&
 }
 
 std::string CompiledPlatformBackendName() {
-    const auto compiled = platform::backend::CompiledBackends();
+    const auto compiled = window::backend::CompiledBackends();
     if (compiled.empty()) {
         return "unknown";
     }
-    return platform::backend::BackendKindName(compiled.front());
+    return window::backend::BackendKindName(compiled.front());
 }
 
 void ValidatePlatformBackendFromOption(const std::string& option_value, bool option_explicit) {
@@ -49,16 +49,16 @@ void ValidatePlatformBackendFromOption(const std::string& option_value, bool opt
         return;
     }
 
-    const auto parsed = platform::backend::ParseBackendKind(option_value);
-    if (!parsed || *parsed == platform::backend::BackendKind::Auto) {
+    const auto parsed = window::backend::ParseBackendKind(option_value);
+    if (!parsed || *parsed == window::backend::BackendKind::Auto) {
         throw std::runtime_error("Invalid CLI value for --backend-platform: '" + option_value
                                  + "' (expected compiled backend name).");
     }
 
-    const auto compiled = platform::backend::CompiledBackends();
+    const auto compiled = window::backend::CompiledBackends();
     const bool supported = std::any_of(compiled.begin(),
                                        compiled.end(),
-                                       [parsed](platform::backend::BackendKind kind) {
+                                       [parsed](window::backend::BackendKind kind) {
                                            return kind == *parsed;
                                        });
     if (!supported) {

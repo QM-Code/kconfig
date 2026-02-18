@@ -1,6 +1,6 @@
 #pragma once
 
-#include "karma/platform/events.hpp"
+#include "karma/window/events.hpp"
 
 namespace platform {
 class Window;
@@ -17,17 +17,17 @@ class Window;
 namespace ui::input::mapping {
 
 #if defined(KARMA_UI_BACKEND_IMGUI)
-ImGuiKey ToImGuiKey(platform::Key key);
-int ToImGuiMouseButton(platform::MouseButton button);
-void UpdateImGuiModifiers(ImGuiIO &io, platform::Window *window);
+ImGuiKey ToImGuiKey(window::Key key);
+int ToImGuiMouseButton(window::MouseButton button);
+void UpdateImGuiModifiers(ImGuiIO &io, window::Window *window);
 #endif
 
 #if defined(KARMA_UI_BACKEND_RMLUI)
-Rml::Input::KeyIdentifier ToRmlKey(platform::Key key);
-int ToRmlMouseButton(platform::MouseButton button);
-int ToRmlMods(const platform::Modifiers &mods);
-int CurrentRmlMods(platform::Window *window);
-int RmlModsForEvent(const platform::Event &event, platform::Window *window);
+Rml::Input::KeyIdentifier ToRmlKey(window::Key key);
+int ToRmlMouseButton(window::MouseButton button);
+int ToRmlMods(const window::Modifiers &mods);
+int CurrentRmlMods(window::Window *window);
+int RmlModsForEvent(const window::Event &event, window::Window *window);
 #endif
 
 } // namespace ui::input::mapping

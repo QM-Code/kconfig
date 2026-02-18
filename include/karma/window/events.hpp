@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace karma::platform {
+namespace karma::window {
 
 enum class Key {
     Unknown,
@@ -153,4 +153,4 @@ struct WindowConfig {
     bool wayland_libdecor = true;
 };
 
-} // namespace karma::platform
+} // namespace karma::window

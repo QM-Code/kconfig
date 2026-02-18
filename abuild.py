@@ -8,13 +8,13 @@ import sys
 from datetime import datetime, timezone
 
 
-PLATFORM_OPTIONS = ["sdl3"]
+WINDOW_OPTIONS = ["sdl3"]
 RENDERER_OPTIONS = ["bgfx", "diligent"]
 PHYSICS_OPTIONS = ["jolt", "physx"]
 UI_OPTIONS = ["rmlui", "imgui"]
 AUDIO_OPTIONS = ["sdl3audio", "miniaudio"]
 
-DEFAULT_PLATFORM = "sdl3"
+DEFAULT_WINDOW = "sdl3"
 DEFAULT_RENDERER = "bgfx"
 DEFAULT_PHYSICS = "jolt"
 DEFAULT_UI = "rmlui"
@@ -22,16 +22,16 @@ DEFAULT_AUDIO = "sdl3audio"
 
 LOCK_FILENAME = ".agent-locked"
 
-CATEGORY_ORDER = ["platform", "renderer", "physics", "ui", "audio"]
+CATEGORY_ORDER = ["window", "renderer", "physics", "ui", "audio"]
 CATEGORY_OPTIONS = {
-    "platform": PLATFORM_OPTIONS,
+    "window": WINDOW_OPTIONS,
     "renderer": RENDERER_OPTIONS,
     "physics": PHYSICS_OPTIONS,
     "ui": UI_OPTIONS,
     "audio": AUDIO_OPTIONS,
 }
 CATEGORY_DEFAULTS = {
-    "platform": DEFAULT_PLATFORM,
+    "window": DEFAULT_WINDOW,
     "renderer": DEFAULT_RENDERER,
     "physics": DEFAULT_PHYSICS,
     "ui": DEFAULT_UI,
@@ -58,7 +58,7 @@ def usage(exit_code: int = 1) -> None:
         file=sys.stderr,
     )
     print("                    by category:", file=sys.stderr)
-    print(f"                      platform: {', '.join(PLATFORM_OPTIONS)}", file=sys.stderr)
+    print(f"                      window  : {', '.join(WINDOW_OPTIONS)}", file=sys.stderr)
     print(f"                      renderer: {', '.join(RENDERER_OPTIONS)}", file=sys.stderr)
     print(f"                      physics : {', '.join(PHYSICS_OPTIONS)}", file=sys.stderr)
     print(f"                      ui      : {', '.join(UI_OPTIONS)}", file=sys.stderr)
@@ -236,8 +236,8 @@ def parse_backend_tokens(raw_specs: list[str]) -> dict[str, list[str]]:
 def defaults_profile() -> dict[str, object]:
     return {
         "build_dir": "",
-        "platform_default": DEFAULT_PLATFORM,
-        "platforms": [DEFAULT_PLATFORM],
+        "window_default": DEFAULT_WINDOW,
+        "windows": [DEFAULT_WINDOW],
         "renderer_default": DEFAULT_RENDERER,
         "renderers": [DEFAULT_RENDERER],
         "physics_default": DEFAULT_PHYSICS,
@@ -282,17 +282,17 @@ def resolve_profile(build_dir: str, backend_specs: list[str]) -> dict[str, objec
             values = [selected[0]]
             selected_default = selected[0]
         else:
-            if category == "platform":
-                fail("platform runtime multi-select is not supported; choose one platform backend")
+            if category == "window":
+                fail("window runtime multi-select is not supported; choose one window backend")
             values = selected
             if default_value in selected:
                 selected_default = default_value
             else:
                 selected_default = selected[0]
 
-        if category == "platform":
-            profile["platforms"] = values
-            profile["platform_default"] = selected_default
+        if category == "window":
+            profile["windows"] = values
+            profile["window_default"] = selected_default
         elif category == "renderer":
             profile["renderers"] = values
             profile["renderer_default"] = selected_default
@@ -312,14 +312,14 @@ def resolve_profile(build_dir: str, backend_specs: list[str]) -> dict[str, objec
 def print_defaults() -> None:
     print(
         "Build defaults: "
-        f"{DEFAULT_PLATFORM}, {DEFAULT_RENDERER}, {DEFAULT_PHYSICS}, {DEFAULT_UI}, {DEFAULT_AUDIO}"
+        f"{DEFAULT_WINDOW}, {DEFAULT_RENDERER}, {DEFAULT_PHYSICS}, {DEFAULT_UI}, {DEFAULT_AUDIO}"
     )
 
 
 def profile_summary(profile: dict[str, object]) -> str:
     return (
         f"Build profile -> dir={profile['build_dir']} | "
-        f"platform={profile['platform_default']} [{','.join(profile['platforms'])}] | "
+        f"window={profile['window_default']} [{','.join(profile['windows'])}] | "
         f"renderer={profile['renderer_default']} [{','.join(profile['renderers'])}] | "
         f"physics={profile['physics_default']} [{','.join(profile['physics_backends'])}] | "
         f"ui={profile['ui_default']} [{','.join(profile['ui_backends'])}] | "
@@ -600,7 +600,7 @@ def main() -> int:
     agent_name = resolve_agent_name(agent_name_arg)
 
     build_dir = str(profile["build_dir"])
-    platform_default = str(profile["platform_default"])
+    window_default = str(profile["window_default"])
     renderer_default = str(profile["renderer_default"])
     renderer_values = [str(value) for value in profile["renderers"]]
     physics_default = str(profile["physics_default"])
@@ -611,7 +611,7 @@ def main() -> int:
     audio_values = [str(value) for value in profile["audio_backends"]]
 
     cmake_args = [
-        f"-DKARMA_WINDOW_BACKEND={platform_default}",
+        f"-DKARMA_WINDOW_BACKEND={window_default}",
         f"-DKARMA_RENDER_BACKENDS={';'.join(renderer_values)}",
         f"-DKARMA_PHYSICS_BACKEND={physics_default}",
         f"-DKARMA_PHYSICS_BACKENDS={';'.join(physics_values)}",

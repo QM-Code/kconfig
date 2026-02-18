@@ -61,7 +61,7 @@ Key responsibilities:
 
 ## 5) Input handling
 
-- Each backend maps `platform::Event` into its UI system.
+- Each backend maps `window::Event` into its UI system.
 - Mapping logic is duplicated between ImGui and RmlUi and should be unified (`TODO.md`).
 - Gameplay input is suppressed when UI input is active (console visible or chat focused).
   - The UI still receives input, and “global” actions (chat/escape/quick quit/fullscreen) remain active.
@@ -119,7 +119,7 @@ Any frontend changes that add UI elements generally require editing these asset 
 ### ImGui path (per frame)
 1. `UiSystem::update()` updates `HudModel` and calls `ImGuiBackend::setHudModel()`.
 2. `ImGuiBackend::update()`:
-   - Converts `platform::Event` -> ImGui input.
+   - Converts `window::Event` -> ImGui input.
    - Begins ImGui frame.
    - Draws HUD first (if visible), then Console.
    - Renders to UI render target via `RendererBridge`.
@@ -129,7 +129,7 @@ Any frontend changes that add UI elements generally require editing these asset 
 ### RmlUi path (per frame)
 1. `UiSystem::update()` updates `HudModel` and calls `RmlUiBackend::setHudModel()`.
 2. `RmlUiBackend::update()`:
-   - Converts `platform::Event` -> RmlUi input.
+   - Converts `window::Event` -> RmlUi input.
    - Updates HUD model + console state.
    - Renders RmlUi documents via its render interface.
 3. Renderer composites `RenderOutput` from RmlUi.

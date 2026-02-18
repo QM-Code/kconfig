@@ -4,7 +4,7 @@
 
 namespace karma::renderer::backend {
 
-std::unique_ptr<Backend> CreateBgfxBackend(karma::platform::Window& window);
-std::unique_ptr<Backend> CreateDiligentBackend(karma::platform::Window& window);
+std::unique_ptr<Backend> CreateBgfxBackend(karma::window::Window& window);
+std::unique_ptr<Backend> CreateDiligentBackend(karma::window::Window& window);
 
 } // namespace karma::renderer::backend

@@ -21,7 +21,7 @@ Format:
 
 #### 2) Keep renderer capability parity as equal top priority
 - Decision:
-  - continue renderer capability parity as a top track alongside networking-foundation work, with active execution consolidated under `docs/projects/karma-lighting-shadow-parity.md`.
+  - continue renderer capability parity as a top track alongside networking-foundation work, with active execution consolidated under `docs/projects/karma-lighting-parity.md`.
 - Why:
   - renderer capability gaps are still one of the largest blockers to rewrite-level feature confidence.
 - Impact:

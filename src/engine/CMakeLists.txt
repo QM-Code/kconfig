@@ -54,8 +54,10 @@ set(ENGINE_CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/physics/rigid_body.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/physics/static_body.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/physics/player_controller.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/physics/backends/backend_jolt_stub.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/physics/backends/backend_physx_stub.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/physics/backends/jolt.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/physics/backends/jolt_stub.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/physics/backends/physx.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/physics/backends/physx_stub.cpp
 )
 
 set(ENGINE_CLIENT_SOURCES
@@ -83,9 +85,9 @@ set(ENGINE_CLIENT_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/renderer/assets/mesh_loader.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/scene/roaming_camera.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/scene/scene_bootstrap.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/platform/backend_factory.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/platform/backends/window_sdl3.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/platform/backends/window_sdl3_stub.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/window/backend_factory.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/window/backends/sdl3.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/window/backends/sdl3_stub.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/renderer/backend_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/renderer/device.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/renderer/render_system.cpp

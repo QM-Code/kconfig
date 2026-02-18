@@ -9,7 +9,7 @@
 #include "../internal/material_semantics.hpp"
 
 #include "karma/common/logging/logging.hpp"
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 #include "karma/renderer/layers.hpp"
 
 #include <spdlog/spdlog.h>
@@ -102,8 +102,8 @@ public:
 
 class BgfxBackend final : public Backend {
  public:
-    explicit BgfxBackend(karma::platform::Window& window) {
-        karma::platform::NativeWindowHandle native = window.nativeHandle();
+    explicit BgfxBackend(karma::window::Window& window) {
+        karma::window::NativeWindowHandle native = window.nativeHandle();
         bgfx::PlatformData pd{};
         if (native.is_wayland && native.wayland_surface && native.display) {
             pd.nwh = native.wayland_surface;
@@ -991,7 +991,7 @@ class BgfxBackend final : public Backend {
     bool initialized_ = false;
 };
 
-std::unique_ptr<Backend> CreateBgfxBackend(karma::platform::Window& window) {
+std::unique_ptr<Backend> CreateBgfxBackend(karma::window::Window& window) {
     return std::make_unique<BgfxBackend>(window);
 }
 

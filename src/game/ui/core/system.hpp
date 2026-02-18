@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "karma/platform/events.hpp"
+#include "karma/window/events.hpp"
 #include "ui/controllers/hud_controller.hpp"
 #include "ui/models/hud_model.hpp"
 #include "ui/core/types.hpp"
@@ -28,12 +28,12 @@ class Backend;
 class UiSystem {
 
 public:
-    UiSystem(platform::Window &window);
+    UiSystem(window::Window &window);
     ~UiSystem();
 
     ui::ConsoleInterface &console();
     const ui::ConsoleInterface &console() const;
-    void handleEvents(const std::vector<platform::Event> &events);
+    void handleEvents(const std::vector<window::Event> &events);
     void update();
 
 private:

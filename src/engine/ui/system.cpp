@@ -232,7 +232,7 @@ void UiSystem::shutdown(renderer::GraphicsDevice& graphics) {
     initialized_ = false;
 }
 
-void UiSystem::beginFrame(float dt, const std::vector<platform::Event>& events) {
+void UiSystem::beginFrame(float dt, const std::vector<window::Event>& events) {
     frame_dt_ = dt;
     imgui_draw_callbacks_.clear();
     rmlui_draw_callbacks_.clear();

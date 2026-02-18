@@ -14,12 +14,11 @@ Strategic tracking:
 | Project | Owner | Status | Next Task | Last Update |
 |---|---|---|---|---|
 | `gameplay-migration.md` | `overseer` | `in progress (D1 hardening landed; netcode lane consolidated)` | Execute D2 movement replication slice: wire client `PlayerLocation` intent path to rewrite server authority for tank drive state. | `2026-02-18` |
-| `physics-refactor.md` | `specialist-physics-refactor` | `paused (Phase 4 complete; final pre-rename shared-helper closeout validated in build-a3)` | `KARMA intake`: hand off to backend naming/split agent, then resume with a new bounded Phase 5 planning/entry slice after rename/split completion. | `2026-02-18` |
-| `karma-lighting-shadow-parity.md` | `unassigned` | `priority/on hold (close-out snapshot captured; awaiting external revisions)` | `KARMA intake`: after external revisions, rerun canonical BGFX/Diligent baseline, resolve/characterize shared seam artifact, then resume bounded P0-S3 re-intake. | `2026-02-17` |
+| `physics-refactor.md` | `specialist-physics-refactor` | `in progress (Phase 5b validation coverage landed; deterministic fixed-step ECS sync ordering + lifecycle teardown invariants now have backend parity coverage)` | `KARMA intake`: execute bounded Phase 5c engine-loop hardening slice adding app-level smoke coverage for fixed-step sync lifecycle across init-failure/shutdown paths (engine-only, game-agnostic). | `2026-02-18` |
+| `karma-lighting-parity.md` | `unassigned` | `priority/on hold (close-out snapshot captured; awaiting external revisions)` | `KARMA intake`: after external revisions, rerun canonical BGFX/Diligent baseline, resolve/characterize shared seam artifact, then resume bounded P0-S3 re-intake. | `2026-02-17` |
 | `radar.md` | `overseer` | `in progress (research baseline complete)` | `shared unblocker + KARMA intake`: execute R1 engine substrate slice for generic offscreen render-target + multi-camera pass scaffolding. | `2026-02-18` |
 | `ui-game.md` | `overseer` | `in progress (staged import landed; no build/runtime wiring yet)` | `m-dev parity + shared unblocker`: execute G0 classification pass for `src/game/ui/*` and record file-level dependency blockers. | `2026-02-18` |
 | `ui-engine.md` | `codex` | `in progress` | Execute one bounded console focus-release parity follow-up slice without backend leakage. | `2026-02-12` |
-| `backend-refactor.md` | `overseer` | `in progress (non-physics backend standardization landed; closeout pending)` | `shared unblocker`: execute BR7 closeout sync after physics-lane integration and mark project complete. | `2026-02-18` |
 | `repo-prep.md` | `overseer` | `in progress (planning; no code movement started)` | `shared unblocker`: execute RP0 decision-gate lock (vcpkg + KGDK->BZ3 artifact contract + sibling branch/worktree model + KGDK public-header boundary) before any filesystem migration. | `2026-02-18` |
 
 ## Active Specialist Roster

@@ -6,9 +6,9 @@
 #include <string_view>
 #include <vector>
 
-#include "karma/platform/events.hpp"
+#include "karma/window/events.hpp"
 
-namespace karma::platform {
+namespace karma::window {
 
 struct NativeWindowHandle {
     void* window = nullptr;
@@ -60,4 +60,4 @@ std::unique_ptr<Window> CreateBackend(const WindowConfig& config,
 
 std::unique_ptr<Window> CreateWindow(const WindowConfig& config);
 
-} // namespace karma::platform
+} // namespace karma::window

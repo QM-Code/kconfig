@@ -5,6 +5,7 @@
 #include "karma/physics/world.hpp"
 #include "karma/scene/components.hpp"
 #include "physics/ecs_sync_system.hpp"
+#include "physics/engine_fixed_step_sync.hpp"
 
 #include <spdlog/sinks/base_sink.h>
 
@@ -6427,6 +6428,165 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     return true;
 }
 
+bool RunEngineFixedStepSyncValidationChecks(BackendKind backend) {
+    using karma::physics::detail::CreateEngineSyncIfPhysicsInitialized;
+    using karma::physics::detail::EngineFixedStepEvent;
+    using karma::physics::detail::EngineFixedStepObserver;
+    using karma::physics::detail::EngineFixedStepPhase;
+    using karma::physics::detail::ResetEngineSyncBeforePhysicsShutdown;
+    using karma::physics::detail::SimulateFixedStepsWithSync;
+    using karma::scene::ColliderIntentComponent;
+    using karma::scene::PhysicsTransformOwnershipComponent;
+    using karma::scene::RigidBodyIntentComponent;
+    using karma::scene::TransformComponent;
+
+    class CapturingObserver final : public EngineFixedStepObserver {
+     public:
+        void onFixedStepEvent(const EngineFixedStepEvent& event) override {
+            events.push_back(event);
+        }
+
+        void clear() { events.clear(); }
+
+        std::vector<EngineFixedStepEvent> events{};
+    };
+
+    auto make_transform_component = [](const glm::vec3& position) {
+        TransformComponent transform{};
+        transform.local = glm::mat4(1.0f);
+        transform.world = glm::mat4(1.0f);
+        transform.local[3] = glm::vec4(position, 1.0f);
+        transform.world[3] = glm::vec4(position, 1.0f);
+        return transform;
+    };
+
+    // Lifecycle invariant: sync object must not exist if physics init did not succeed.
+    {
+        karma::physics::PhysicsSystem uninitialized_physics{};
+        uninitialized_physics.setBackend(backend);
+        auto uninitialized_sync = CreateEngineSyncIfPhysicsInitialized(uninitialized_physics);
+        if (uninitialized_sync) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " engine fixed-step validation created sync despite failed physics init\n";
+            return false;
+        }
+    }
+
+    karma::physics::PhysicsSystem physics{};
+    physics.setBackend(backend);
+    physics.init();
+    if (!physics.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to initialize (engine fixed-step validation check)\n";
+        return false;
+    }
+
+    auto sync = CreateEngineSyncIfPhysicsInitialized(physics);
+    if (!sync) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " engine fixed-step validation failed to create sync after physics init\n";
+        physics.shutdown();
+        return false;
+    }
+
+    karma::ecs::World world{};
+    CapturingObserver observer{};
+
+    // Ordering invariant: zero substeps emits no pre/sim/post events.
+    physics.beginFrame(1.0f / 60.0f);
+    SimulateFixedStepsWithSync(physics, sync.get(), world, 0, 1.0f / 60.0f, &observer);
+    physics.endFrame();
+    if (!observer.events.empty()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " engine fixed-step validation emitted events for zero substeps\n";
+        physics.shutdown();
+        return false;
+    }
+
+    // Ordering invariant: each substep is exactly pre -> simulate -> post.
+    const int substep_count = 3;
+    physics.beginFrame(1.0f / 60.0f);
+    SimulateFixedStepsWithSync(physics, sync.get(), world, substep_count, 1.0f / 60.0f, &observer);
+    physics.endFrame();
+    if (observer.events.size() != static_cast<size_t>(substep_count * 3)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " engine fixed-step validation event count mismatch for ordered substeps\n";
+        physics.shutdown();
+        return false;
+    }
+    for (int step = 0; step < substep_count; ++step) {
+        const size_t base = static_cast<size_t>(step * 3);
+        if (observer.events[base].step_index != step
+            || observer.events[base].phase != EngineFixedStepPhase::PreSimulate
+            || observer.events[base + 1].step_index != step
+            || observer.events[base + 1].phase != EngineFixedStepPhase::Simulate
+            || observer.events[base + 2].step_index != step
+            || observer.events[base + 2].phase != EngineFixedStepPhase::PostSimulate) {
+            std::cerr << "backend=" << BackendKindName(backend)
+                      << " engine fixed-step validation detected invalid substep ordering\n";
+            physics.shutdown();
+            return false;
+        }
+    }
+
+    // Ordering invariant: when sync is absent, only simulate events remain.
+    observer.clear();
+    physics.beginFrame(1.0f / 60.0f);
+    SimulateFixedStepsWithSync(physics, nullptr, world, 2, 1.0f / 60.0f, &observer);
+    physics.endFrame();
+    if (observer.events.size() != 2u
+        || observer.events[0].phase != EngineFixedStepPhase::Simulate
+        || observer.events[1].phase != EngineFixedStepPhase::Simulate) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " engine fixed-step validation expected simulate-only events when sync is absent\n";
+        physics.shutdown();
+        return false;
+    }
+
+    // Lifecycle invariant: reset clears runtime state before physics shutdown.
+    const auto entity = world.createEntity();
+    world.add<TransformComponent>(entity, make_transform_component(glm::vec3(0.0f, 2.0f, 0.0f)));
+    world.add<RigidBodyIntentComponent>(entity, RigidBodyIntentComponent{});
+    world.add<ColliderIntentComponent>(entity, ColliderIntentComponent{});
+    world.add<PhysicsTransformOwnershipComponent>(entity, PhysicsTransformOwnershipComponent{});
+    sync->preSimulate(world);
+    BodyId runtime_body = karma::physics::backend::kInvalidBodyId;
+    if (!sync->tryGetRuntimeBody(entity, runtime_body)
+        || runtime_body == karma::physics::backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " engine fixed-step validation failed to create runtime body before lifecycle reset\n";
+        physics.shutdown();
+        return false;
+    }
+    BodyTransform runtime_probe{};
+    if (!physics.getBodyTransform(runtime_body, runtime_probe)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " engine fixed-step validation failed to read runtime body before lifecycle reset\n";
+        physics.shutdown();
+        return false;
+    }
+
+    ResetEngineSyncBeforePhysicsShutdown(sync);
+    if (sync) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " engine fixed-step validation failed to clear sync during lifecycle reset\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyTransform(runtime_body, runtime_probe)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " engine fixed-step validation left stale runtime body after lifecycle reset\n";
+        physics.shutdown();
+        return false;
+    }
+
+    // Reset remains deterministic/idempotent for startup-failure style cleanup paths.
+    ResetEngineSyncBeforePhysicsShutdown(sync);
+
+    physics.shutdown();
+    return true;
+}
+
 bool RunFacadeScaffoldChecks(BackendKind backend) {
     const std::string static_mesh_asset = ResolveTestAssetPath("demo/worlds/r55man-2/world.glb");
     const std::string missing_mesh_asset = ResolveTestAssetPath("demo/worlds/phase4y-missing-static-mesh.glb");
@@ -6764,6 +6924,9 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
         if (!RunEcsSyncSystemPolicyChecks(backend)) {
+            return EXIT_FAILURE;
+        }
+        if (!RunEngineFixedStepSyncValidationChecks(backend)) {
             return EXIT_FAILURE;
         }
         if (!RunRepeatabilityChecks(backend)) {

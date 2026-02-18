@@ -1,10 +1,10 @@
 #pragma once
 
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 
 #include <vector>
 
-namespace karma::platform {
+namespace karma::window {
 
 class WindowSdl3 final : public Window {
  public:
@@ -36,4 +36,4 @@ class WindowSdl3 final : public Window {
     std::vector<Event> events_;
 };
 
-} // namespace karma::platform
+} // namespace karma::window

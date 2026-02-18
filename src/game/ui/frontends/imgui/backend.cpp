@@ -3,7 +3,7 @@
 #include "karma/common/data/path_resolver.hpp"
 #include "karma/common/i18n/i18n.hpp"
 #include "karma/common/logging/logging.hpp"
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 #include "spdlog/spdlog.h"
 #include "karma_extras/ui/bridges/ui_render_bridge.hpp"
 #include "karma_extras/ui/imgui/texture_utils.hpp"
@@ -22,13 +22,13 @@ bool hasOutputDrawData(const ImDrawData* drawData) {
 
 const char *GetClipboardText(void *user_data) {
     static std::string buffer;
-    auto *window = static_cast<platform::Window *>(user_data);
+    auto *window = static_cast<window::Window *>(user_data);
     buffer = window ? window->getClipboardText() : std::string();
     return buffer.c_str();
 }
 
 void SetClipboardText(void *user_data, const char *text) {
-    auto *window = static_cast<platform::Window *>(user_data);
+    auto *window = static_cast<window::Window *>(user_data);
     if (window) {
         window->setClipboardText(text ? text : "");
     }
@@ -36,7 +36,7 @@ void SetClipboardText(void *user_data, const char *text) {
 
 } // namespace
 
-ImGuiBackend::ImGuiBackend(platform::Window &windowRef) : window(&windowRef) {
+ImGuiBackend::ImGuiBackend(window::Window &windowRef) : window(&windowRef) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
 
@@ -93,41 +93,41 @@ ImGuiBackend::~ImGuiBackend() {
     ImGui::DestroyContext();
 }
 
-void ImGuiBackend::handleEvents(const std::vector<platform::Event> &events) {
+void ImGuiBackend::handleEvents(const std::vector<window::Event> &events) {
     ImGuiIO &io = ImGui::GetIO();
     for (const auto &event : events) {
         switch (event.type) {
-            case platform::EventType::KeyDown:
-            case platform::EventType::KeyUp: {
-                const bool down = (event.type == platform::EventType::KeyDown);
+            case window::EventType::KeyDown:
+            case window::EventType::KeyUp: {
+                const bool down = (event.type == window::EventType::KeyDown);
                 const ImGuiKey key = ui::input::mapping::ToImGuiKey(event.key);
                 if (key != ImGuiKey_None) {
                     io.AddKeyEvent(key, down);
                 }
                 break;
             }
-            case platform::EventType::TextInput: {
+            case window::EventType::TextInput: {
                 if (event.codepoint != 0) {
                     io.AddInputCharacter(static_cast<unsigned int>(event.codepoint));
                 }
                 break;
             }
-            case platform::EventType::MouseButtonDown:
-            case platform::EventType::MouseButtonUp: {
-                const bool down = (event.type == platform::EventType::MouseButtonDown);
+            case window::EventType::MouseButtonDown:
+            case window::EventType::MouseButtonUp: {
+                const bool down = (event.type == window::EventType::MouseButtonDown);
                 const int button = ui::input::mapping::ToImGuiMouseButton(event.mouseButton);
                 io.AddMouseButtonEvent(button, down);
                 break;
             }
-            case platform::EventType::MouseMove: {
+            case window::EventType::MouseMove: {
                 io.AddMousePosEvent(static_cast<float>(event.x), static_cast<float>(event.y));
                 break;
             }
-            case platform::EventType::MouseScroll: {
+            case window::EventType::MouseScroll: {
                 io.AddMouseWheelEvent(static_cast<float>(event.scrollX), static_cast<float>(event.scrollY));
                 break;
             }
-            case platform::EventType::WindowFocus: {
+            case window::EventType::WindowFocus: {
                 io.AddFocusEvent(event.focused);
                 break;
             }

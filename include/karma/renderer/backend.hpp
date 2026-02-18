@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace karma::platform { class Window; }
+namespace karma::window { class Window; }
 
 namespace karma::renderer::backend {
 
@@ -46,7 +46,7 @@ class Backend {
     virtual bool isValid() const = 0;
 };
 
-std::unique_ptr<Backend> CreateBackend(karma::platform::Window& window,
+std::unique_ptr<Backend> CreateBackend(karma::window::Window& window,
                                        BackendKind preferred = BackendKind::Auto,
                                        BackendKind* out_selected = nullptr);
 

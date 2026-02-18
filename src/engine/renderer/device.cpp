@@ -5,7 +5,7 @@
 
 namespace karma::renderer {
 
-GraphicsDevice::GraphicsDevice(karma::platform::Window& window,
+GraphicsDevice::GraphicsDevice(karma::window::Window& window,
                                renderer::backend::BackendKind preferred_backend)
 {
     renderer::backend::BackendKind selected_backend = renderer::backend::BackendKind::Auto;

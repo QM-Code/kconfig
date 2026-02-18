@@ -4,7 +4,7 @@
 UiLayerAdapter::UiLayerAdapter(UiSystem &system)
     : system_(system) {}
 
-void UiLayerAdapter::onEvent(const platform::Event &event) {
+void UiLayerAdapter::onEvent(const window::Event &event) {
     pending_events_.push_back(event);
 }
 

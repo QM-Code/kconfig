@@ -1,6 +1,6 @@
 #include "karma/cli/client/backend_options.hpp"
 
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 #include "karma/renderer/backend.hpp"
 #include "ui/backend.hpp"
 
@@ -35,9 +35,9 @@ std::vector<std::string> UiBackendChoices() {
 
 std::vector<std::string> PlatformBackendChoices() {
     std::vector<std::string> choices{};
-    const auto compiled = platform::backend::CompiledBackends();
+    const auto compiled = window::backend::CompiledBackends();
     for (const auto backend : compiled) {
-        choices.emplace_back(platform::backend::BackendKindName(backend));
+        choices.emplace_back(window::backend::BackendKindName(backend));
     }
     return choices;
 }

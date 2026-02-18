@@ -1,13 +1,13 @@
-#include "karma/platform/window.hpp"
+#include "karma/window/window.hpp"
 
-#include "platform/backends/factory_internal.hpp"
+#include "window/backends/factory_internal.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <string>
 #include <vector>
 
-namespace karma::platform::backend {
+namespace karma::window::backend {
 namespace {
 
 std::string Lower(std::string_view input) {
@@ -88,12 +88,12 @@ std::unique_ptr<Window> CreateBackend(const WindowConfig& config,
     return nullptr;
 }
 
-} // namespace karma::platform::backend
+} // namespace karma::window::backend
 
-namespace karma::platform {
+namespace karma::window {
 
 std::unique_ptr<Window> CreateWindow(const WindowConfig& config) {
     return backend::CreateBackend(config);
 }
 
-} // namespace karma::platform
+} // namespace karma::window

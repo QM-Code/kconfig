@@ -48,7 +48,7 @@ constexpr std::array<const char*, 33> kKnownTraceChannels = {
     "physics.system",
     "physics.jolt",
     "physics.physx",
-    "platform.sdl",
+    "window.sdl",
     "render.bgfx",
     "render.bgfx.internal",
     "render.camera",

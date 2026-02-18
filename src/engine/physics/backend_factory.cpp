@@ -1,6 +1,6 @@
 #include "karma/physics/backend.hpp"
 
-#include "physics/backends/backend_factory_internal.hpp"
+#include "physics/backends/factory_internal.hpp"
 
 #include <algorithm>
 #include <cctype>

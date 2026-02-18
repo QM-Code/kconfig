@@ -6,14 +6,14 @@
 #include "karma/common/config/store.hpp"
 #include "spdlog/spdlog.h"
 
-UiSystem::UiSystem(platform::Window &window)
+UiSystem::UiSystem(window::Window &window)
     : hudController(hudModel) {
     backend = ui::backend::CreateUiBackend(window);
 }
 
 UiSystem::~UiSystem() = default;
 
-void UiSystem::handleEvents(const std::vector<platform::Event> &events) {
+void UiSystem::handleEvents(const std::vector<window::Event> &events) {
     backend->handleEvents(events);
 }
 

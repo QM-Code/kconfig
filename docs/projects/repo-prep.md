@@ -191,7 +191,7 @@ These are the likely public SDK-facing categories:
 - ECS (`include/karma/ecs/*`)
 - Physics runtime API (`include/karma/physics/*`)
 - Renderer API (`include/karma/renderer/*`)
-- Platform window/events (`include/karma/platform/*`)
+- Window system/events (`include/karma/window/*`)
 - Input API (`include/karma/input/*`)
 - UI API (`include/karma/ui/*`)
 - Scene API (`include/karma/scene/*`)

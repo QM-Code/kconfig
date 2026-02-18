@@ -18,7 +18,7 @@ Deliver a rewrite-owned radar system where:
 - `docs/foundation/governance/overseer-playbook.md`
 - `docs/projects/ui-engine.md`
 - `docs/projects/gameplay-migration.md`
-- `docs/projects/karma-lighting-shadow-parity.md`
+- `docs/projects/karma-lighting-parity.md`
 
 ## Why This Is Separate
 Radar is a cross-cutting engine/game/UI feature with high boundary risk:

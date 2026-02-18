@@ -20,12 +20,12 @@ namespace ui::backend {
 
 class ImGuiBackend final : public Backend {
 public:
-    explicit ImGuiBackend(platform::Window &window);
+    explicit ImGuiBackend(window::Window &window);
     ~ImGuiBackend() override;
 
     ui::ConsoleInterface &console() override;
     const ui::ConsoleInterface &console() const override;
-    void handleEvents(const std::vector<platform::Event> &events) override;
+    void handleEvents(const std::vector<window::Event> &events) override;
     void update() override;
     void reloadFonts() override;
 
@@ -49,7 +49,7 @@ public:
     ui::HudRenderState getHudRenderState() const override { return lastHudRenderState; }
 
 private:
-    platform::Window *window = nullptr;
+    window::Window *window = nullptr;
     std::chrono::steady_clock::time_point lastFrameTime;
     ImFont *bigFont = nullptr;
     ui::ConsoleView consoleView;

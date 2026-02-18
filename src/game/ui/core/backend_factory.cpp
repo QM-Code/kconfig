@@ -19,7 +19,7 @@ class NullBackend final : public Backend {
 public:
     ui::ConsoleInterface &console() override { return consoleImpl; }
     const ui::ConsoleInterface &console() const override { return consoleImpl; }
-    void handleEvents(const std::vector<platform::Event> &events) override { (void)events; }
+    void handleEvents(const std::vector<window::Event> &events) override { (void)events; }
     void update() override {}
     void reloadFonts() override {}
     void setHudModel(const ui::HudModel &model) override { (void)model; }
@@ -46,7 +46,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<Backend> CreateUiBackend(platform::Window &window) {
+std::unique_ptr<Backend> CreateUiBackend(window::Window &window) {
     if (const char* noUi = std::getenv("KARMA_NO_UI"); noUi && noUi[0] != '\0') {
         spdlog::warn("UiSystem: UI disabled via KARMA_NO_UI");
         return std::make_unique<NullBackend>();

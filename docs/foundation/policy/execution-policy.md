@@ -104,7 +104,7 @@ Wrapper gate policy:
   - proposal includes seam changes, validation commands, and rollback plan,
   - overseer approval recorded.
 - Required seam invariants:
-  - engine-facing platform contract stays centered on `karma::platform::Window`,
+  - engine-facing platform contract stays centered on `karma::window::Window`,
   - `./scripts/check-platform-seam.sh` stays passing,
   - backend headers/types stay out of `src/game/*` and engine/game-facing public contracts,
   - no dormant/stub-only backend trees.

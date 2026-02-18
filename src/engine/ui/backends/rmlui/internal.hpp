@@ -35,9 +35,9 @@ struct DrawCall {
     Rml::Rectanglei scissor = Rml::Rectanglei::FromSize({0, 0});
 };
 
-int MapModifiers(const platform::Modifiers& mods);
-Rml::Input::KeyIdentifier MapKey(platform::Key key);
-int MapMouseButton(platform::MouseButton button);
+int MapModifiers(const window::Modifiers& mods);
+Rml::Input::KeyIdentifier MapKey(window::Key key);
+int MapMouseButton(window::MouseButton button);
 
 class SystemInterface final : public Rml::SystemInterface {
  public:

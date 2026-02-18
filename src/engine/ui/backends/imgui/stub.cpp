@@ -18,7 +18,7 @@ class StubBackend final : public BackendDriver {
 
     void shutdown() override {}
 
-    void beginFrame(float dt, const std::vector<platform::Event>& events) override {
+    void beginFrame(float dt, const std::vector<window::Event>& events) override {
         (void)dt;
         (void)events;
     }

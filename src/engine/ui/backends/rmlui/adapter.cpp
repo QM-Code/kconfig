@@ -105,7 +105,7 @@ class AdapterReal final : public Adapter {
         }
     }
 
-    void beginFrame(float dt, const std::vector<platform::Event>& events) override {
+    void beginFrame(float dt, const std::vector<window::Event>& events) override {
         (void)dt;
         if (!context_) {
             return;
@@ -114,40 +114,40 @@ class AdapterReal final : public Adapter {
         for (const auto& event : events) {
             const int modifiers = MapModifiers(event.mods);
             switch (event.type) {
-                case platform::EventType::MouseMove:
+                case window::EventType::MouseMove:
                     context_->ProcessMouseMove(event.mouse_x, event.mouse_y, modifiers);
                     break;
-                case platform::EventType::MouseButtonDown:
+                case window::EventType::MouseButtonDown:
                     context_->ProcessMouseButtonDown(MapMouseButton(event.mouse_button), modifiers);
                     break;
-                case platform::EventType::MouseButtonUp:
+                case window::EventType::MouseButtonUp:
                     context_->ProcessMouseButtonUp(MapMouseButton(event.mouse_button), modifiers);
                     break;
-                case platform::EventType::MouseScroll:
+                case window::EventType::MouseScroll:
                     context_->ProcessMouseWheel(Rml::Vector2f(event.scroll_x, event.scroll_y), modifiers);
                     break;
-                case platform::EventType::KeyDown: {
+                case window::EventType::KeyDown: {
                     const auto key = MapKey(event.key);
                     if (key != Rml::Input::KI_UNKNOWN) {
                         context_->ProcessKeyDown(key, modifiers);
                     }
                     break;
                 }
-                case platform::EventType::KeyUp: {
+                case window::EventType::KeyUp: {
                     const auto key = MapKey(event.key);
                     if (key != Rml::Input::KI_UNKNOWN) {
                         context_->ProcessKeyUp(key, modifiers);
                     }
                     break;
                 }
-                case platform::EventType::TextInput:
+                case window::EventType::TextInput:
                     if (!event.text.empty()) {
                         context_->ProcessTextInput(event.text);
                     } else if (event.codepoint != 0) {
                         context_->ProcessTextInput(static_cast<Rml::Character>(event.codepoint));
                     }
                     break;
-                case platform::EventType::WindowFocus:
+                case window::EventType::WindowFocus:
                     if (!event.focused) {
                         context_->ProcessMouseLeave();
                     }

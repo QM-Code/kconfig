@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <memory>
 
 #include "karma/app/server/game_interface.hpp"
 #include "karma/audio/audio_system.hpp"
@@ -9,6 +10,10 @@
 #include "karma/ecs/world.hpp"
 #include "karma/physics/backend.hpp"
 #include "karma/physics/physics_system.hpp"
+
+namespace karma::physics {
+class EcsSyncSystem;
+}
 
 namespace karma::app::server {
 
@@ -23,7 +28,7 @@ struct EngineConfig {
 
 class Engine {
  public:
-    Engine() = default;
+    Engine();
     ~Engine();
 
     void start(GameInterface& game, const EngineConfig& config = {});
@@ -39,6 +44,7 @@ class Engine {
     ecs::World world_{};
     audio::AudioSystem audio_system_{};
     physics::PhysicsSystem physics_system_{};
+    std::unique_ptr<physics::EcsSyncSystem> physics_sync_system_{};
     shared::SimulationClock simulation_clock_{};
     bool running_ = false;
     std::chrono::steady_clock::time_point last_tick_time_{};

@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "karma/platform/events.hpp"
+#include "karma/window/events.hpp"
 #include "ui/models/hud_model.hpp"
 #include "ui/models/hud_render_state.hpp"
 #include "ui/core/types.hpp"
@@ -25,7 +25,7 @@ public:
 
     virtual ui::ConsoleInterface &console() = 0;
     virtual const ui::ConsoleInterface &console() const = 0;
-    virtual void handleEvents(const std::vector<platform::Event> &events) = 0;
+    virtual void handleEvents(const std::vector<window::Event> &events) = 0;
     virtual void update() = 0;
     virtual void reloadFonts() = 0;
 
@@ -47,6 +47,6 @@ public:
     virtual ui::HudRenderState getHudRenderState() const = 0;
 };
 
-std::unique_ptr<Backend> CreateUiBackend(platform::Window &window);
+std::unique_ptr<Backend> CreateUiBackend(window::Window &window);
 
 } // namespace ui::backend

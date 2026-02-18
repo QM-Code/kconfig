@@ -81,7 +81,7 @@ class ImGuiBackend final : public BackendDriver {
         working_pixels_.clear();
     }
 
-    void beginFrame(float dt, const std::vector<platform::Event>& events) override {
+    void beginFrame(float dt, const std::vector<window::Event>& events) override {
         if (!context_) {
             return;
         }
@@ -92,38 +92,38 @@ class ImGuiBackend final : public BackendDriver {
 
         for (const auto& event : events) {
             switch (event.type) {
-                case platform::EventType::MouseMove:
+                case window::EventType::MouseMove:
                     io.AddMousePosEvent(static_cast<float>(event.mouse_x), static_cast<float>(event.mouse_y));
                     break;
-                case platform::EventType::MouseButtonDown:
-                case platform::EventType::MouseButtonUp: {
+                case window::EventType::MouseButtonDown:
+                case window::EventType::MouseButtonUp: {
                     imgui::PushModifiers(io, event.mods);
                     const int button = imgui::MapMouseButton(event.mouse_button);
                     if (button >= 0) {
-                        io.AddMouseButtonEvent(button, event.type == platform::EventType::MouseButtonDown);
+                        io.AddMouseButtonEvent(button, event.type == window::EventType::MouseButtonDown);
                     }
                     break;
                 }
-                case platform::EventType::MouseScroll:
+                case window::EventType::MouseScroll:
                     io.AddMouseWheelEvent(event.scroll_x, event.scroll_y);
                     break;
-                case platform::EventType::KeyDown:
-                case platform::EventType::KeyUp: {
+                case window::EventType::KeyDown:
+                case window::EventType::KeyUp: {
                     imgui::PushModifiers(io, event.mods);
                     const ImGuiKey key = imgui::MapKey(event.key);
                     if (key != ImGuiKey_None) {
-                        io.AddKeyEvent(key, event.type == platform::EventType::KeyDown);
+                        io.AddKeyEvent(key, event.type == window::EventType::KeyDown);
                     }
                     break;
                 }
-                case platform::EventType::TextInput:
+                case window::EventType::TextInput:
                     if (!event.text.empty()) {
                         io.AddInputCharactersUTF8(event.text.c_str());
                     } else if (event.codepoint != 0) {
                         io.AddInputCharacter(event.codepoint);
                     }
                     break;
-                case platform::EventType::WindowFocus:
+                case window::EventType::WindowFocus:
                     io.AddFocusEvent(event.focused);
                     break;
                 default:

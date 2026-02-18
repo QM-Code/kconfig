@@ -1,5 +1,5 @@
-#include "platform/backends/window_sdl3.hpp"
-#include "platform/backends/factory_internal.hpp"
+#include "window/backends/sdl3.hpp"
+#include "window/backends/factory_internal.hpp"
 
 #include "karma/common/logging/logging.hpp"
 
@@ -12,7 +12,7 @@
 
 #include <spdlog/spdlog.h>
 
-namespace karma::platform {
+namespace karma::window {
 
 namespace {
 Key toKey(SDL_Scancode sc) {
@@ -271,9 +271,9 @@ WindowSdl3::WindowSdl3(const WindowConfig& config) {
             return;
         }
     }
-    KARMA_TRACE("platform.sdl", "SDL_Init(SDL_INIT_VIDEO) returned {}", sdl_init_ok ? 1 : 0);
+    KARMA_TRACE("window.sdl", "SDL_Init(SDL_INIT_VIDEO) returned {}", sdl_init_ok ? 1 : 0);
 
-    KARMA_TRACE("platform.sdl",
+    KARMA_TRACE("window.sdl",
                 "SDL video driver: {}",
                 SDL_GetCurrentVideoDriver() ? SDL_GetCurrentVideoDriver() : "(null)");
 
@@ -452,7 +452,7 @@ NativeWindowHandle WindowSdl3::nativeHandle() const {
     void* wl_surface = const_cast<void*>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, nullptr));
     const Sint64 x11_window = SDL_GetNumberProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, 0);
     void* x11_display = const_cast<void*>(SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_DISPLAY_POINTER, nullptr));
-    KARMA_TRACE("platform.sdl", "SDL3 native props: wl_display={} wl_surface={} x11_window={} x11_display={}",
+    KARMA_TRACE("window.sdl", "SDL3 native props: wl_display={} wl_surface={} x11_window={} x11_display={}",
                 wl_display, wl_surface,
                 static_cast<long long>(x11_window), x11_display);
 
@@ -477,14 +477,14 @@ NativeWindowHandle WindowSdl3::nativeHandle() const {
     return handle;
 }
 
-} // namespace karma::platform
+} // namespace karma::window
 
 #if defined(KARMA_WINDOW_BACKEND_SDL3)
-namespace karma::platform::backend {
+namespace karma::window::backend {
 
 std::unique_ptr<Window> CreateSdl3WindowBackend(const WindowConfig& config) {
     return std::make_unique<WindowSdl3>(config);
 }
 
-} // namespace karma::platform::backend
+} // namespace karma::window::backend
 #endif

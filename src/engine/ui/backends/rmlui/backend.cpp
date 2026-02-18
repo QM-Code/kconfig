@@ -25,7 +25,7 @@ class RmlUiBackend final : public BackendDriver {
         }
     }
 
-    void beginFrame(float dt, const std::vector<platform::Event>& events) override {
+    void beginFrame(float dt, const std::vector<window::Event>& events) override {
         if (adapter_) {
             adapter_->beginFrame(dt, events);
         }
