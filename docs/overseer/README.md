@@ -1,8 +1,8 @@
 # Rewrite Overseer Mode
 
-This folder is for multi-repo integration workflow (`m-rewrite` + `m-dev` + `KARMA-REPO`).
+This folder is for multi-repo integration workflow
 
-Use this setup when you need integration-level oversight across all three repos:
+Use this setup when you need integration-level oversight across all repos:
 
 1. Create a workspace directory:
    - `mkdir -p ~/dev/bz3-rewrite`
@@ -17,4 +17,3 @@ Use this setup when you need integration-level oversight across all three repos:
    - `cp m-rewrite/docs/overseer/README.init README.md`
 6. Start Codex from `~/dev/bz3-rewrite/` and follow that README.
 
-For normal standalone `m-rewrite` development, use repository root `README.md` instead.

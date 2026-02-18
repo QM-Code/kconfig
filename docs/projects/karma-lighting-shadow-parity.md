@@ -111,7 +111,7 @@ Implement every lighting/shadow technique that is actively used in KARMA demo pa
 - `src/engine/renderer/render_system.cpp`
 - `include/karma/renderer/backend.hpp`
 - `include/karma/renderer/device.hpp`
-- `src/engine/app/engine_app.cpp`
+- `src/engine/app/client/engine.cpp`
 - `src/game/client/runtime/*`
 - `docs/projects/ASSIGNMENTS.md`
 

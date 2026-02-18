@@ -21,6 +21,7 @@ class PhysicsSystem {
     void simulateFixedStep(float fixed_dt);
     void endFrame();
 
+    // Forwards the full backend-neutral body descriptor, including collider local-center shape offset.
     physics_backend::BodyId createBody(const physics_backend::BodyDesc& desc);
     void destroyBody(physics_backend::BodyId body);
     bool setBodyTransform(physics_backend::BodyId body, const physics_backend::BodyTransform& transform);
@@ -31,6 +32,10 @@ class PhysicsSystem {
     bool getBodyLinearVelocity(physics_backend::BodyId body, glm::vec3& out_velocity) const;
     bool setBodyAngularVelocity(physics_backend::BodyId body, const glm::vec3& velocity);
     bool getBodyAngularVelocity(physics_backend::BodyId body, glm::vec3& out_velocity) const;
+    bool setBodyLinearDamping(physics_backend::BodyId body, float damping);
+    bool getBodyLinearDamping(physics_backend::BodyId body, float& out_damping) const;
+    bool setBodyAngularDamping(physics_backend::BodyId body, float damping);
+    bool getBodyAngularDamping(physics_backend::BodyId body, float& out_damping) const;
     bool setBodyTrigger(physics_backend::BodyId body, bool enabled);
     bool getBodyTrigger(physics_backend::BodyId body, bool& out_enabled) const;
     bool setBodyCollisionMask(physics_backend::BodyId body, const physics_backend::CollisionMask& mask);

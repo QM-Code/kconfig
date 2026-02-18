@@ -18,15 +18,15 @@ set(ENGINE_CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/common/content/sync_facade.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/simulation_clock.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/common/stb_image_impl.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/app/backend_resolution.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/app/bootstrap_scaffold.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/app/server_bootstrap_runner.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/app/server_runner.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/shared/backend_resolution.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/shared/bootstrap.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/server/bootstrap.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/server/runner.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/cli/cli_parse_scaffold.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/cli/client_runtime_options.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/cli/server_app_options.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/cli/server_runtime_options.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/app/engine_server_app.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/server/engine.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/config/reconnect_policy.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/auth/structured_payload.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/network/client/auth/community_credentials.cpp
@@ -58,12 +58,12 @@ set(ENGINE_CORE_SOURCES
 )
 
 set(ENGINE_CLIENT_SOURCES
-    ${PROJECT_SOURCE_DIR}/src/engine/app/backend_resolution_client.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/app/client_bootstrap_runner.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/app/client_runner.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/client/backend_resolution.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/client/bootstrap.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/client/runner.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/cli/cli_client_backend_options.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/cli/client_app_options.cpp
-    ${PROJECT_SOURCE_DIR}/src/engine/app/engine_app.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/app/client/engine.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/input/input_system.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/backends/software/backend.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/ui/backends/imgui/backend.cpp

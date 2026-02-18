@@ -46,6 +46,7 @@ struct ColliderShapeDesc {
     float sphere_radius = 0.5f;
     float capsule_radius = 0.5f;
     float capsule_half_height = 0.5f;
+    glm::vec3 local_center{0.0f, 0.0f, 0.0f};
 };
 
 struct BodyDesc {
@@ -53,6 +54,8 @@ struct BodyDesc {
     ColliderShapeDesc collider_shape{};
     glm::vec3 linear_velocity{0.0f, 0.0f, 0.0f};
     glm::vec3 angular_velocity{0.0f, 0.0f, 0.0f};
+    float linear_damping = 0.0f;
+    float angular_damping = 0.0f;
     float mass = 0.0f;
     bool is_static = true;
     bool is_trigger = false;
@@ -97,6 +100,14 @@ class Backend {
     virtual bool getBodyLinearVelocity(BodyId body, glm::vec3& out_velocity) const = 0;
     virtual bool setBodyAngularVelocity(BodyId body, const glm::vec3& velocity) = 0;
     virtual bool getBodyAngularVelocity(BodyId body, glm::vec3& out_velocity) const = 0;
+    // Runtime damping contract:
+    // - get/set damping applies only to dynamic bodies in this slice.
+    // - Damping values must be finite and non-negative.
+    // - For invalid, unknown, or non-dynamic bodies, calls return false.
+    virtual bool setBodyLinearDamping(BodyId body, float damping) = 0;
+    virtual bool getBodyLinearDamping(BodyId body, float& out_damping) const = 0;
+    virtual bool setBodyAngularDamping(BodyId body, float damping) = 0;
+    virtual bool getBodyAngularDamping(BodyId body, float& out_damping) const = 0;
     // Collider runtime property contract:
     // - Returns false for invalid/unknown body ids.
     // - Backends may report false when a runtime mutation is unsupported; this is used by callers to apply deterministic

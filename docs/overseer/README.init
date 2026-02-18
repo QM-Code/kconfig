@@ -1,6 +1,7 @@
-# BZ3 Rewrite Integration Workspace
+# BZ3 Rewrite
 
-Start Codex from this directory, then paste:
+This project is intended to be worked on using a CLI coding agent.
+Start your favorite CLI coding agent from this directory, then paste:
 
 ```text
 Follow the instructions in m-rewrite/docs/overseer/BOOTSTRAP.md.

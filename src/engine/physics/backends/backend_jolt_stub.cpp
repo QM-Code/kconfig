@@ -24,6 +24,7 @@
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/EPhysicsUpdateError.h>
 #include <Jolt/Physics/PhysicsSystem.h>
@@ -125,6 +126,16 @@ glm::quat ToGlmQuat(const JPH::Quat& value) {
 
 bool IsValidCollisionMask(const CollisionMask& mask) {
     return mask.layer != 0u && mask.collides_with != 0u;
+}
+
+bool IsFiniteVec3(const glm::vec3& value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
+bool IsZeroVec3(const glm::vec3& value, float epsilon = 1e-6f) {
+    return std::fabs(value.x) <= epsilon
+           && std::fabs(value.y) <= epsilon
+           && std::fabs(value.z) <= epsilon;
 }
 
 void JoltTrace(const char* fmt, ...) {
@@ -232,6 +243,8 @@ class JoltBackend final : public Backend {
             gravity_enabled_.clear();
             trigger_enabled_.clear();
             collision_masks_.clear();
+            linear_damping_.clear();
+            angular_damping_.clear();
         }
 
         physics_system_.reset();
@@ -280,12 +293,22 @@ class JoltBackend final : public Backend {
         if (!IsValidCollisionMask(desc.collision_mask)) {
             return kInvalidBodyId;
         }
+        if (!IsFiniteVec3(desc.collider_shape.local_center)) {
+            return kInvalidBodyId;
+        }
+        if (!std::isfinite(desc.linear_damping)
+            || !std::isfinite(desc.angular_damping)
+            || desc.linear_damping < 0.0f
+            || desc.angular_damping < 0.0f) {
+            return kInvalidBodyId;
+        }
 
         const bool is_dynamic = !desc.is_static;
         JPH::RefConst<JPH::Shape> shape{};
         switch (desc.collider_shape.kind) {
             case ColliderShapeKind::Box:
-                if (desc.collider_shape.box_half_extents.x <= 0.0f
+                if (!IsFiniteVec3(desc.collider_shape.box_half_extents)
+                    || desc.collider_shape.box_half_extents.x <= 0.0f
                     || desc.collider_shape.box_half_extents.y <= 0.0f
                     || desc.collider_shape.box_half_extents.z <= 0.0f) {
                     return kInvalidBodyId;
@@ -293,13 +316,15 @@ class JoltBackend final : public Backend {
                 shape = new JPH::BoxShape(ToJoltVec3(desc.collider_shape.box_half_extents));
                 break;
             case ColliderShapeKind::Sphere:
-                if (desc.collider_shape.sphere_radius <= 0.0f) {
+                if (!std::isfinite(desc.collider_shape.sphere_radius) || desc.collider_shape.sphere_radius <= 0.0f) {
                     return kInvalidBodyId;
                 }
                 shape = new JPH::SphereShape(desc.collider_shape.sphere_radius);
                 break;
             case ColliderShapeKind::Capsule:
-                if (desc.collider_shape.capsule_radius <= 0.0f
+                if (!std::isfinite(desc.collider_shape.capsule_radius)
+                    || !std::isfinite(desc.collider_shape.capsule_half_height)
+                    || desc.collider_shape.capsule_radius <= 0.0f
                     || desc.collider_shape.capsule_half_height <= 0.0f) {
                     return kInvalidBodyId;
                 }
@@ -312,6 +337,14 @@ class JoltBackend final : public Backend {
 
         if (!shape) {
             return kInvalidBodyId;
+        }
+        if (!IsZeroVec3(desc.collider_shape.local_center)) {
+            shape = new JPH::RotatedTranslatedShape(ToJoltVec3(desc.collider_shape.local_center),
+                                                    JPH::Quat::sIdentity(),
+                                                    shape.GetPtr());
+            if (!shape) {
+                return kInvalidBodyId;
+            }
         }
 
         JPH::BodyCreationSettings settings(
@@ -335,6 +368,8 @@ class JoltBackend final : public Backend {
         }
         settings.mLinearVelocity = ToJoltVec3(desc.linear_velocity);
         settings.mAngularVelocity = ToJoltVec3(desc.angular_velocity);
+        settings.mLinearDamping = desc.linear_damping;
+        settings.mAngularDamping = desc.angular_damping;
         settings.mGravityFactor = (is_dynamic && desc.gravity_enabled) ? 1.0f : 0.0f;
         if (is_dynamic && desc.mass > 0.0f) {
             settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
@@ -358,6 +393,10 @@ class JoltBackend final : public Backend {
         gravity_enabled_.emplace(id, is_dynamic && desc.gravity_enabled);
         trigger_enabled_.emplace(id, desc.is_trigger);
         collision_masks_.emplace(id, desc.collision_mask);
+        if (is_dynamic) {
+            linear_damping_.emplace(id, desc.linear_damping);
+            angular_damping_.emplace(id, desc.angular_damping);
+        }
         body_interface.SetIsSensor(body->GetID(), desc.is_trigger);
         return id;
     }
@@ -381,6 +420,8 @@ class JoltBackend final : public Backend {
         gravity_enabled_.erase(body);
         trigger_enabled_.erase(body);
         collision_masks_.erase(body);
+        linear_damping_.erase(body);
+        angular_damping_.erase(body);
         bodies_.erase(it);
     }
 
@@ -540,6 +581,114 @@ class JoltBackend final : public Backend {
         return true;
     }
 
+    bool setBodyLinearDamping(BodyId body, float damping) override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+        if (!std::isfinite(damping) || damping < 0.0f) {
+            return false;
+        }
+
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end()) {
+            return false;
+        }
+
+        JPH::BodyLockWrite lock(physics_system_->GetBodyLockInterface(), it->second);
+        if (!lock.Succeeded()) {
+            return false;
+        }
+        JPH::MotionProperties* motion = lock.GetBody().GetMotionPropertiesUnchecked();
+        if (!motion) {
+            return false;
+        }
+        motion->SetLinearDamping(damping);
+        linear_damping_[body] = damping;
+        return true;
+    }
+
+    bool getBodyLinearDamping(BodyId body, float& out_damping) const override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto it = linear_damping_.find(body);
+        if (it == linear_damping_.end()) {
+            return false;
+        }
+
+        const auto body_it = bodies_.find(body);
+        if (body_it == bodies_.end()) {
+            return false;
+        }
+
+        JPH::BodyLockRead lock(physics_system_->GetBodyLockInterface(), body_it->second);
+        if (!lock.Succeeded()) {
+            return false;
+        }
+        const JPH::MotionProperties* motion = lock.GetBody().GetMotionPropertiesUnchecked();
+        if (!motion) {
+            return false;
+        }
+
+        out_damping = motion->GetLinearDamping();
+        return true;
+    }
+
+    bool setBodyAngularDamping(BodyId body, float damping) override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+        if (!std::isfinite(damping) || damping < 0.0f) {
+            return false;
+        }
+
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end()) {
+            return false;
+        }
+
+        JPH::BodyLockWrite lock(physics_system_->GetBodyLockInterface(), it->second);
+        if (!lock.Succeeded()) {
+            return false;
+        }
+        JPH::MotionProperties* motion = lock.GetBody().GetMotionPropertiesUnchecked();
+        if (!motion) {
+            return false;
+        }
+        motion->SetAngularDamping(damping);
+        angular_damping_[body] = damping;
+        return true;
+    }
+
+    bool getBodyAngularDamping(BodyId body, float& out_damping) const override {
+        if (!physics_system_ || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto it = angular_damping_.find(body);
+        if (it == angular_damping_.end()) {
+            return false;
+        }
+
+        const auto body_it = bodies_.find(body);
+        if (body_it == bodies_.end()) {
+            return false;
+        }
+
+        JPH::BodyLockRead lock(physics_system_->GetBodyLockInterface(), body_it->second);
+        if (!lock.Succeeded()) {
+            return false;
+        }
+        const JPH::MotionProperties* motion = lock.GetBody().GetMotionPropertiesUnchecked();
+        if (!motion) {
+            return false;
+        }
+
+        out_damping = motion->GetAngularDamping();
+        return true;
+    }
+
     bool getBodyTrigger(BodyId body, bool& out_enabled) const override {
         const auto it = trigger_enabled_.find(body);
         if (it == trigger_enabled_.end()) {
@@ -641,6 +790,8 @@ class JoltBackend final : public Backend {
     std::unordered_map<BodyId, bool> gravity_enabled_{};
     std::unordered_map<BodyId, bool> trigger_enabled_{};
     std::unordered_map<BodyId, CollisionMask> collision_masks_{};
+    std::unordered_map<BodyId, float> linear_damping_{};
+    std::unordered_map<BodyId, float> angular_damping_{};
     BodyId next_body_id_ = 1;
     float frame_dt_ = 0.0f;
     bool initialized_ = false;
@@ -670,6 +821,10 @@ class JoltBackendStub final : public Backend {
     bool getBodyLinearVelocity(BodyId, glm::vec3&) const override { return false; }
     bool setBodyAngularVelocity(BodyId, const glm::vec3&) override { return false; }
     bool getBodyAngularVelocity(BodyId, glm::vec3&) const override { return false; }
+    bool setBodyLinearDamping(BodyId, float) override { return false; }
+    bool getBodyLinearDamping(BodyId, float&) const override { return false; }
+    bool setBodyAngularDamping(BodyId, float) override { return false; }
+    bool getBodyAngularDamping(BodyId, float&) const override { return false; }
     bool setBodyTrigger(BodyId, bool) override { return false; }
     bool getBodyTrigger(BodyId, bool&) const override { return false; }
     bool setBodyCollisionMask(BodyId, const CollisionMask&) override { return false; }

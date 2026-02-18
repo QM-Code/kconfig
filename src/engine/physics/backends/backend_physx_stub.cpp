@@ -39,6 +39,10 @@ bool IsValidCollisionMask(const CollisionMask& mask) {
     return mask.layer != 0u && mask.collides_with != 0u;
 }
 
+bool IsFiniteVec3(const glm::vec3& value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
+}
+
 physx::PxFilterData ToPxFilterData(const CollisionMask& mask) {
     physx::PxFilterData data{};
     data.word0 = mask.layer;
@@ -116,6 +120,8 @@ class PhysXBackend final : public Backend {
         gravity_enabled_.clear();
         trigger_enabled_.clear();
         collision_masks_.clear();
+        linear_damping_.clear();
+        angular_damping_.clear();
 
         if (default_material_) {
             default_material_->release();
@@ -170,12 +176,22 @@ class PhysXBackend final : public Backend {
         if (!IsValidCollisionMask(desc.collision_mask)) {
             return kInvalidBodyId;
         }
+        if (!IsFiniteVec3(desc.collider_shape.local_center)) {
+            return kInvalidBodyId;
+        }
+        if (!std::isfinite(desc.linear_damping)
+            || !std::isfinite(desc.angular_damping)
+            || desc.linear_damping < 0.0f
+            || desc.angular_damping < 0.0f) {
+            return kInvalidBodyId;
+        }
 
         const physx::PxTransform transform(ToPxVec3(desc.transform.position), ToPxQuat(desc.transform.rotation));
         physx::PxGeometryHolder geometry{};
         switch (desc.collider_shape.kind) {
             case ColliderShapeKind::Box:
-                if (desc.collider_shape.box_half_extents.x <= 0.0f
+                if (!IsFiniteVec3(desc.collider_shape.box_half_extents)
+                    || desc.collider_shape.box_half_extents.x <= 0.0f
                     || desc.collider_shape.box_half_extents.y <= 0.0f
                     || desc.collider_shape.box_half_extents.z <= 0.0f) {
                     return kInvalidBodyId;
@@ -185,13 +201,15 @@ class PhysXBackend final : public Backend {
                                                        desc.collider_shape.box_half_extents.z));
                 break;
             case ColliderShapeKind::Sphere:
-                if (desc.collider_shape.sphere_radius <= 0.0f) {
+                if (!std::isfinite(desc.collider_shape.sphere_radius) || desc.collider_shape.sphere_radius <= 0.0f) {
                     return kInvalidBodyId;
                 }
                 geometry.storeAny(physx::PxSphereGeometry(desc.collider_shape.sphere_radius));
                 break;
             case ColliderShapeKind::Capsule:
-                if (desc.collider_shape.capsule_radius <= 0.0f
+                if (!std::isfinite(desc.collider_shape.capsule_radius)
+                    || !std::isfinite(desc.collider_shape.capsule_half_height)
+                    || desc.collider_shape.capsule_radius <= 0.0f
                     || desc.collider_shape.capsule_half_height <= 0.0f) {
                     return kInvalidBodyId;
                 }
@@ -211,6 +229,7 @@ class PhysXBackend final : public Backend {
         shape->setSimulationFilterData(ToPxFilterData(desc.collision_mask));
         shape->setFlag(physx::PxShapeFlag::eTRIGGER_SHAPE, desc.is_trigger);
         shape->setFlag(physx::PxShapeFlag::eSIMULATION_SHAPE, !desc.is_trigger);
+        shape->setLocalPose(physx::PxTransform(ToPxVec3(desc.collider_shape.local_center)));
 
         physx::PxRigidActor* actor = nullptr;
         if (desc.is_static) {
@@ -226,6 +245,8 @@ class PhysXBackend final : public Backend {
                 physx::PxRigidBodyExt::updateMassAndInertia(*dynamic_actor, std::max(desc.mass, 0.001f));
                 dynamic_actor->setLinearVelocity(ToPxVec3(desc.linear_velocity));
                 dynamic_actor->setAngularVelocity(ToPxVec3(desc.angular_velocity));
+                dynamic_actor->setLinearDamping(desc.linear_damping);
+                dynamic_actor->setAngularDamping(desc.angular_damping);
                 dynamic_actor->setActorFlag(physx::PxActorFlag::eDISABLE_GRAVITY, !desc.gravity_enabled);
                 physx::PxRigidDynamicLockFlags lock_flags{};
                 bool has_lock_flags = false;
@@ -264,6 +285,10 @@ class PhysXBackend final : public Backend {
         gravity_enabled_.emplace(id, is_dynamic ? desc.gravity_enabled : false);
         trigger_enabled_.emplace(id, desc.is_trigger);
         collision_masks_.emplace(id, desc.collision_mask);
+        if (is_dynamic) {
+            linear_damping_.emplace(id, desc.linear_damping);
+            angular_damping_.emplace(id, desc.angular_damping);
+        }
         return id;
     }
 
@@ -284,6 +309,8 @@ class PhysXBackend final : public Backend {
         gravity_enabled_.erase(body);
         trigger_enabled_.erase(body);
         collision_masks_.erase(body);
+        linear_damping_.erase(body);
+        angular_damping_.erase(body);
         bodies_.erase(it);
     }
 
@@ -398,6 +425,76 @@ class PhysXBackend final : public Backend {
         }
 
         out_velocity = ToGlmVec3(dynamic_actor->getAngularVelocity());
+        return true;
+    }
+
+    bool setBodyLinearDamping(BodyId body, float damping) override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+        if (!std::isfinite(damping) || damping < 0.0f) {
+            return false;
+        }
+
+        auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        dynamic_actor->setLinearDamping(damping);
+        dynamic_actor->wakeUp();
+        linear_damping_[body] = damping;
+        return true;
+    }
+
+    bool getBodyLinearDamping(BodyId body, float& out_damping) const override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        out_damping = dynamic_actor->getLinearDamping();
+        return true;
+    }
+
+    bool setBodyAngularDamping(BodyId body, float damping) override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+        if (!std::isfinite(damping) || damping < 0.0f) {
+            return false;
+        }
+
+        auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        dynamic_actor->setAngularDamping(damping);
+        dynamic_actor->wakeUp();
+        angular_damping_[body] = damping;
+        return true;
+    }
+
+    bool getBodyAngularDamping(BodyId body, float& out_damping) const override {
+        const auto it = bodies_.find(body);
+        if (it == bodies_.end() || !it->second || !isDynamicBody(body)) {
+            return false;
+        }
+
+        const auto* dynamic_actor = it->second->is<physx::PxRigidDynamic>();
+        if (!dynamic_actor) {
+            return false;
+        }
+
+        out_damping = dynamic_actor->getAngularDamping();
         return true;
     }
 
@@ -551,6 +648,8 @@ class PhysXBackend final : public Backend {
     std::unordered_map<BodyId, bool> gravity_enabled_{};
     std::unordered_map<BodyId, bool> trigger_enabled_{};
     std::unordered_map<BodyId, CollisionMask> collision_masks_{};
+    std::unordered_map<BodyId, float> linear_damping_{};
+    std::unordered_map<BodyId, float> angular_damping_{};
     float frame_dt_ = 0.0f;
     bool initialized_ = false;
 };
@@ -580,6 +679,10 @@ class PhysXBackendStub final : public Backend {
     bool getBodyLinearVelocity(BodyId, glm::vec3&) const override { return false; }
     bool setBodyAngularVelocity(BodyId, const glm::vec3&) override { return false; }
     bool getBodyAngularVelocity(BodyId, glm::vec3&) const override { return false; }
+    bool setBodyLinearDamping(BodyId, float) override { return false; }
+    bool getBodyLinearDamping(BodyId, float&) const override { return false; }
+    bool setBodyAngularDamping(BodyId, float) override { return false; }
+    bool getBodyAngularDamping(BodyId, float&) const override { return false; }
     bool setBodyTrigger(BodyId, bool) override { return false; }
     bool getBodyTrigger(BodyId, bool&) const override { return false; }
     bool setBodyCollisionMask(BodyId, const CollisionMask&) override { return false; }

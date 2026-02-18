@@ -98,6 +98,7 @@ physics_backend::BodyId PhysicsSystem::createBody(const physics_backend::BodyDes
     if (!backend_) {
         return physics_backend::kInvalidBodyId;
     }
+    // BodyDesc is passed through as-is so backend shape-local offsets stay substrate-owned.
     return backend_->createBody(desc);
 }
 
@@ -164,6 +165,34 @@ bool PhysicsSystem::getBodyAngularVelocity(physics_backend::BodyId body, glm::ve
         return false;
     }
     return backend_->getBodyAngularVelocity(body, out_velocity);
+}
+
+bool PhysicsSystem::setBodyLinearDamping(physics_backend::BodyId body, float damping) {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->setBodyLinearDamping(body, damping);
+}
+
+bool PhysicsSystem::getBodyLinearDamping(physics_backend::BodyId body, float& out_damping) const {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->getBodyLinearDamping(body, out_damping);
+}
+
+bool PhysicsSystem::setBodyAngularDamping(physics_backend::BodyId body, float damping) {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->setBodyAngularDamping(body, damping);
+}
+
+bool PhysicsSystem::getBodyAngularDamping(physics_backend::BodyId body, float& out_damping) const {
+    if (!backend_) {
+        return false;
+    }
+    return backend_->getBodyAngularDamping(body, out_damping);
 }
 
 bool PhysicsSystem::setBodyTrigger(physics_backend::BodyId body, bool enabled) {

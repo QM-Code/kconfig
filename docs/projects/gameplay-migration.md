@@ -72,6 +72,55 @@ Strategic alignment:
 8. G5 round lifecycle migration: migrate round start/end/spawn/respawn control flow.
 9. G6 UI migration track: once `ui-engine.md` closes, port HUD/console/chat/scoreboard UI behaviors from `m-dev/src/game/ui/*`.
 
+## Jump Integration Blueprint (Game-Owned over Engine-Agnostic Physics)
+Goal:
+- implement jump behavior in rewrite gameplay code while keeping engine-scope physics generic and reusable.
+- use KARMA-REPO jump/controller behavior as design input (timing/feel/rule ideas), but re-implement semantics in rewrite game code (`src/game/*`) rather than engine physics.
+
+Boundary contract:
+- Engine scope (`src/engine/physics/*`) remains game-agnostic and only exposes generic capabilities:
+  - rigidbody/collider lifecycle and sync,
+  - transform/velocity read-write,
+  - collision/query signals (for example raycast or contact-derived state),
+  - deterministic failure behavior on invalid runtime operations.
+- Game scope (`src/game/*`) owns jump semantics:
+  - jump input edges and buffering,
+  - grounded eligibility rules,
+  - coyote-time/cooldown/multi-jump rules,
+  - when to consume or reject jump intent.
+
+Implementation shape in rewrite:
+1. Add/extend gameplay-owned movement state in `src/game/*` (not in engine components):
+   - jump intent edge (`pressed this frame`),
+   - jump state (`last grounded tick`, cooldown/counter fields as required by gameplay parity target).
+2. Keep `tank_drive_controller` as the game-side policy point:
+   - compute desired horizontal motion from input,
+   - evaluate jump eligibility using gameplay rules plus engine-agnostic physics observations,
+   - emit generic physics commands only (upward velocity or impulse), never jump-specific engine APIs.
+3. Read generic physics observations from engine-facing contracts:
+   - current rigidbody/controller velocity,
+   - transform,
+   - grounded proxy signal derived from collision/query result (defined in game logic, not engine semantics).
+4. Apply authoritative server decisions in server gameplay systems:
+   - server evaluates the same game jump policy against authoritative physics state,
+   - server accepts/rejects jump edges and publishes authoritative movement state,
+   - client prediction/reconciliation remains netcode lane work (D3+) and must not move jump semantics into engine.
+
+Protocol/netcode tie-in guidance:
+- movement intent messages may carry a jump edge flag as transport data.
+- interpretation of that flag remains game-domain logic on server/client gameplay paths.
+- engine/server physics substrate only processes resulting generic motion commands.
+
+Validation guidance for jump slices:
+- game-domain unit tests for jump eligibility/consumption rules.
+- server gameplay tests for authoritative accept/reject behavior.
+- keep engine physics parity tests jump-agnostic (velocity/collision/query contracts only).
+
+Explicit non-goals for jump work:
+- no jump-specific APIs in `include/karma/physics/*` or `src/engine/physics/*`.
+- no engine-side mutation/consumption of gameplay jump flags.
+- no backend-specific gameplay branching in game jump policy.
+
 ## Netcode Parity Lane (Merged 2026-02-18)
 Goal:
 - preserve responsive local gameplay feel under latency while keeping server authority for world truth.
@@ -259,6 +308,7 @@ Handoff must include:
 - `2026-02-14`: D1 movement proof passed with assigned build profile via `src/game/tank_drive_controller_test`.
 - `2026-02-14`: D1 hardening landed: reduced movement stutter via substep+visual smoothing, added FPS/chase camera modes (FPS default), and added startup-world collision blocking via engine-public geometry contract (`include/karma/geometry/mesh_loader.hpp`) with boundary-safe include usage in game paths.
 - `2026-02-18`: consolidated gameplay netcode track into this project as Track D (netcode parity lane); standalone project retired to `docs/archive/gameplay-netcode-retired-2026-02-18.md`.
+- `2026-02-18`: added jump integration blueprint clarifying boundary ownership: jump semantics remain game-owned; engine physics remains game-agnostic command/query substrate.
 
 ## Open Questions
 - Should D2 keep player movement state as transport-side events first, or immediately establish a server-domain movement system owning authoritative player pose?

@@ -113,8 +113,7 @@ void ResolveVelocityOwnership(const scene::RigidBodyIntentComponent& rigidbody,
                               glm::vec3& out_angular_velocity) {
     out_ownership = scene::ClassifyControllerVelocityOwnership(controller, compatibility);
     if (scene::IsControllerVelocityOwner(out_ownership) && controller) {
-        out_linear_velocity =
-            scene::ComposeControllerRuntimeLinearVelocity(rigidbody.linear_velocity, *controller, false);
+        out_linear_velocity = controller->desired_velocity;
         out_angular_velocity = glm::vec3(0.0f, 0.0f, 0.0f);
         return;
     }
@@ -126,7 +125,7 @@ void ResolveVelocityOwnership(const scene::RigidBodyIntentComponent& rigidbody,
 bool ApplyRuntimeVelocityPolicy(PhysicsSystem& physics_system,
                                 physics_backend::BodyId body,
                                 const scene::RigidBodyIntentComponent& rigidbody,
-                                scene::PlayerControllerIntentComponent* controller,
+                                const scene::PlayerControllerIntentComponent* controller,
                                 scene::ControllerColliderCompatibility compatibility,
                                 scene::ControllerVelocityOwnership& out_ownership,
                                 glm::vec3& out_linear_velocity,
@@ -134,28 +133,6 @@ bool ApplyRuntimeVelocityPolicy(PhysicsSystem& physics_system,
     ResolveVelocityOwnership(
         rigidbody, controller, compatibility, out_ownership, out_linear_velocity, out_angular_velocity);
     if (!rigidbody.dynamic) {
-        return true;
-    }
-
-    if (scene::IsControllerVelocityOwner(out_ownership) && controller) {
-        glm::vec3 runtime_linear_velocity{0.0f, 0.0f, 0.0f};
-        if (!physics_system.getBodyLinearVelocity(body, runtime_linear_velocity)) {
-            return false;
-        }
-
-        const bool consume_jump = scene::HasControllerJumpUpwardIntent(*controller);
-        out_linear_velocity = scene::ComposeControllerRuntimeLinearVelocity(
-            runtime_linear_velocity, *controller, consume_jump);
-        out_angular_velocity = glm::vec3(0.0f, 0.0f, 0.0f);
-
-        if (!physics_system.setBodyLinearVelocity(body, out_linear_velocity)
-            || !physics_system.setBodyAngularVelocity(body, out_angular_velocity)) {
-            return false;
-        }
-
-        if (consume_jump) {
-            controller->jump_requested = false;
-        }
         return true;
     }
 
@@ -169,19 +146,18 @@ struct PreservedRuntimeState {
     glm::vec3 angular_velocity{0.0f, 0.0f, 0.0f};
 };
 
-glm::vec3 AbsVec3(const glm::vec3& value) {
-    return glm::vec3(std::fabs(value.x), std::fabs(value.y), std::fabs(value.z));
+glm::vec3 ResolveControllerBoxHalfExtents(const scene::PlayerControllerIntentComponent& controller) {
+    return controller.half_extents;
 }
 
-glm::vec3 ResolveControllerBoxHalfExtents(const scene::PlayerControllerIntentComponent& controller) {
-    // Bounded mapping: controller center expands runtime extents around the body origin.
-    return controller.half_extents + AbsVec3(controller.center);
+glm::vec3 ResolveControllerShapeLocalCenter(const scene::PlayerControllerIntentComponent& controller) {
+    return controller.center;
 }
 
 void ResolveControllerCapsuleShape(const scene::PlayerControllerIntentComponent& controller,
                                    float& out_radius,
                                    float& out_half_height) {
-    const glm::vec3 extents = ResolveControllerBoxHalfExtents(controller);
+    const glm::vec3 extents = controller.half_extents;
     out_radius = std::max(extents.x, extents.z);
     out_half_height = std::max(0.01f, extents.y - out_radius);
 }
@@ -218,6 +194,8 @@ void BuildBodyDesc(const scene::RigidBodyIntentComponent& rigidbody,
     out_desc.transform = transform;
     out_desc.linear_velocity = linear_velocity;
     out_desc.angular_velocity = angular_velocity;
+    out_desc.linear_damping = rigidbody.linear_damping;
+    out_desc.angular_damping = rigidbody.angular_damping;
     out_desc.mass = rigidbody.dynamic ? rigidbody.mass : 0.0f;
     out_desc.is_static = !rigidbody.dynamic;
     out_desc.gravity_enabled = rigidbody.dynamic && rigidbody.gravity_enabled;
@@ -226,14 +204,17 @@ void BuildBodyDesc(const scene::RigidBodyIntentComponent& rigidbody,
     out_desc.is_trigger = collider.is_trigger;
     out_desc.collision_mask.layer = collider.mask.layer;
     out_desc.collision_mask.collides_with = collider.mask.collides_with;
+    out_desc.collider_shape.local_center = glm::vec3(0.0f, 0.0f, 0.0f);
 
     switch (collider.shape) {
         case scene::ColliderShapeKind::Box:
             out_desc.collider_shape.kind = physics_backend::ColliderShapeKind::Box;
-            out_desc.collider_shape.box_half_extents =
-                (use_controller_runtime_geometry && controller)
-                    ? ResolveControllerBoxHalfExtents(*controller)
-                    : collider.half_extents;
+            if (use_controller_runtime_geometry && controller) {
+                out_desc.collider_shape.box_half_extents = ResolveControllerBoxHalfExtents(*controller);
+                out_desc.collider_shape.local_center = ResolveControllerShapeLocalCenter(*controller);
+            } else {
+                out_desc.collider_shape.box_half_extents = collider.half_extents;
+            }
             break;
         case scene::ColliderShapeKind::Sphere:
             out_desc.collider_shape.kind = physics_backend::ColliderShapeKind::Sphere;
@@ -244,6 +225,7 @@ void BuildBodyDesc(const scene::RigidBodyIntentComponent& rigidbody,
             if (use_controller_runtime_geometry && controller) {
                 ResolveControllerCapsuleShape(
                     *controller, out_desc.collider_shape.capsule_radius, out_desc.collider_shape.capsule_half_height);
+                out_desc.collider_shape.local_center = ResolveControllerShapeLocalCenter(*controller);
             } else {
                 out_desc.collider_shape.capsule_radius = collider.radius;
                 out_desc.collider_shape.capsule_half_height = collider.half_height;
@@ -463,9 +445,6 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
                 physics_system_.destroyBody(body);
                 return false;
             }
-            if (retain_controller_binding && controller) {
-                binding.controller_intent = *controller;
-            }
             binding.last_transform = create_transform;
             bindings_[entity] = binding;
 
@@ -559,6 +538,15 @@ void EcsSyncSystem::preSimulate(ecs::World& world) {
 
         if (rigidbody->dynamic && binding.rigidbody_intent.gravity_enabled != rigidbody->gravity_enabled) {
             (void)physics_system_.setBodyGravityEnabled(binding.body, rigidbody->gravity_enabled);
+        }
+        if (rigidbody->dynamic
+            && (!scene::NearlyEqualFloat(binding.rigidbody_intent.linear_damping, rigidbody->linear_damping)
+                || !scene::NearlyEqualFloat(binding.rigidbody_intent.angular_damping, rigidbody->angular_damping))) {
+            if (!physics_system_.setBodyLinearDamping(binding.body, rigidbody->linear_damping)
+                || !physics_system_.setBodyAngularDamping(binding.body, rigidbody->angular_damping)) {
+                teardown_entities.push_back(entity);
+                continue;
+            }
         }
 
         if (scene::ShouldPushSceneTransformToPhysics(*ownership)) {

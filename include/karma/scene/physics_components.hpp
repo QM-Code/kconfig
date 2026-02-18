@@ -25,6 +25,8 @@ struct CollisionMaskIntentComponent {
 struct RigidBodyIntentComponent {
     bool dynamic = true;
     float mass = 1.0f;
+    float linear_damping = 0.0f;
+    float angular_damping = 0.0f;
     bool gravity_enabled = true;
     bool rotation_locked = false;
     bool translation_locked = false;
@@ -48,7 +50,6 @@ struct PlayerControllerIntentComponent {
     glm::vec3 half_extents{0.5f, 0.9f, 0.5f};
     glm::vec3 center{0.0f, 0.0f, 0.0f};
     glm::vec3 desired_velocity{0.0f, 0.0f, 0.0f};
-    bool jump_requested = false;
 };
 
 enum class PhysicsTransformAuthority {
@@ -142,10 +143,18 @@ inline bool ValidateCollisionMaskIntent(const CollisionMaskIntentComponent& inte
 inline bool ValidateRigidBodyIntent(const RigidBodyIntentComponent& intent,
                                     PhysicsComponentValidationError* out_error = nullptr) {
     if (!IsFiniteScalar(intent.mass)
+        || !IsFiniteScalar(intent.linear_damping)
+        || !IsFiniteScalar(intent.angular_damping)
         || !IsFiniteVec3(intent.linear_velocity)
         || !IsFiniteVec3(intent.angular_velocity)) {
         if (out_error) {
             *out_error = PhysicsComponentValidationError::NonFiniteValue;
+        }
+        return false;
+    }
+    if (intent.linear_damping < 0.0f || intent.angular_damping < 0.0f) {
+        if (out_error) {
+            *out_error = PhysicsComponentValidationError::NonPositiveDimension;
         }
         return false;
     }
@@ -416,22 +425,6 @@ inline ControllerVelocityOwnership ClassifyControllerVelocityOwnership(
 
 inline bool IsControllerVelocityOwner(ControllerVelocityOwnership ownership) {
     return ownership == ControllerVelocityOwnership::ControllerIntent;
-}
-
-inline bool HasControllerJumpUpwardIntent(const PlayerControllerIntentComponent& controller) {
-    return controller.jump_requested && controller.desired_velocity.y > 0.0f;
-}
-
-inline glm::vec3 ComposeControllerRuntimeLinearVelocity(const glm::vec3& runtime_linear_velocity,
-                                                        const PlayerControllerIntentComponent& controller,
-                                                        bool apply_jump_velocity = true) {
-    glm::vec3 composed = runtime_linear_velocity;
-    composed.x = controller.desired_velocity.x;
-    composed.z = controller.desired_velocity.z;
-    if (apply_jump_velocity && HasControllerJumpUpwardIntent(controller)) {
-        composed.y = controller.desired_velocity.y;
-    }
-    return composed;
 }
 
 inline ControllerGeometryReconcileAction ClassifyControllerGeometryReconcileAction(

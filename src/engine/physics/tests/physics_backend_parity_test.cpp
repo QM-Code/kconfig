@@ -374,6 +374,111 @@ bool RunColliderShapeAndRuntimePropertyChecks(BackendKind backend) {
     return true;
 }
 
+bool RunColliderShapeOffsetQueryChecks(BackendKind backend) {
+    karma::physics::PhysicsSystem physics;
+    physics.setBackend(backend);
+    physics.init();
+
+    if (!physics.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to initialize (shape-offset check)\n";
+        return false;
+    }
+
+    BodyDesc baseline_desc{};
+    baseline_desc.is_static = true;
+    baseline_desc.collider_shape.kind = BackendColliderShapeKind::Box;
+    baseline_desc.collider_shape.box_half_extents = glm::vec3(0.5f, 0.5f, 0.5f);
+    baseline_desc.collider_shape.local_center = glm::vec3(0.0f, 0.0f, 0.0f);
+    baseline_desc.transform.position = glm::vec3(-2.0f, 0.0f, 0.0f);
+    const BodyId baseline_body = physics.createBody(baseline_desc);
+    if (baseline_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create baseline box body (shape-offset check)\n";
+        physics.shutdown();
+        return false;
+    }
+
+    BodyDesc offset_desc = baseline_desc;
+    offset_desc.transform.position = glm::vec3(2.0f, 0.0f, 0.0f);
+    offset_desc.collider_shape.local_center = glm::vec3(0.0f, 2.0f, 0.0f);
+    const BodyId offset_body = physics.createBody(offset_desc);
+    if (offset_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create offset box body (shape-offset check)\n";
+        physics.destroyBody(baseline_body);
+        physics.shutdown();
+        return false;
+    }
+
+    BodyDesc invalid_offset_desc = baseline_desc;
+    invalid_offset_desc.transform.position = glm::vec3(6.0f, 0.0f, 0.0f);
+    invalid_offset_desc.collider_shape.local_center.x = std::numeric_limits<float>::quiet_NaN();
+    if (physics.createBody(invalid_offset_desc) != karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " createBody unexpectedly succeeded with non-finite local offset\n";
+        physics.destroyBody(offset_body);
+        physics.destroyBody(baseline_body);
+        physics.shutdown();
+        return false;
+    }
+
+    constexpr float ray_max_distance = 10.0f;
+    const glm::vec3 ray_direction(0.0f, -1.0f, 0.0f);
+    RaycastHit baseline_hit{};
+    if (!physics.raycastClosest(glm::vec3(-2.0f, 5.0f, 0.0f), ray_direction, ray_max_distance, baseline_hit)
+        || baseline_hit.body != baseline_body) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " shape-offset baseline raycast mismatch\n";
+        physics.destroyBody(offset_body);
+        physics.destroyBody(baseline_body);
+        physics.shutdown();
+        return false;
+    }
+
+    RaycastHit offset_hit{};
+    if (!physics.raycastClosest(glm::vec3(2.0f, 5.0f, 0.0f), ray_direction, ray_max_distance, offset_hit)
+        || offset_hit.body != offset_body) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " shape-offset centered raycast mismatch\n";
+        physics.destroyBody(offset_body);
+        physics.destroyBody(baseline_body);
+        physics.shutdown();
+        return false;
+    }
+
+    if (!(baseline_hit.distance > 4.2f && baseline_hit.distance < 4.8f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " baseline shape-offset distance out of range: distance=" << baseline_hit.distance << "\n";
+        physics.destroyBody(offset_body);
+        physics.destroyBody(baseline_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!(offset_hit.distance > 2.2f && offset_hit.distance < 2.8f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " offset shape distance out of range: distance=" << offset_hit.distance << "\n";
+        physics.destroyBody(offset_body);
+        physics.destroyBody(baseline_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!(offset_hit.distance + 1.0f < baseline_hit.distance)
+        || !(offset_hit.position.y > baseline_hit.position.y + 1.5f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " local-center offset did not shift collision query behavior as expected\n";
+        physics.destroyBody(offset_body);
+        physics.destroyBody(baseline_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.destroyBody(offset_body);
+    physics.destroyBody(baseline_body);
+    physics.shutdown();
+    return true;
+}
+
 bool RunBodyVelocityApiChecks(BackendKind backend) {
     karma::physics::PhysicsSystem physics;
     physics.setBackend(backend);
@@ -481,6 +586,160 @@ bool RunBodyVelocityApiChecks(BackendKind backend) {
         || physics.getBodyAngularVelocity(dynamic_body, observed_angular)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " velocity APIs unexpectedly succeeded after body destroy\n";
+        physics.shutdown();
+        return false;
+    }
+
+    physics.shutdown();
+    return true;
+}
+
+bool RunBodyDampingApiChecks(BackendKind backend) {
+    karma::physics::PhysicsSystem physics;
+    physics.setBackend(backend);
+    physics.init();
+
+    if (!physics.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to initialize (damping-api check)\n";
+        return false;
+    }
+
+    BodyDesc dynamic_desc{};
+    dynamic_desc.is_static = false;
+    dynamic_desc.mass = 1.0f;
+    dynamic_desc.transform.position = glm::vec3(0.0f, 3.0f, 0.0f);
+    dynamic_desc.linear_damping = 0.35f;
+    dynamic_desc.angular_damping = 0.65f;
+    const BodyId dynamic_body = physics.createBody(dynamic_desc);
+    if (dynamic_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create dynamic body (damping-api check)\n";
+        physics.shutdown();
+        return false;
+    }
+
+    float observed_linear_damping = 0.0f;
+    float observed_angular_damping = 0.0f;
+    if (!physics.getBodyLinearDamping(dynamic_body, observed_linear_damping)
+        || !NearlyEqual(observed_linear_damping, dynamic_desc.linear_damping, 5e-3f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " linear damping read mismatch after dynamic create\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyAngularDamping(dynamic_body, observed_angular_damping)
+        || !NearlyEqual(observed_angular_damping, dynamic_desc.angular_damping, 5e-3f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " angular damping read mismatch after dynamic create\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+
+    const float updated_linear_damping = 0.2f;
+    const float updated_angular_damping = 1.1f;
+    if (!physics.setBodyLinearDamping(dynamic_body, updated_linear_damping)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyLinearDamping failed for valid dynamic body\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.setBodyAngularDamping(dynamic_body, updated_angular_damping)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyAngularDamping failed for valid dynamic body\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyLinearDamping(dynamic_body, observed_linear_damping)
+        || !NearlyEqual(observed_linear_damping, updated_linear_damping, 5e-3f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " linear damping roundtrip mismatch\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyAngularDamping(dynamic_body, observed_angular_damping)
+        || !NearlyEqual(observed_angular_damping, updated_angular_damping, 5e-3f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " angular damping roundtrip mismatch\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+
+    if (physics.setBodyLinearDamping(dynamic_body, -0.01f)
+        || physics.setBodyAngularDamping(dynamic_body, std::numeric_limits<float>::quiet_NaN())) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " damping APIs unexpectedly accepted invalid damping values\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+
+    BodyDesc static_desc{};
+    static_desc.is_static = true;
+    const BodyId static_body = physics.createBody(static_desc);
+    if (static_body == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " failed to create static body (damping-api check)\n";
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyLinearDamping(static_body, 0.1f)
+        || physics.getBodyLinearDamping(static_body, observed_linear_damping)
+        || physics.setBodyAngularDamping(static_body, 0.1f)
+        || physics.getBodyAngularDamping(static_body, observed_angular_damping)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " damping APIs unexpectedly succeeded on static body\n";
+        physics.destroyBody(static_body);
+        physics.destroyBody(dynamic_body);
+        physics.shutdown();
+        return false;
+    }
+
+    physics.destroyBody(static_body);
+    physics.destroyBody(dynamic_body);
+    if (physics.setBodyLinearDamping(dynamic_body, 0.0f)
+        || physics.getBodyLinearDamping(dynamic_body, observed_linear_damping)
+        || physics.setBodyAngularDamping(dynamic_body, 0.0f)
+        || physics.getBodyAngularDamping(dynamic_body, observed_angular_damping)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " damping APIs unexpectedly succeeded after body destroy\n";
+        physics.shutdown();
+        return false;
+    }
+
+    if (physics.setBodyLinearDamping(karma::physics_backend::kInvalidBodyId, 0.0f)
+        || physics.getBodyLinearDamping(karma::physics_backend::kInvalidBodyId, observed_linear_damping)
+        || physics.setBodyAngularDamping(karma::physics_backend::kInvalidBodyId, 0.0f)
+        || physics.getBodyAngularDamping(karma::physics_backend::kInvalidBodyId, observed_angular_damping)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " damping APIs unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+
+    BodyDesc invalid_linear_desc{};
+    invalid_linear_desc.is_static = false;
+    invalid_linear_desc.mass = 1.0f;
+    invalid_linear_desc.linear_damping = -0.2f;
+    if (physics.createBody(invalid_linear_desc) != karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " createBody unexpectedly accepted negative linear damping\n";
+        physics.shutdown();
+        return false;
+    }
+    BodyDesc invalid_angular_desc = invalid_linear_desc;
+    invalid_angular_desc.linear_damping = 0.1f;
+    invalid_angular_desc.angular_damping = std::numeric_limits<float>::quiet_NaN();
+    if (physics.createBody(invalid_angular_desc) != karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " createBody unexpectedly accepted non-finite angular damping\n";
         physics.shutdown();
         return false;
     }
@@ -742,6 +1001,31 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    float damping_out = 0.0f;
+    if (physics.setBodyLinearDamping(karma::physics_backend::kInvalidBodyId, 0.0f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyLinearDamping unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyLinearDamping(karma::physics_backend::kInvalidBodyId, damping_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyLinearDamping unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyAngularDamping(karma::physics_backend::kInvalidBodyId, 0.0f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyAngularDamping unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyAngularDamping(karma::physics_backend::kInvalidBodyId, damping_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyAngularDamping unexpectedly succeeded for invalid id\n";
+        physics.shutdown();
+        return false;
+    }
     if (physics.setBodyTrigger(karma::physics_backend::kInvalidBodyId, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTrigger unexpectedly succeeded for invalid id\n";
@@ -830,6 +1114,30 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    if (physics.setBodyLinearDamping(bogus, 0.0f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyLinearDamping unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyLinearDamping(bogus, damping_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyLinearDamping unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyAngularDamping(bogus, 0.0f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyAngularDamping unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyAngularDamping(bogus, damping_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyAngularDamping unexpectedly succeeded for unknown id\n";
+        physics.shutdown();
+        return false;
+    }
     if (physics.setBodyTrigger(bogus, true)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " setBodyTrigger unexpectedly succeeded for unknown id\n";
@@ -902,6 +1210,30 @@ bool RunInvalidBodyApiChecks(BackendKind backend) {
     if (physics.getBodyAngularVelocity(body, velocity_out)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " getBodyAngularVelocity unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyLinearDamping(body, 0.0f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyLinearDamping unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyLinearDamping(body, damping_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyLinearDamping unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.setBodyAngularDamping(body, 0.0f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " setBodyAngularDamping unexpectedly succeeded after destroy\n";
+        physics.shutdown();
+        return false;
+    }
+    if (physics.getBodyAngularDamping(body, damping_out)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " getBodyAngularDamping unexpectedly succeeded after destroy\n";
         physics.shutdown();
         return false;
     }
@@ -1974,6 +2306,22 @@ bool RunScenePhysicsComponentContractChecks() {
         return false;
     }
 
+    RigidBodyIntentComponent invalid_linear_damping_rigidbody{};
+    invalid_linear_damping_rigidbody.linear_damping = -0.1f;
+    if (karma::scene::ValidateRigidBodyIntent(invalid_linear_damping_rigidbody, &error)
+        || error != PhysicsComponentValidationError::NonPositiveDimension) {
+        std::cerr << "scene physics component contract: negative linear damping was not rejected\n";
+        return false;
+    }
+
+    RigidBodyIntentComponent invalid_angular_damping_rigidbody{};
+    invalid_angular_damping_rigidbody.angular_damping = std::numeric_limits<float>::quiet_NaN();
+    if (karma::scene::ValidateRigidBodyIntent(invalid_angular_damping_rigidbody, &error)
+        || error != PhysicsComponentValidationError::NonFiniteValue) {
+        std::cerr << "scene physics component contract: non-finite angular damping was not rejected\n";
+        return false;
+    }
+
     RigidBodyIntentComponent nan_velocity_rigidbody{};
     nan_velocity_rigidbody.linear_velocity.x = std::numeric_limits<float>::quiet_NaN();
     if (karma::scene::ValidateRigidBodyIntent(nan_velocity_rigidbody, &error)
@@ -2259,31 +2607,6 @@ bool RunScenePhysicsComponentContractChecks() {
         std::cerr << "scene physics component contract: null-controller velocity ownership mismatch\n";
         return false;
     }
-    PlayerControllerIntentComponent jump_helper_controller = default_controller;
-    jump_helper_controller.jump_requested = true;
-    jump_helper_controller.desired_velocity = glm::vec3(0.6f, 4.5f, -0.4f);
-    if (!karma::scene::HasControllerJumpUpwardIntent(jump_helper_controller)) {
-        std::cerr << "scene physics component contract: jump upward intent helper mismatch\n";
-        return false;
-    }
-    const glm::vec3 seed_runtime_velocity(0.2f, -2.0f, 0.3f);
-    const glm::vec3 composed_no_jump =
-        karma::scene::ComposeControllerRuntimeLinearVelocity(seed_runtime_velocity, jump_helper_controller, false);
-    if (!NearlyEqualVec3(composed_no_jump, glm::vec3(0.6f, -2.0f, -0.4f), 1e-5f)) {
-        std::cerr << "scene physics component contract: controller runtime velocity compose no-jump mismatch\n";
-        return false;
-    }
-    const glm::vec3 composed_with_jump =
-        karma::scene::ComposeControllerRuntimeLinearVelocity(seed_runtime_velocity, jump_helper_controller, true);
-    if (!NearlyEqualVec3(composed_with_jump, glm::vec3(0.6f, 4.5f, -0.4f), 1e-5f)) {
-        std::cerr << "scene physics component contract: controller runtime velocity compose jump mismatch\n";
-        return false;
-    }
-    jump_helper_controller.desired_velocity.y = 0.0f;
-    if (karma::scene::HasControllerJumpUpwardIntent(jump_helper_controller)) {
-        std::cerr << "scene physics component contract: non-upward jump intent helper mismatch\n";
-        return false;
-    }
 
     if (karma::scene::ClassifyControllerGeometryReconcileAction(
             default_controller, default_controller, ControllerColliderCompatibility::Compatible)
@@ -2415,7 +2738,10 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
 
     const auto entity_create = world.createEntity();
     world.add<TransformComponent>(entity_create, make_transform_component(glm::vec3(0.0f, 3.0f, 0.0f)));
-    world.add<RigidBodyIntentComponent>(entity_create, RigidBodyIntentComponent{});
+    RigidBodyIntentComponent create_rigidbody{};
+    create_rigidbody.linear_damping = 0.35f;
+    create_rigidbody.angular_damping = 0.7f;
+    world.add<RigidBodyIntentComponent>(entity_create, create_rigidbody);
     world.add<ColliderIntentComponent>(entity_create, ColliderIntentComponent{});
     world.add<PhysicsTransformOwnershipComponent>(entity_create, PhysicsTransformOwnershipComponent{});
 
@@ -2435,6 +2761,17 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         || !NearlyEqualVec3(created_snapshot.position, glm::vec3(0.0f, 3.0f, 0.0f), 1e-3f)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync snapshot mismatch after create\n";
+        physics.shutdown();
+        return false;
+    }
+    float create_linear_damping = 0.0f;
+    float create_angular_damping = 0.0f;
+    if (!physics.getBodyLinearDamping(created_body, create_linear_damping)
+        || !physics.getBodyAngularDamping(created_body, create_angular_damping)
+        || !NearlyEqual(create_linear_damping, create_rigidbody.linear_damping, 5e-3f)
+        || !NearlyEqual(create_angular_damping, create_rigidbody.angular_damping, 5e-3f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync did not apply rigidbody damping on create\n";
         physics.shutdown();
         return false;
     }
@@ -2616,6 +2953,60 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         return false;
     }
 
+    const auto entity_damping = world.createEntity();
+    world.add<TransformComponent>(entity_damping, make_transform_component(glm::vec3(-5.0f, 6.0f, 0.0f)));
+    RigidBodyIntentComponent damping_rigidbody{};
+    damping_rigidbody.linear_damping = 0.25f;
+    damping_rigidbody.angular_damping = 0.9f;
+    world.add<RigidBodyIntentComponent>(entity_damping, damping_rigidbody);
+    world.add<ColliderIntentComponent>(entity_damping, ColliderIntentComponent{});
+    world.add<PhysicsTransformOwnershipComponent>(entity_damping, PhysicsTransformOwnershipComponent{});
+
+    sync.preSimulate(world);
+    BodyId damping_body_before = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_damping, damping_body_before)
+        || damping_body_before == karma::physics_backend::kInvalidBodyId) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync failed to create damping fixture runtime body\n";
+        physics.shutdown();
+        return false;
+    }
+
+    float runtime_linear_damping = 0.0f;
+    float runtime_angular_damping = 0.0f;
+    if (!physics.getBodyLinearDamping(damping_body_before, runtime_linear_damping)
+        || !physics.getBodyAngularDamping(damping_body_before, runtime_angular_damping)
+        || !NearlyEqual(runtime_linear_damping, damping_rigidbody.linear_damping, 5e-3f)
+        || !NearlyEqual(runtime_angular_damping, damping_rigidbody.angular_damping, 5e-3f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync damping fixture did not apply create-time damping\n";
+        physics.shutdown();
+        return false;
+    }
+
+    auto* damping_rigidbody_mut = world.tryGet<RigidBodyIntentComponent>(entity_damping);
+    damping_rigidbody_mut->linear_damping = 0.05f;
+    damping_rigidbody_mut->angular_damping = 0.4f;
+    sync.preSimulate(world);
+
+    BodyId damping_body_after = karma::physics_backend::kInvalidBodyId;
+    if (!sync.tryGetRuntimeBody(entity_damping, damping_body_after)
+        || damping_body_after != damping_body_before) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync damping mutation unexpectedly caused body-id churn\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!physics.getBodyLinearDamping(damping_body_after, runtime_linear_damping)
+        || !physics.getBodyAngularDamping(damping_body_after, runtime_angular_damping)
+        || !NearlyEqual(runtime_linear_damping, damping_rigidbody_mut->linear_damping, 5e-3f)
+        || !NearlyEqual(runtime_angular_damping, damping_rigidbody_mut->angular_damping, 5e-3f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync damping mutation did not update runtime damping values\n";
+        physics.shutdown();
+        return false;
+    }
+
     const auto entity_controller = world.createEntity();
     world.add<TransformComponent>(entity_controller, make_transform_component(glm::vec3(3.0f, 6.0f, 0.0f)));
     RigidBodyIntentComponent controller_rigidbody{};
@@ -2643,6 +3034,8 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     }
 
     auto* controller_intent = world.tryGet<PlayerControllerIntentComponent>(entity_controller);
+    controller_intent->desired_velocity = glm::vec3(1.1f, 0.0f, -0.6f);
+    sync.preSimulate(world);
     BodyId controller_body = karma::physics_backend::kInvalidBodyId;
     if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
         || controller_body == karma::physics_backend::kInvalidBodyId) {
@@ -2651,33 +3044,11 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
-    const glm::vec3 controller_vertical_fixture(-0.35f, 3.25f, 0.15f);
-    if (!physics.setBodyLinearVelocity(controller_body, controller_vertical_fixture)) {
-        std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync controller vertical-preservation fixture setup failed\n";
-        physics.shutdown();
-        return false;
-    }
-
-    controller_intent->desired_velocity = glm::vec3(1.1f, 0.0f, -0.6f);
-    controller_intent->jump_requested = false;
-    sync.preSimulate(world);
-    if (!sync.tryGetRuntimeBody(entity_controller, controller_body)
-        || controller_body == karma::physics_backend::kInvalidBodyId) {
-        std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync lost controller body during desired-velocity check\n";
-        physics.shutdown();
-        return false;
-    }
     glm::vec3 controller_runtime_linear_velocity{};
-    const glm::vec3 expected_controller_no_jump_velocity(
-        controller_intent->desired_velocity.x,
-        controller_vertical_fixture.y,
-        controller_intent->desired_velocity.z);
     if (!physics.getBodyLinearVelocity(controller_body, controller_runtime_linear_velocity)
-        || !NearlyEqualVec3(controller_runtime_linear_velocity, expected_controller_no_jump_velocity, 5e-2f)) {
+        || !NearlyEqualVec3(controller_runtime_linear_velocity, controller_intent->desired_velocity, 5e-2f)) {
         std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync enabled controller clobbered runtime vertical velocity\n";
+                  << " ecs-sync did not apply enabled controller desired velocity to runtime body\n";
         physics.shutdown();
         return false;
     }
@@ -2686,41 +3057,6 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         || !NearlyEqualVec3(controller_runtime_angular_velocity, glm::vec3(0.0f, 0.0f, 0.0f), 5e-2f)) {
         std::cerr << "backend=" << BackendKindName(backend)
                   << " ecs-sync did not enforce zero angular velocity for enabled controller ownership\n";
-        physics.shutdown();
-        return false;
-    }
-
-    controller_intent->desired_velocity = glm::vec3(0.25f, 5.5f, -0.45f);
-    controller_intent->jump_requested = true;
-    sync.preSimulate(world);
-    if (controller_intent->jump_requested) {
-        std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync did not consume one-shot jump request for enabled compatible controller\n";
-        physics.shutdown();
-        return false;
-    }
-    const glm::vec3 expected_controller_jump_velocity(
-        controller_intent->desired_velocity.x,
-        controller_intent->desired_velocity.y,
-        controller_intent->desired_velocity.z);
-    if (!physics.getBodyLinearVelocity(controller_body, controller_runtime_linear_velocity)
-        || !NearlyEqualVec3(controller_runtime_linear_velocity, expected_controller_jump_velocity, 5e-2f)) {
-        std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync did not apply one-shot jump velocity update\n";
-        physics.shutdown();
-        return false;
-    }
-
-    controller_intent->desired_velocity = glm::vec3(-0.8f, 9.0f, 0.35f);
-    sync.preSimulate(world);
-    const glm::vec3 expected_controller_post_jump_velocity(
-        controller_intent->desired_velocity.x,
-        expected_controller_jump_velocity.y,
-        controller_intent->desired_velocity.z);
-    if (!physics.getBodyLinearVelocity(controller_body, controller_runtime_linear_velocity)
-        || !NearlyEqualVec3(controller_runtime_linear_velocity, expected_controller_post_jump_velocity, 5e-2f)) {
-        std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync reapplied jump vertical velocity without a new jump request\n";
         physics.shutdown();
         return false;
     }
@@ -2794,6 +3130,25 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         return false;
     }
 
+    BodyTransform before_center_mutation_runtime_transform{};
+    if (!physics.getBodyTransform(controller_body_after_second_noop, before_center_mutation_runtime_transform)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync failed to read controller transform before center-offset query check\n";
+        physics.shutdown();
+        return false;
+    }
+    const glm::vec3 center_offset_probe_origin_before =
+        before_center_mutation_runtime_transform.position + glm::vec3(0.0f, -3.0f, 0.0f);
+    RaycastHit center_offset_before_hit{};
+    if (!physics.raycastClosest(
+            center_offset_probe_origin_before, glm::vec3(0.0f, 1.0f, 0.0f), 10.0f, center_offset_before_hit)
+        || center_offset_before_hit.body != controller_body_after_second_noop) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync failed to query controller underside before center mutation\n";
+        physics.shutdown();
+        return false;
+    }
+
     controller_intent->center.y += 0.18f;
     sync.preSimulate(world);
     BodyId controller_body_after_center_rebuild = karma::physics_backend::kInvalidBodyId;
@@ -2804,12 +3159,34 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
+    BodyTransform after_center_mutation_runtime_transform{};
+    if (!physics.getBodyTransform(controller_body_after_center_rebuild, after_center_mutation_runtime_transform)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync failed to read controller transform after center-offset query check\n";
+        physics.shutdown();
+        return false;
+    }
+    const glm::vec3 center_offset_probe_origin_after =
+        after_center_mutation_runtime_transform.position + glm::vec3(0.0f, -3.0f, 0.0f);
+    RaycastHit center_offset_after_hit{};
+    if (!physics.raycastClosest(
+            center_offset_probe_origin_after, glm::vec3(0.0f, 1.0f, 0.0f), 10.0f, center_offset_after_hit)
+        || center_offset_after_hit.body != controller_body_after_center_rebuild) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync failed to query controller underside after center mutation\n";
+        physics.shutdown();
+        return false;
+    }
+    if (!(center_offset_after_hit.position.y > center_offset_before_hit.position.y + 0.10f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " ecs-sync controller center mutation did not shift runtime underside via local offset\n";
+        physics.shutdown();
+        return false;
+    }
     controller_body = controller_body_after_center_rebuild;
 
     auto* controller_rigidbody_intent = world.tryGet<RigidBodyIntentComponent>(entity_controller);
     controller_intent->enabled = false;
-    controller_intent->jump_requested = true;
-    controller_intent->desired_velocity.y = 6.5f;
     controller_rigidbody_intent->linear_velocity = glm::vec3(0.55f, 0.0f, -0.35f);
     controller_rigidbody_intent->angular_velocity = glm::vec3(0.0f, -0.6f, 0.1f);
     sync.preSimulate(world);
@@ -2847,15 +3224,8 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
-    if (!controller_intent->jump_requested) {
-        std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync unexpectedly consumed jump request while controller was disabled\n";
-        physics.shutdown();
-        return false;
-    }
 
     controller_intent->enabled = true;
-    controller_intent->jump_requested = false;
     controller_intent->desired_velocity = glm::vec3(-1.2f, 0.0f, 0.8f);
     controller_rigidbody_intent->linear_velocity = glm::vec3(0.05f, 0.0f, 0.05f);
     controller_rigidbody_intent->angular_velocity = glm::vec3(0.0f, 0.2f, 0.2f);
@@ -2910,8 +3280,7 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
     world.add<PhysicsTransformOwnershipComponent>(entity_controller_static, PhysicsTransformOwnershipComponent{});
     PlayerControllerIntentComponent static_controller_intent{};
     static_controller_intent.enabled = true;
-    static_controller_intent.desired_velocity = glm::vec3(2.0f, 4.0f, 0.0f);
-    static_controller_intent.jump_requested = true;
+    static_controller_intent.desired_velocity = glm::vec3(2.0f, 0.0f, 0.0f);
     world.add<PlayerControllerIntentComponent>(entity_controller_static, static_controller_intent);
 
     auto* static_controller_component = world.tryGet<PlayerControllerIntentComponent>(entity_controller_static);
@@ -2941,19 +3310,12 @@ bool RunEcsSyncSystemPolicyChecks(BackendKind backend) {
         physics.shutdown();
         return false;
     }
-    if (!static_controller_component->jump_requested) {
-        std::cerr << "backend=" << BackendKindName(backend)
-                  << " ecs-sync unexpectedly consumed jump request for incompatible controller intent\n";
-        physics.shutdown();
-        return false;
-    }
     for (int i = 0; i < 3; ++i) {
         sync.preSimulate(world);
         BodyId observed_static_controller_body = karma::physics_backend::kInvalidBodyId;
         if (!sync.tryGetRuntimeBody(entity_controller_static, observed_static_controller_body)
             || observed_static_controller_body != static_controller_body
-            || sync.hasControllerRuntimeBinding(entity_controller_static)
-            || !static_controller_component->jump_requested) {
+            || sync.hasControllerRuntimeBinding(entity_controller_static)) {
             std::cerr << "backend=" << BackendKindName(backend)
                       << " ecs-sync controller/non-dynamic rejection path was not stable across repeated pre-sim passes\n";
             physics.shutdown();
@@ -3298,7 +3660,13 @@ int main(int argc, char** argv) {
         if (!RunColliderShapeAndRuntimePropertyChecks(backend)) {
             return EXIT_FAILURE;
         }
+        if (!RunColliderShapeOffsetQueryChecks(backend)) {
+            return EXIT_FAILURE;
+        }
         if (!RunBodyVelocityApiChecks(backend)) {
+            return EXIT_FAILURE;
+        }
+        if (!RunBodyDampingApiChecks(backend)) {
             return EXIT_FAILURE;
         }
         if (!RunUninitializedApiChecks(backend)) {

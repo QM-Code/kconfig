@@ -2,9 +2,9 @@
 
 ## Project Snapshot
 - Current owner: `specialist-physics-refactor`
-- Status: `in progress` (Phase 4e landed: controller runtime velocity ownership now preserves live vertical velocity, applies one-shot jump intent deterministically, and leaves disabled/incompatible controller jump intent untouched)
+- Status: `in progress` (Phase 4g landed: engine-generic runtime linear/angular damping mutation parity is now wired across scene intent, substrate/backends, and ECS sync)
 - Supersedes: `docs/projects/physics-backend.md` (retired to `docs/archive/physics-backend-retired-2026-02-17.md`)
-- Immediate next task: execute a bounded Phase 4 follow-up to deepen controller-runtime parity beyond velocity/jump mutation handling while keeping backend-native controller objects out of scope.
+- Immediate next task: execute a bounded Phase 4 follow-up to deepen remaining engine-generic runtime mutation parity (rigidbody/collider/controller contracts) while keeping backend-native controller objects out of scope.
 - Validation gate: `./scripts/test-engine-backends.sh <build-dir>`
 
 ## Mission
@@ -444,6 +444,75 @@ Explicit remaining deferrals after Phase 4e:
 - No engine loop integration in `src/engine/app/*`.
 - No gameplay migration wiring.
 
+## Phase 4e Boundary Correction Slice (2026-02-18)
+Landed in this bounded slice:
+- Removed jump-specific APIs from engine scene-physics contracts in `include/karma/scene/physics_components.hpp`:
+  - removed `jump_requested` from `PlayerControllerIntentComponent`,
+  - removed jump-specific helper APIs (`HasControllerJumpUpwardIntent`, `ComposeControllerRuntimeLinearVelocity`).
+- Updated ECS sync in `src/engine/physics/ecs_sync_system.cpp`:
+  - removed all jump read/consume/mutate behavior,
+  - restored engine-generic controller velocity ownership behavior: enabled + compatible controller writes `desired_velocity` and zero angular velocity; disabled/absent/incompatible paths stay rigidbody-owned.
+- Updated parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp`:
+  - removed jump behavior assertions/helper checks,
+  - retained engine-generic controller/rigidbody velocity ownership and compatibility lifecycle checks.
+
+Explicit remaining deferrals after Phase 4e boundary correction:
+- No backend-native player-controller runtime object.
+- No grounded/controller movement gameplay semantics in engine physics contracts.
+- No real static-mesh geometry ingestion pipeline.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
+## Phase 4f Collider Local-Offset Intake Slice (2026-02-18)
+Landed in this bounded slice:
+- Extended backend-neutral substrate shape descriptor in `include/karma/physics/backend.hpp` with `ColliderShapeDesc.local_center` (create-time collider local offset).
+- Implemented offset-aware shape creation in both compiled backends:
+  - `src/engine/physics/backends/backend_jolt_stub.cpp`: wraps Box/Sphere/Capsule shapes in a translated shape when `local_center` is non-zero.
+  - `src/engine/physics/backends/backend_physx_stub.cpp`: applies `PxShape::setLocalPose` from `local_center` for Box/Sphere/Capsule.
+- Kept deterministic invalid-input behavior for the new offset path by rejecting non-finite local-center input in both backends.
+- Updated ECS sync runtime shape build path in `src/engine/physics/ecs_sync_system.cpp`:
+  - removed controller-center placeholder extents expansion,
+  - controller geometry now uses true dimensions (`half_extents`) plus `local_center = controller.center` in the substrate `BodyDesc`.
+- Added parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp` for:
+  - backend-level shape-offset collision-query behavior consistency (including invalid local-offset rejection),
+  - ECS controller-center mutation behavior proving underside query shifts in the offset direction across rebuild (distinguishes true offset from extents-expansion workaround).
+
+Explicit remaining deferrals after Phase 4f:
+- No backend-native player-controller runtime object.
+- No grounded/controller movement gameplay semantics in engine physics contracts.
+- No real static-mesh geometry ingestion pipeline.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
+## Phase 4g Runtime Damping Mutation Parity Slice (2026-02-18)
+Landed in this bounded slice:
+- Extended scene rigidbody intent contract in `include/karma/scene/physics_components.hpp`:
+  - added `linear_damping` + `angular_damping`,
+  - validation now enforces finite and non-negative damping values.
+- Extended backend-neutral substrate contracts in `include/karma/physics/backend.hpp` + `include/karma/physics/physics_system.hpp`:
+  - `BodyDesc` now carries create-time linear/angular damping,
+  - added runtime damping APIs (`set/get` linear damping, `set/get` angular damping).
+- Implemented `PhysicsSystem` passthroughs in `src/engine/physics/physics_system.cpp` for damping APIs.
+- Implemented backend runtime damping behavior in `backend_jolt_stub.cpp` + `backend_physx_stub.cpp`:
+  - create-time damping is consumed for dynamic bodies,
+  - runtime damping set/get works for valid dynamic bodies,
+  - deterministic `false` is returned for invalid/unknown/non-dynamic bodies and invalid damping values.
+- Updated ECS sync in `src/engine/physics/ecs_sync_system.cpp`:
+  - rigidbody damping is applied in runtime body creation via `BodyDesc`,
+  - valid damping intent mutations are applied through runtime substrate APIs without forcing body rebuild/churn,
+  - runtime damping mutation failure follows deterministic teardown behavior.
+- Added bounded parity coverage in `src/engine/physics/tests/physics_backend_parity_test.cpp` for:
+  - damping API roundtrip + invalid/static rejection behavior,
+  - ECS damping mutation updates without body-id churn,
+  - scene rigidbody damping validation contract checks.
+
+Explicit remaining deferrals after Phase 4g:
+- No backend-native player-controller runtime object.
+- No grounded/controller movement gameplay semantics in engine physics contracts.
+- No real static-mesh geometry ingestion pipeline.
+- No engine loop integration in `src/engine/app/*`.
+- No gameplay migration wiring.
+
 ## Current Status
 - `2026-02-17`: Project created as full replacement for backend-only parity track.
 - `2026-02-17`: `physics-backend.md` retired and subsumed into this plan.
@@ -534,7 +603,35 @@ Explicit remaining deferrals after Phase 4e:
   - `./scripts/test-engine-backends.sh build-a3` (pass)
   - `./docs/scripts/lint-project-docs.sh` (pass)
   - `./abuild.py --lock-status -d build-a3` (owner verified)
-- Next implementation slice: execute a bounded Phase 4 follow-up to deepen controller-runtime parity beyond velocity/jump mutation handling while keeping backend-native controller objects out of scope.
+- `2026-02-18`: Phase 4e boundary correction landed:
+  - removed `jump_requested` and jump-specific helper APIs from engine scene-physics contracts,
+  - removed jump consume/mutate behavior from ECS sync,
+  - parity checks now cover engine-generic controller/rigidbody velocity ownership without jump semantics.
+- `2026-02-18`: Phase 4e boundary-correction validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- `2026-02-18`: Phase 4f collider local-offset intake slice landed:
+  - substrate shape descriptor now carries backend-neutral collider local-center offset,
+  - Jolt/PhysX runtime shape creation now consumes local-center for Box/Sphere/Capsule,
+  - ECS controller-center runtime mapping now uses shape local offset instead of placeholder extents expansion,
+  - parity checks now cover backend offset query behavior and ECS controller-center offset rebuild behavior.
+- `2026-02-18`: Phase 4f validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- `2026-02-18`: Phase 4g runtime damping mutation parity slice landed:
+  - scene rigidbody intent now carries validated linear/angular damping,
+  - substrate/backends now expose runtime damping set/get APIs with dynamic-body deterministic rejection semantics,
+  - ECS sync now applies damping on create and valid mutation updates without runtime body-id churn.
+- `2026-02-18`: Phase 4g validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+  - `./abuild.py --lock-status -d build-a3` (owner verified)
+- Next implementation slice: execute a bounded Phase 4 follow-up to close remaining engine-generic runtime mutation parity gaps while keeping backend-native controller objects out of scope.
 
 ## Handoff Checklist
 - [x] `physics-refactor.md` remains the single active physics project doc in `docs/projects/`.
