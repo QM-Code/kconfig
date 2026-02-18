@@ -67,10 +67,7 @@ add_executable(bz3
     ${PROJECT_SOURCE_DIR}/src/game/client/net/connection/inbound/session_events.cpp
     ${PROJECT_SOURCE_DIR}/src/game/client/net/connection/inbound/transport_lifecycle.cpp
     ${PROJECT_SOURCE_DIR}/src/game/client/net/connection/outbound.cpp
-    ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/primitives.cpp
-    ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/manifest.cpp
-    ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/cache.cpp
-    ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/delta.cpp
+    ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/bridge.cpp
     ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/apply.cpp
     ${PROJECT_SOURCE_DIR}/src/game/client/main.cpp
     ${BZ3_CLIENT_GAME_SRCS}
@@ -275,10 +272,7 @@ if(BUILD_TESTING)
         ${PROJECT_SOURCE_DIR}/src/game/client/net/connection/inbound/session_events.cpp
         ${PROJECT_SOURCE_DIR}/src/game/client/net/connection/inbound/transport_lifecycle.cpp
         ${PROJECT_SOURCE_DIR}/src/game/client/net/connection/outbound.cpp
-        ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/primitives.cpp
-        ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/manifest.cpp
-        ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/cache.cpp
-        ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/delta.cpp
+        ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/bridge.cpp
         ${PROJECT_SOURCE_DIR}/src/game/client/net/world_package/apply.cpp
         ${BZ3_PROTOCOL_CODEC_SRCS}
         ${BZ3_SERVER_TRANSPORT_EVENT_SOURCE_SRCS}
