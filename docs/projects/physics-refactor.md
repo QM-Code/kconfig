@@ -1,10 +1,10 @@
 # Physics Refactor (KARMA Alignment)
 
 ## Project Snapshot
-- Current owner: `codex`
-- Status: `in progress` (scope reset from backend-only parity to full KARMA-aligned physics foundation)
+- Current owner: `specialist-physics-refactor`
+- Status: `in progress` (Phase 0/1 API scaffolding landed; BodyId-backed substrate remains authoritative)
 - Supersedes: `docs/projects/physics-backend.md` (retired to `docs/archive/physics-backend-retired-2026-02-17.md`)
-- Immediate next task: execute Phase 0/1 contract reset and scaffolding for KARMA-style world + controller + collider flow.
+- Immediate next task: execute Phase 2 component-model slice for collider/controller intent data and sync ownership boundaries.
 - Validation gate: `./scripts/test-engine-backends.sh <build-dir>`
 
 ## Mission
@@ -203,15 +203,39 @@ From `m-rewrite/`:
 - Exact collision-layer/filter contract shape for first aligned slice.
 - Runtime lock mutation/query policy in the new layered API.
 
+## Phase 0/1 Contract Slice (2026-02-18)
+Landed in this bounded slice:
+- Public KARMA-aligned facade surface added under `include/karma/physics/*`:
+  - `World`
+  - `RigidBody`
+  - `StaticBody`
+  - `PlayerController`
+  - `PhysicsMaterial` (`types.hpp`)
+- Engine-side facade scaffolding added under `src/engine/physics/*`, mapping facade calls onto existing `PhysicsSystem` + `BodyId` substrate.
+- Existing `PhysicsSystem` parity API remains intact and supported (additive compatibility model, no removal).
+- Backend internals remain hidden from the new public facade headers.
+- Parity harness now includes a bounded world-facade smoke path (`RunFacadeScaffoldChecks`) to prove compile/link/runtime surface viability per backend.
+
+Intentionally deferred (explicit non-goals for this slice):
+- Real static-mesh collision ingestion from mesh assets (`createStaticMesh` currently uses placeholder static-body scaffolding).
+- Controller grounded/collision semantics and shape reconciliation policies.
+- True half-extents/material propagation into backend shape creation.
+- ECS component model and sync-system migration (Phase 2/3 work).
+
 ## Current Status
 - `2026-02-17`: Project created as full replacement for backend-only parity track.
 - `2026-02-17`: `physics-backend.md` retired and subsumed into this plan.
 - Existing backend-core parity work is preserved as foundational input, not discarded.
-- Next implementation slice starts at Phase 0/1 contract reset and scaffolding.
+- `2026-02-18`: Phase 0/1 bounded scaffolding slice landed (`World`/`RigidBody`/`StaticBody`/`PlayerController` facade + minimal engine implementation over `PhysicsSystem`).
+- `2026-02-18`: Required validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+- Next implementation slice starts at Phase 2 component-model expansion.
 
 ## Handoff Checklist
-- [ ] `physics-refactor.md` remains the single active physics project doc in `docs/projects/`.
-- [ ] `ASSIGNMENTS.md` row is updated in same handoff.
-- [ ] Retired project docs are moved under `docs/archive/`.
-- [ ] Validation commands/results are recorded for implementation slices.
-- [ ] Contract decisions and behavior changes are reflected in docs as they land.
+- [x] `physics-refactor.md` remains the single active physics project doc in `docs/projects/`.
+- [x] `ASSIGNMENTS.md` row is updated in same handoff.
+- [x] Retired project docs are moved under `docs/archive/`.
+- [x] Validation commands/results are recorded for implementation slices.
+- [x] Contract decisions and behavior changes are reflected in docs as they land.

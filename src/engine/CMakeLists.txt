@@ -48,6 +48,10 @@ set(ENGINE_CORE_SOURCES
     ${PROJECT_SOURCE_DIR}/src/engine/audio/backends/backend_miniaudio_stub.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/physics/backend_factory.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/physics/physics_system.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/physics/world.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/physics/rigid_body.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/physics/static_body.cpp
+    ${PROJECT_SOURCE_DIR}/src/engine/physics/player_controller.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/physics/backends/backend_jolt_stub.cpp
     ${PROJECT_SOURCE_DIR}/src/engine/physics/backends/backend_physx_stub.cpp
 )

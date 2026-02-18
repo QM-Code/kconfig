@@ -1,5 +1,6 @@
 #include "karma/physics/backend.hpp"
 #include "karma/physics/physics_system.hpp"
+#include "karma/physics/world.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -1467,6 +1468,79 @@ bool RunBackendSelectionChecks() {
     return true;
 }
 
+bool RunFacadeScaffoldChecks(BackendKind backend) {
+    karma::physics::World world;
+    world.setBackend(backend);
+    world.init();
+
+    if (!world.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend) << " world facade failed to initialize\n";
+        return false;
+    }
+    if (world.selectedBackend() != backend) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade selected unexpected backend: "
+                  << BackendKindName(world.selectedBackend()) << "\n";
+        world.shutdown();
+        return false;
+    }
+
+    karma::physics::RigidBody dynamic_body =
+        world.createBoxBody(glm::vec3(0.5f, 0.5f, 0.5f), 1.0f, glm::vec3(0.0f, 3.0f, 0.0f));
+    if (!dynamic_body.isValid()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade failed to create dynamic rigid body\n";
+        world.shutdown();
+        return false;
+    }
+
+    dynamic_body.setPosition(glm::vec3(0.25f, 3.0f, 0.25f));
+    const glm::vec3 moved_position = dynamic_body.getPosition();
+    if (!std::isfinite(moved_position.x) || !std::isfinite(moved_position.y) || !std::isfinite(moved_position.z)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade produced non-finite rigid body position\n";
+        world.shutdown();
+        return false;
+    }
+
+    bool gravity_enabled = false;
+    if (!dynamic_body.getGravityEnabled(gravity_enabled)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade could not query gravity flag for rigid body\n";
+        world.shutdown();
+        return false;
+    }
+
+    karma::physics::StaticBody static_mesh = world.createStaticMesh("demo/worlds/placeholder-static.glb");
+    if (!static_mesh.isValid()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade failed to create placeholder static mesh body\n";
+        world.shutdown();
+        return false;
+    }
+
+    karma::physics::PlayerController& controller = world.createPlayer(glm::vec3(0.5f, 0.9f, 0.5f));
+    controller.setVelocity(glm::vec3(0.1f, 0.0f, 0.0f));
+    controller.update(1.0f / 60.0f);
+
+    if (world.playerController() == nullptr) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade did not retain player controller instance\n";
+        world.shutdown();
+        return false;
+    }
+
+    glm::vec3 hit_point{};
+    glm::vec3 hit_normal{};
+    (void)world.raycast(glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, -8.0f, 0.0f), hit_point, hit_normal);
+
+    controller.destroy();
+    dynamic_body.destroy();
+    static_mesh.destroy();
+    world.shutdown();
+    return true;
+}
+
 bool ParseBackends(int argc, char** argv, std::vector<BackendKind>& out_backends) {
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg(argv[i]);
@@ -1553,6 +1627,9 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
         if (!RunRestingStabilityChecks(backend)) {
+            return EXIT_FAILURE;
+        }
+        if (!RunFacadeScaffoldChecks(backend)) {
             return EXIT_FAILURE;
         }
         if (!RunRepeatabilityChecks(backend)) {
