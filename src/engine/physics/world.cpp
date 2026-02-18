@@ -132,7 +132,7 @@ void World::shutdown() {
     }
 
     auto* system = impl_->system();
-    if (system) {
+    if (system && impl_->state && impl_->state->owns_system) {
         system->shutdown();
     }
 
@@ -327,7 +327,7 @@ bool World::raycast(const glm::vec3& from,
     }
 
     hit_point = hit.position;
-    hit_normal = glm::normalize(-direction);
+    hit_normal = glm::vec3(0.0f, 0.0f, 0.0f);
     return true;
 }
 

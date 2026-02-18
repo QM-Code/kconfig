@@ -56,6 +56,8 @@ class World {
     bool raycast(const glm::vec3& from,
                  const glm::vec3& to,
                  glm::vec3& hit_point,
+                 // Phase 2a contract: hit normals are not yet surfaced by the BodyId substrate.
+                 // On hit this is set to (0,0,0).
                  glm::vec3& hit_normal) const;
 
  private:

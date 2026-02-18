@@ -1,11 +1,14 @@
+#include "karma/ecs/world.hpp"
 #include "karma/physics/backend.hpp"
 #include "karma/physics/physics_system.hpp"
 #include "karma/physics/world.hpp"
+#include "karma/scene/components.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -1468,6 +1471,363 @@ bool RunBackendSelectionChecks() {
     return true;
 }
 
+bool RunScenePhysicsComponentContractChecks() {
+    using karma::scene::ColliderReconcileAction;
+    using karma::scene::ColliderIntentComponent;
+    using karma::scene::ColliderShapeKind;
+    using karma::scene::CollisionMaskIntentComponent;
+    using karma::scene::ControllerColliderCompatibility;
+    using karma::scene::PhysicsTransformAuthority;
+    using karma::scene::PhysicsTransformOwnershipComponent;
+    using karma::scene::PhysicsComponentValidationError;
+    using karma::scene::PlayerControllerIntentComponent;
+    using karma::scene::RigidBodyIntentComponent;
+    using karma::scene::TransformOwnershipValidationError;
+
+    PhysicsComponentValidationError error = PhysicsComponentValidationError::None;
+
+    const RigidBodyIntentComponent default_rigidbody{};
+    if (!karma::scene::ValidateRigidBodyIntent(default_rigidbody, &error)
+        || error != PhysicsComponentValidationError::None) {
+        std::cerr << "scene physics component contract: default rigidbody intent invalid\n";
+        return false;
+    }
+
+    const ColliderIntentComponent default_collider{};
+    if (!karma::scene::ValidateColliderIntent(default_collider, &error)
+        || error != PhysicsComponentValidationError::None) {
+        std::cerr << "scene physics component contract: default collider intent invalid\n";
+        return false;
+    }
+
+    const PlayerControllerIntentComponent default_controller{};
+    if (!karma::scene::ValidatePlayerControllerIntent(default_controller, &error)
+        || error != PhysicsComponentValidationError::None) {
+        std::cerr << "scene physics component contract: default player-controller intent invalid\n";
+        return false;
+    }
+
+    const CollisionMaskIntentComponent default_mask{};
+    if (!karma::scene::ValidateCollisionMaskIntent(default_mask, &error)
+        || error != PhysicsComponentValidationError::None) {
+        std::cerr << "scene physics component contract: default collision mask invalid\n";
+        return false;
+    }
+
+    RigidBodyIntentComponent invalid_mass_rigidbody{};
+    invalid_mass_rigidbody.dynamic = true;
+    invalid_mass_rigidbody.mass = 0.0f;
+    if (karma::scene::ValidateRigidBodyIntent(invalid_mass_rigidbody, &error)
+        || error != PhysicsComponentValidationError::InvalidMass) {
+        std::cerr << "scene physics component contract: invalid rigidbody mass was not rejected\n";
+        return false;
+    }
+
+    RigidBodyIntentComponent nan_velocity_rigidbody{};
+    nan_velocity_rigidbody.linear_velocity.x = std::numeric_limits<float>::quiet_NaN();
+    if (karma::scene::ValidateRigidBodyIntent(nan_velocity_rigidbody, &error)
+        || error != PhysicsComponentValidationError::NonFiniteValue) {
+        std::cerr << "scene physics component contract: rigidbody NaN velocity was not rejected\n";
+        return false;
+    }
+
+    ColliderIntentComponent invalid_box{};
+    invalid_box.shape = ColliderShapeKind::Box;
+    invalid_box.half_extents = glm::vec3(-1.0f, 0.5f, 0.5f);
+    if (karma::scene::ValidateColliderIntent(invalid_box, &error)
+        || error != PhysicsComponentValidationError::NonPositiveDimension) {
+        std::cerr << "scene physics component contract: invalid box dimensions were not rejected\n";
+        return false;
+    }
+
+    ColliderIntentComponent invalid_sphere{};
+    invalid_sphere.shape = ColliderShapeKind::Sphere;
+    invalid_sphere.radius = std::numeric_limits<float>::quiet_NaN();
+    if (karma::scene::ValidateColliderIntent(invalid_sphere, &error)
+        || error != PhysicsComponentValidationError::NonFiniteValue) {
+        std::cerr << "scene physics component contract: invalid sphere radius was not rejected\n";
+        return false;
+    }
+
+    ColliderIntentComponent invalid_mesh{};
+    invalid_mesh.shape = ColliderShapeKind::Mesh;
+    invalid_mesh.mesh_path = "   ";
+    if (karma::scene::ValidateColliderIntent(invalid_mesh, &error)
+        || error != PhysicsComponentValidationError::EmptyMeshPath) {
+        std::cerr << "scene physics component contract: empty mesh path was not rejected\n";
+        return false;
+    }
+
+    ColliderIntentComponent invalid_mask{};
+    invalid_mask.shape = ColliderShapeKind::Box;
+    invalid_mask.mask.layer = 0u;
+    if (karma::scene::ValidateColliderIntent(invalid_mask, &error)
+        || error != PhysicsComponentValidationError::EmptyCollisionMask) {
+        std::cerr << "scene physics component contract: empty collision layer mask was not rejected\n";
+        return false;
+    }
+
+    PlayerControllerIntentComponent invalid_controller{};
+    invalid_controller.half_extents = glm::vec3(0.0f, 0.9f, 0.5f);
+    if (karma::scene::ValidatePlayerControllerIntent(invalid_controller, &error)
+        || error != PhysicsComponentValidationError::NonPositiveDimension) {
+        std::cerr << "scene physics component contract: invalid controller extents were not rejected\n";
+        return false;
+    }
+
+    TransformOwnershipValidationError ownership_error = TransformOwnershipValidationError::None;
+    const PhysicsTransformOwnershipComponent default_ownership{};
+    if (!karma::scene::ValidateTransformOwnership(default_ownership, &ownership_error)
+        || ownership_error != TransformOwnershipValidationError::None) {
+        std::cerr << "scene physics component contract: default transform ownership invalid\n";
+        return false;
+    }
+    if (!karma::scene::ShouldPullPhysicsTransformToScene(default_ownership)
+        || karma::scene::ShouldPushSceneTransformToPhysics(default_ownership)) {
+        std::cerr << "scene physics component contract: default transform ownership helper mismatch\n";
+        return false;
+    }
+
+    PhysicsTransformOwnershipComponent scene_authoritative{};
+    scene_authoritative.authority = PhysicsTransformAuthority::SceneAuthoritative;
+    scene_authoritative.scene_transform_dirty = true;
+    scene_authoritative.push_scene_transform_to_physics = true;
+    scene_authoritative.pull_physics_transform_to_scene = false;
+    if (!karma::scene::ValidateTransformOwnership(scene_authoritative, &ownership_error)
+        || ownership_error != TransformOwnershipValidationError::None) {
+        std::cerr << "scene physics component contract: valid scene-authoritative ownership rejected\n";
+        return false;
+    }
+    if (!karma::scene::ShouldPushSceneTransformToPhysics(scene_authoritative)
+        || karma::scene::ShouldPullPhysicsTransformToScene(scene_authoritative)) {
+        std::cerr << "scene physics component contract: scene-authoritative helper mismatch\n";
+        return false;
+    }
+
+    PhysicsTransformOwnershipComponent invalid_scene_pull = scene_authoritative;
+    invalid_scene_pull.scene_transform_dirty = false;
+    invalid_scene_pull.push_scene_transform_to_physics = false;
+    invalid_scene_pull.pull_physics_transform_to_scene = true;
+    if (karma::scene::ValidateTransformOwnership(invalid_scene_pull, &ownership_error)
+        || ownership_error != TransformOwnershipValidationError::SceneAuthorityCannotPullFromPhysics) {
+        std::cerr << "scene physics component contract: invalid scene pull policy was not rejected\n";
+        return false;
+    }
+
+    PhysicsTransformOwnershipComponent invalid_scene_missing_push = scene_authoritative;
+    invalid_scene_missing_push.push_scene_transform_to_physics = false;
+    if (karma::scene::ValidateTransformOwnership(invalid_scene_missing_push, &ownership_error)
+        || ownership_error != TransformOwnershipValidationError::SceneAuthorityDirtyRequiresPush) {
+        std::cerr << "scene physics component contract: missing scene push policy was not rejected\n";
+        return false;
+    }
+
+    PhysicsTransformOwnershipComponent invalid_physics_dirty = default_ownership;
+    invalid_physics_dirty.scene_transform_dirty = true;
+    if (karma::scene::ValidateTransformOwnership(invalid_physics_dirty, &ownership_error)
+        || ownership_error != TransformOwnershipValidationError::PhysicsAuthorityCannotSetSceneDirty) {
+        std::cerr << "scene physics component contract: physics-authoritative dirty scene was not rejected\n";
+        return false;
+    }
+
+    PhysicsTransformOwnershipComponent invalid_physics_push = default_ownership;
+    invalid_physics_push.push_scene_transform_to_physics = true;
+    if (karma::scene::ValidateTransformOwnership(invalid_physics_push, &ownership_error)
+        || ownership_error != TransformOwnershipValidationError::PhysicsAuthorityCannotPushSceneTransform) {
+        std::cerr << "scene physics component contract: physics-authoritative push policy was not rejected\n";
+        return false;
+    }
+
+    PhysicsTransformOwnershipComponent invalid_physics_no_pull = default_ownership;
+    invalid_physics_no_pull.pull_physics_transform_to_scene = false;
+    if (karma::scene::ValidateTransformOwnership(invalid_physics_no_pull, &ownership_error)
+        || ownership_error != TransformOwnershipValidationError::PhysicsAuthorityRequiresPull) {
+        std::cerr << "scene physics component contract: missing physics pull policy was not rejected\n";
+        return false;
+    }
+
+    if (karma::scene::ClassifyColliderReconcileAction(default_collider, default_collider) != ColliderReconcileAction::NoOp) {
+        std::cerr << "scene physics component contract: collider no-op reconcile classification mismatch\n";
+        return false;
+    }
+
+    ColliderIntentComponent collider_flag_change = default_collider;
+    collider_flag_change.enabled = false;
+    if (karma::scene::ClassifyColliderReconcileAction(default_collider, collider_flag_change)
+        != ColliderReconcileAction::UpdateRuntimeProperties) {
+        std::cerr << "scene physics component contract: collider flag reconcile classification mismatch\n";
+        return false;
+    }
+
+    ColliderIntentComponent collider_mask_change = default_collider;
+    collider_mask_change.mask.collides_with = 0x3u;
+    if (karma::scene::ClassifyColliderReconcileAction(default_collider, collider_mask_change)
+        != ColliderReconcileAction::UpdateRuntimeProperties) {
+        std::cerr << "scene physics component contract: collider mask reconcile classification mismatch\n";
+        return false;
+    }
+
+    ColliderIntentComponent collider_shape_change = default_collider;
+    collider_shape_change.shape = ColliderShapeKind::Capsule;
+    collider_shape_change.radius = 0.45f;
+    collider_shape_change.half_height = 0.8f;
+    if (karma::scene::ClassifyColliderReconcileAction(default_collider, collider_shape_change)
+        != ColliderReconcileAction::RebuildRuntimeShape) {
+        std::cerr << "scene physics component contract: collider shape-change reconcile classification mismatch\n";
+        return false;
+    }
+
+    ColliderIntentComponent collider_dimension_change = default_collider;
+    collider_dimension_change.half_extents.x += 0.25f;
+    if (karma::scene::ClassifyColliderReconcileAction(default_collider, collider_dimension_change)
+        != ColliderReconcileAction::RebuildRuntimeShape) {
+        std::cerr << "scene physics component contract: collider dimension-change reconcile classification mismatch\n";
+        return false;
+    }
+
+    ColliderIntentComponent collider_inactive_field_change = default_collider;
+    collider_inactive_field_change.radius = 99.0f;
+    if (karma::scene::ClassifyColliderReconcileAction(default_collider, collider_inactive_field_change)
+        != ColliderReconcileAction::NoOp) {
+        std::cerr << "scene physics component contract: inactive shape field should not trigger reconcile action\n";
+        return false;
+    }
+
+    ColliderIntentComponent collider_invalid_desired = default_collider;
+    collider_invalid_desired.shape = ColliderShapeKind::Mesh;
+    collider_invalid_desired.mesh_path = "";
+    if (karma::scene::ClassifyColliderReconcileAction(default_collider, collider_invalid_desired)
+        != ColliderReconcileAction::RejectInvalidIntent) {
+        std::cerr << "scene physics component contract: invalid desired collider reconcile classification mismatch\n";
+        return false;
+    }
+
+    ControllerColliderCompatibility compatibility =
+        karma::scene::ClassifyControllerColliderCompatibility(default_controller, &default_collider);
+    if (compatibility != ControllerColliderCompatibility::Compatible
+        || !karma::scene::IsControllerColliderCompatible(compatibility)) {
+        std::cerr << "scene physics component contract: default controller/collider compatibility mismatch\n";
+        return false;
+    }
+
+    PlayerControllerIntentComponent controller_disabled = default_controller;
+    controller_disabled.enabled = false;
+    compatibility = karma::scene::ClassifyControllerColliderCompatibility(controller_disabled, nullptr);
+    if (compatibility != ControllerColliderCompatibility::CompatibleControllerDisabled
+        || !karma::scene::IsControllerColliderCompatible(compatibility)) {
+        std::cerr << "scene physics component contract: disabled-controller compatibility mismatch\n";
+        return false;
+    }
+
+    compatibility = karma::scene::ClassifyControllerColliderCompatibility(default_controller, nullptr);
+    if (compatibility != ControllerColliderCompatibility::ColliderMissing
+        || karma::scene::IsControllerColliderCompatible(compatibility)) {
+        std::cerr << "scene physics component contract: missing-collider compatibility mismatch\n";
+        return false;
+    }
+
+    ColliderIntentComponent trigger_collider = default_collider;
+    trigger_collider.is_trigger = true;
+    compatibility = karma::scene::ClassifyControllerColliderCompatibility(default_controller, &trigger_collider);
+    if (compatibility != ControllerColliderCompatibility::ColliderIsTrigger
+        || karma::scene::IsControllerColliderCompatible(compatibility)) {
+        std::cerr << "scene physics component contract: trigger-collider compatibility mismatch\n";
+        return false;
+    }
+
+    ColliderIntentComponent disabled_collider = default_collider;
+    disabled_collider.enabled = false;
+    compatibility = karma::scene::ClassifyControllerColliderCompatibility(default_controller, &disabled_collider);
+    if (compatibility != ControllerColliderCompatibility::ColliderDisabled
+        || karma::scene::IsControllerColliderCompatible(compatibility)) {
+        std::cerr << "scene physics component contract: disabled-collider compatibility mismatch\n";
+        return false;
+    }
+
+    ColliderIntentComponent mesh_collider{};
+    mesh_collider.shape = ColliderShapeKind::Mesh;
+    mesh_collider.mesh_path = "demo/worlds/controller-shape.glb";
+    compatibility = karma::scene::ClassifyControllerColliderCompatibility(default_controller, &mesh_collider);
+    if (compatibility != ControllerColliderCompatibility::UnsupportedColliderShape
+        || karma::scene::IsControllerColliderCompatible(compatibility)) {
+        std::cerr << "scene physics component contract: unsupported-shape compatibility mismatch\n";
+        return false;
+    }
+
+    PlayerControllerIntentComponent invalid_compat_controller = default_controller;
+    invalid_compat_controller.half_extents = glm::vec3(0.0f, 0.5f, 0.5f);
+    compatibility =
+        karma::scene::ClassifyControllerColliderCompatibility(invalid_compat_controller, &default_collider);
+    if (compatibility != ControllerColliderCompatibility::ControllerInvalid
+        || karma::scene::IsControllerColliderCompatible(compatibility)) {
+        std::cerr << "scene physics component contract: invalid-controller compatibility mismatch\n";
+        return false;
+    }
+
+    ColliderIntentComponent invalid_compat_collider = default_collider;
+    invalid_compat_collider.half_extents.y = 0.0f;
+    compatibility =
+        karma::scene::ClassifyControllerColliderCompatibility(default_controller, &invalid_compat_collider);
+    if (compatibility != ControllerColliderCompatibility::ColliderInvalid
+        || karma::scene::IsControllerColliderCompatible(compatibility)) {
+        std::cerr << "scene physics component contract: invalid-collider compatibility mismatch\n";
+        return false;
+    }
+
+    karma::ecs::World world{};
+    const auto entity_a = world.createEntity();
+    const auto entity_b = world.createEntity();
+
+    world.add<RigidBodyIntentComponent>(entity_a, RigidBodyIntentComponent{});
+    world.add<ColliderIntentComponent>(entity_a, ColliderIntentComponent{});
+    world.add<PlayerControllerIntentComponent>(entity_a, PlayerControllerIntentComponent{});
+
+    world.add<ColliderIntentComponent>(entity_b, ColliderIntentComponent{});
+
+    if (!world.has<RigidBodyIntentComponent>(entity_a)
+        || !world.has<ColliderIntentComponent>(entity_a)
+        || !world.has<PlayerControllerIntentComponent>(entity_a)) {
+        std::cerr << "scene physics component contract: expected components missing from entity A\n";
+        return false;
+    }
+    if (world.has<RigidBodyIntentComponent>(entity_b)) {
+        std::cerr << "scene physics component contract: unexpected rigidbody component on entity B\n";
+        return false;
+    }
+
+    const std::vector<karma::ecs::Entity> rigid_collider_view =
+        world.view<RigidBodyIntentComponent, ColliderIntentComponent>();
+    if (rigid_collider_view.size() != 1 || rigid_collider_view.front() != entity_a) {
+        std::cerr << "scene physics component contract: rigidbody+collider view membership mismatch\n";
+        return false;
+    }
+
+    const std::vector<karma::ecs::Entity> controller_view =
+        world.view<RigidBodyIntentComponent, ColliderIntentComponent, PlayerControllerIntentComponent>();
+    if (controller_view.size() != 1 || controller_view.front() != entity_a) {
+        std::cerr << "scene physics component contract: controller view membership mismatch\n";
+        return false;
+    }
+
+    world.remove<PlayerControllerIntentComponent>(entity_a);
+    const std::vector<karma::ecs::Entity> controller_view_after_remove =
+        world.view<RigidBodyIntentComponent, ColliderIntentComponent, PlayerControllerIntentComponent>();
+    if (!controller_view_after_remove.empty()) {
+        std::cerr << "scene physics component contract: controller view did not update after removal\n";
+        return false;
+    }
+
+    world.destroyEntity(entity_a);
+    if (world.has<RigidBodyIntentComponent>(entity_a)
+        || world.has<ColliderIntentComponent>(entity_a)
+        || world.has<PlayerControllerIntentComponent>(entity_a)) {
+        std::cerr << "scene physics component contract: components persisted after entity destroy\n";
+        return false;
+    }
+
+    return true;
+}
+
 bool RunFacadeScaffoldChecks(BackendKind backend) {
     karma::physics::World world;
     world.setBackend(backend);
@@ -1532,12 +1892,47 @@ bool RunFacadeScaffoldChecks(BackendKind backend) {
 
     glm::vec3 hit_point{};
     glm::vec3 hit_normal{};
-    (void)world.raycast(glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, -8.0f, 0.0f), hit_point, hit_normal);
+    const bool has_raycast_hit =
+        world.raycast(glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, -8.0f, 0.0f), hit_point, hit_normal);
+    if (!has_raycast_hit) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade raycast failed in scaffold check\n";
+        world.shutdown();
+        return false;
+    }
+    if (!NearlyEqualVec3(hit_normal, glm::vec3(0.0f, 0.0f, 0.0f), 1e-6f)) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " world facade returned unexpected non-zero raycast normal during phase-2a contract\n";
+        world.shutdown();
+        return false;
+    }
 
     controller.destroy();
     dynamic_body.destroy();
     static_mesh.destroy();
     world.shutdown();
+
+    karma::physics::PhysicsSystem borrowed_system{};
+    borrowed_system.setBackend(backend);
+    borrowed_system.init();
+    if (!borrowed_system.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " borrowed system failed to initialize for world shutdown contract check\n";
+        return false;
+    }
+
+    {
+        karma::physics::World borrowed_world(borrowed_system);
+        borrowed_world.shutdown();
+    }
+
+    if (!borrowed_system.isInitialized()) {
+        std::cerr << "backend=" << BackendKindName(backend)
+                  << " borrowed system was shut down by world facade unexpectedly\n";
+        return false;
+    }
+    borrowed_system.shutdown();
+
     return true;
 }
 
@@ -1583,6 +1978,9 @@ int main(int argc, char** argv) {
     }
 
     if (!RunBackendSelectionChecks()) {
+        return EXIT_FAILURE;
+    }
+    if (!RunScenePhysicsComponentContractChecks()) {
         return EXIT_FAILURE;
     }
 

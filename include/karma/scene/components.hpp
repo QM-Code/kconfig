@@ -4,6 +4,7 @@
 
 #include "karma/ecs/entity.hpp"
 #include "karma/renderer/types.hpp"
+#include "karma/scene/physics_components.hpp"
 
 namespace karma::scene {
 

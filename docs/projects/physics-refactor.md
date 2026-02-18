@@ -2,9 +2,9 @@
 
 ## Project Snapshot
 - Current owner: `specialist-physics-refactor`
-- Status: `in progress` (Phase 0/1 API scaffolding landed; BodyId-backed substrate remains authoritative)
+- Status: `in progress` (Phase 2b contract hardening landed: transform authority + reconcile/compatibility policy boundaries are explicit and test-backed)
 - Supersedes: `docs/projects/physics-backend.md` (retired to `docs/archive/physics-backend-retired-2026-02-17.md`)
-- Immediate next task: execute Phase 2 component-model slice for collider/controller intent data and sync ownership boundaries.
+- Immediate next task: execute first Phase 3 ECS sync slice to consume Phase 2b policies for runtime create/update/destroy + deterministic transform writeback ordering.
 - Validation gate: `./scripts/test-engine-backends.sh <build-dir>`
 
 ## Mission
@@ -222,6 +222,55 @@ Intentionally deferred (explicit non-goals for this slice):
 - True half-extents/material propagation into backend shape creation.
 - ECS component model and sync-system migration (Phase 2/3 work).
 
+## Phase 2a Component Contract Slice (2026-02-18)
+Landed in this bounded slice:
+- Scene-owned physics component contracts introduced under `include/karma/scene/physics_components.hpp` and re-exported via `include/karma/scene/components.hpp`.
+- Added backend-neutral component data contracts for:
+  - rigidbody intent,
+  - collider intent (shape + trigger + enabled + collision layer/filter intent),
+  - player-controller intent,
+  - collision mask intent.
+- Added bounded validation helpers for component contracts (finite-value checks, positive-dimension checks, mesh-path non-empty checks, collision-mask checks).
+- Added parity-test coverage for:
+  - default validity,
+  - invalid-input rejection,
+  - ECS storage/view behavior for new scene physics components.
+- Closed carry-over world-facade issues:
+  - borrowed-system `World::shutdown()` no longer shuts down externally provided `PhysicsSystem`,
+  - `World::raycast(...)` no longer fabricates normals; phase contract now returns trustworthy hit position and zeros the normal field.
+
+Explicit deferrals for next phases:
+- `Phase 2b`:
+  - component-level transform ownership/dirty-state policy,
+  - shape-specific mutation/reconciliation policy (controller+collider coupling rules),
+  - collision filter/layer contract tightening beyond current mask baseline.
+- `Phase 3`:
+  - ECS physics sync system implementation (create/update/destroy runtime objects, write-back ordering, stale cleanup),
+  - static mesh ingestion pipeline hookup,
+  - controller grounded/collision-driven runtime behavior.
+
+## Phase 2b Policy Hardening Slice (2026-02-18)
+Landed in this bounded slice:
+- Added explicit transform ownership contract utilities in `include/karma/scene/physics_components.hpp`:
+  - authority model (`scene-authoritative` vs `physics-authoritative`),
+  - coherent dirty/push/pull validation helper for ownership intent,
+  - helper predicates for scene->physics push and physics->scene pull policy decisions.
+- Added shape-specific collider reconciliation policy:
+  - reconcile action classifier (`no-op`, `runtime property update`, `runtime shape rebuild`, `reject invalid`),
+  - shape-parameter diff handling keyed by active collider shape contract.
+- Added controller/collider compatibility classification policy:
+  - compatibility states for missing/invalid/disabled/trigger/unsupported-shape cases,
+  - helper to collapse classification to a bounded compatible/not-compatible decision.
+- Added bounded parity coverage for all Phase 2b policies:
+  - transform ownership validation + helper behavior,
+  - collider reconcile-action classification,
+  - controller/collider compatibility classification.
+
+Explicit Phase 3 deferrals after Phase 2b closure:
+- No ECS sync-system runtime wiring yet (no runtime create/update/destroy from ECS components).
+- No runtime reconcile execution against backend objects yet (policy helpers are contract-level only).
+- No gameplay/controller integration or grounded-runtime behavior changes yet.
+
 ## Current Status
 - `2026-02-17`: Project created as full replacement for backend-only parity track.
 - `2026-02-17`: `physics-backend.md` retired and subsumed into this plan.
@@ -231,7 +280,24 @@ Intentionally deferred (explicit non-goals for this slice):
   - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
   - `./scripts/test-engine-backends.sh build-a3` (pass)
   - `./docs/scripts/lint-project-docs.sh` (pass)
-- Next implementation slice starts at Phase 2 component-model expansion.
+- `2026-02-18`: Phase 2a landed:
+  - scene physics component contracts + validation helpers,
+  - parity coverage for component validity/invalid-input/ECS-view behavior,
+  - world facade shutdown ownership and raycast-normal contract fixes.
+- `2026-02-18`: Phase 2a validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+- `2026-02-18`: Phase 2b landed:
+  - transform authority ownership contract + validation helpers,
+  - shape-specific collider reconcile-action classification policy,
+  - controller/collider compatibility classification policy,
+  - bounded parity coverage for all Phase 2b policy helpers.
+- `2026-02-18`: Phase 2b validation completed in `build-a3`:
+  - `./abuild.py -c --test-physics -d build-a3 -b jolt,physx` (pass)
+  - `./scripts/test-engine-backends.sh build-a3` (pass)
+  - `./docs/scripts/lint-project-docs.sh` (pass)
+- Next implementation slice starts at Phase 3 ECS sync-system implementation using Phase 2a/2b policy contracts.
 
 ## Handoff Checklist
 - [x] `physics-refactor.md` remains the single active physics project doc in `docs/projects/`.
