@@ -3,14 +3,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-PROJECT_DIR="${ROOT_DIR}/config/projects"
+PROJECT_DIR="${ROOT_DIR}/projects"
 ASSIGNMENTS_FILE="${PROJECT_DIR}/ASSIGNMENTS.md"
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/lint-config-projects.sh
+Usage: ./scripts/lint-projects.sh
 
-Validates overseer project tracking docs under config/projects:
+Validates overseer project tracking docs under 'projects':
 - required sections/fields in project docs
 - assignment board row count coverage
 EOF
