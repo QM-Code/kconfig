@@ -17,8 +17,8 @@ This track is explicitly a staging/alignment track:
 - do **not** wire into build/runtime until alignment checkpoints are complete.
 
 ## Foundation References
-- `docs/foundation/policy/rewrite-invariants.md`
-- `docs/foundation/policy/execution-policy.md`
+- `docs/overseer/operating-model.md`
+- `docs/overseer/execution-policy.md`
 - `docs/projects/ui-engine.md`
 - `docs/projects/gameplay-migration.md`
 - `docs/projects/radar.md`

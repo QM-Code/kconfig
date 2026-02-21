@@ -13,9 +13,9 @@ Deliver a rewrite-owned radar system where:
 - implementation preserves rewrite ownership boundaries while reusing proven behavior/flow from `q-karma` and `m-dev`.
 
 ## Foundation References
-- `docs/foundation/policy/rewrite-invariants.md`
-- `docs/foundation/policy/execution-policy.md`
-- `docs/foundation/governance/overseer-playbook.md`
+- `docs/overseer/operating-model.md`
+- `docs/overseer/execution-policy.md`
+- `docs/overseer/playbook.md`
 - `projects/ui-engine.md`
 - `projects/gameplay.md`
 - `projects/lighting.md`

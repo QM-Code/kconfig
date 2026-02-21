@@ -1,13 +1,14 @@
 # Diligent SDK Packaging
 
 ## Project Snapshot
-- Current owner: `overseer`
-- Status: `not started`
-- Immediate next task: produce a bounded implementation packet for replacing `FetchContent` Diligent with package-managed Diligent in `m-karma`.
+- Current owner: `codex`
+- Status: `completed`
+- Immediate next task: archive-ready; no active implementation work remains.
 - Validation gate:
-  - `m-overseer`: `./scripts/lint-config-projects.sh`
+  - `m-overseer`: `./scripts/lint-projects.sh`
   - `m-karma`: `./docs/scripts/lint-project-docs.sh`
-  - `m-bz3`: `./abuild.py -c -d build-sdk --karma-sdk ../m-karma/out/karma-sdk --ignore-lock`
+  - `m-karma`: `./abuild.py -c -d build-sdk-diligent-port -b diligent --install-sdk out/karma-sdk-diligent-port --ignore-lock`
+  - `m-bz3`: `./abuild.py -c -d build-sdk-diligent-port --karma-sdk ../m-karma/out/karma-sdk-diligent-port --ignore-lock`
 
 ## Mission
 Make Diligent export-safe for the KARMA SDK path so `m-bz3` can consume `karma::engine_client` through `find_package(KarmaEngine CONFIG REQUIRED)` even when Diligent renderer support is enabled in `m-karma`.
@@ -50,7 +51,7 @@ This is a cross-repo integration contract task with packaging implications and s
 ```bash
 # Overseer tracking docs
 cd m-overseer
-./scripts/lint-config-projects.sh
+./scripts/lint-projects.sh
 
 # Karma docs and SDK export
 cd ../m-karma
@@ -86,14 +87,23 @@ cd ../m-bz3
 
 ## Current Status
 - `2026-02-19`: Project initialized from overseer planning after confirming Diligent is currently non-export-safe in the SDK path.
+- `2026-02-20`: Completed package-managed Diligent integration for SDK export safety.
+  - `m-karma` switched from in-tree `FetchContent` Diligent to `find_package(DiligentEngine CONFIG REQUIRED)`.
+  - Added local vcpkg overlay port `diligentengine` (`m-karma/vcpkg-overlays/diligentengine`) with bundled Wayland/Vulkan patch application.
+  - Added package config wiring so Diligent public build definitions (e.g., `PLATFORM_LINUX=1`, backend support flags) propagate to SDK consumers.
+  - Preserved relocatable SDK export of `karma::engine_client` for Diligent-enabled installs.
+  - Validation completed:
+    - `cd m-karma && ABUILD_AGENT_NAME=specialist-diligent-d0 ./abuild.py -c -d build-sdk-diligent-port -b diligent --install-sdk out/karma-sdk-diligent-port --ignore-lock` (pass)
+    - `cd m-bz3 && ABUILD_AGENT_NAME=specialist-diligent-d0 ./abuild.py -c -d build-sdk-diligent-port --karma-sdk ../m-karma/out/karma-sdk-diligent-port --ignore-lock` (pass)
+    - `cd m-bz3 && ABUILD_AGENT_NAME=specialist-diligent-d0 ./abuild.py -c -d build-sdk-diligent-port-diligent -b diligent --karma-sdk ../m-karma/out/karma-sdk-diligent-port --ignore-lock` (pass)
 
 ## Open Questions
-- Should Wayland support patch live in a vcpkg overlay port or a maintained Diligent fork package?
-- Is dual-backend bgfx+diligent packaging required for first acceptance, or is diligent-only export-safe path sufficient initially?
+- Resolved (`2026-02-20`): Wayland patch lives in a vcpkg overlay port (`m-karma/vcpkg-overlays/diligentengine`) rather than a maintained fork.
+- Resolved (`2026-02-20`): Diligent-only export-safe acceptance path is sufficient for this track.
 
 ## Handoff Checklist
-- [ ] Package-managed Diligent strategy selected and documented
-- [ ] KARMA CMake switched off in-tree FetchContent Diligent for SDK export path
-- [ ] Diligent-enabled SDK export includes `karma::engine_client` relocatably
-- [ ] BZ3 consumes Diligent-capable KARMA SDK via `find_package(KarmaEngine)` without manual wiring
-- [ ] Docs and tracker rows updated
+- [x] Package-managed Diligent strategy selected and documented
+- [x] KARMA CMake switched off in-tree FetchContent Diligent for SDK export path
+- [x] Diligent-enabled SDK export includes `karma::engine_client` relocatably
+- [x] BZ3 consumes Diligent-capable KARMA SDK via `find_package(KarmaEngine)` without manual wiring
+- [x] Docs and tracker rows updated
