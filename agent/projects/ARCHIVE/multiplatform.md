@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `overseer`
-- Status: `in progress (MP5 CI scaffolding landed; first runner evidence pending; MP2/MP3 host validation still deferred pending external hosts)`
-- Immediate next task: run the new CI workflow matrix on GitHub runners, fix first-pass runner breakage, and promote stable jobs to required checks.
+- Status: `in progress (implementation complete through MP5 scaffolding; external-host validation pending for macOS/Windows/iOS/Android)`
+- Immediate next task: obtain first runner/host evidence for deferred platform gates (or formally record deferred-risk acceptance if host access is unavailable).
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
   - `m-karma`: `./abuild.py -c -d build-sdk -b bgfx,diligent --install-sdk out/karma-sdk`
@@ -258,6 +258,7 @@ cd ../m-overseer
   - validation:
     - `cd m-karma && export ABUILD_AGENT_NAME=overseer-mp1-linux && ./abuild.py --claim-lock -d build-sdk && ./abuild.py -c -d build-sdk -b bgfx,diligent --install-sdk out/karma-sdk && ./abuild.py --release-lock -d build-sdk` (pass)
     - `cd m-karma && ./scripts/test-sdk-runtime-linux.sh out/karma-sdk ../m-bz3/build-sdk/bz3 ../m-bz3/build-a7/bz3` (pass)
+- `2026-02-21`: implementation is complete up to external-platform testing gates; current operator lacks local macOS/Windows/iOS/Android hosts, so MP2/MP3/MP4 evidence remains pending hosted runners or external host attestations.
 - `2026-02-21`: `MP2` prework landed (Darwin validation pending):
   - extended SDK install staging for macOS shared mode in `m-karma/cmake/50_sdk_install_export.cmake` to include `libassimp*.dylib*` sidecar payload from local vcpkg runtime dirs.
   - added `m-karma/scripts/test-sdk-runtime-macos.sh` (`otool -D/-L` install-name/dependency audit + consumer `-h` smoke contract).

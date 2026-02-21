@@ -87,7 +87,7 @@ Avoid relying on personal `~/.config/...` or ad-hoc `/tmp` state for durable wor
 ## KARMA -> BZ3 SDK Contract (Locked)
 - `m-karma` build graph is SDK-only; package/export generation is always configured (no non-SDK mode toggle).
 - Consumer integration path is package-based only:
-  - `find_package(KarmaEngine CONFIG REQUIRED)`
+  - `find_package(KarmaSDK CONFIG REQUIRED)`
 - Diligent renderer dependency is package-based in both repos:
   - `find_package(DiligentEngine CONFIG REQUIRED)`
   - source should come from repo overlay port `vcpkg-overlays/diligentengine` (no `FetchContent` fallback)
@@ -100,8 +100,8 @@ Canonical commands:
   - `./abuild.py -c -d build-sdk --karma-sdk ../m-karma/out/karma-sdk --ignore-lock`
 
 Required imported targets:
-- `karma::engine_core`
-- `karma::engine_client`
+- `karma::core`
+- `karma::client`
 
 ## Handoff Minimum
 Every specialist handoff must include:

@@ -33,8 +33,8 @@ The plan prioritizes highest-value targets first and assumes full refactor freed
 - `m-karma/src/renderer/backend_factory.cpp:13`
 - `m-karma/src/window/backend_factory.cpp:14`
 - `m-karma/src/ui/backend_factory.cpp:13`
-- `m-bz3/src/game/cmake/sources.cmake:1`
-- `m-bz3/src/game/cmake/targets.cmake:5`
+- `m-bz3/cmake/game/sources.cmake:1`
+- `m-bz3/cmake/game/targets.cmake:5`
 - `m-bz3/src/server/server_game.cpp:74`
 - `m-bz3/src/server/domain/actor_system.cpp:113`
 - `m-bz3/src/server/runtime/run.cpp:57`
@@ -56,17 +56,18 @@ This is an intentionally cross-cutting cleanup program, not a feature slice. It 
   - `m-bz3/src/ui`: ~`16,087` LOC.
   - `m-bz3/src/tests`: ~`11,032` LOC.
 - Critical structural finding:
-  - `m-bz3` has `48` `.cpp` files (~`13,106` LOC) not referenced by current `src/game/cmake/*` target wiring.
+  - `m-bz3` has `48` `.cpp` files (~`13,106` LOC) not referenced by current `cmake/game/*` target wiring.
   - Unwired files are concentrated in `m-bz3/src/ui/*`.
 
 ## Comprehensive Findings
 
 ### 1) Legacy / Obsolete / Unused
 - `m-bz3/src/ui/*` is effectively orphaned from active targets:
-  - `m-bz3/src/game/cmake/sources.cmake:1` and `m-bz3/src/game/cmake/targets.cmake:5` wire client/server runtime without `src/ui`.
+  - `m-bz3/cmake/game/sources.cmake:1` and `m-bz3/cmake/game/targets.cmake:5` wire client/server runtime without `src/ui`.
   - Non-UI runtime currently uses engine text panels in `m-bz3/src/client/game/lifecycle.cpp:153`.
 - Stale pathing/docs indicate historical migration leftovers:
-  - `m-bz3/src/ui/AGENTS.md:5` and many UI docs refer to `src/game/ui/*` while files live under `src/ui/*`.
+  - UI onboarding docs had stale `src/game/AGENTS.md` references even though `m-bz3/src/game` has no AGENTS doc.
+  - `m-bz3/src/ui/AGENTS.md`, `m-bz3/src/ui/architecture.md`, and `m-bz3/src/ui/frontends/rmlui/console/panels/AGENTS.md` were normalized to `src/ui/...` paths in this pass.
 - Legacy fallback semantics are explicitly embedded in names and tests:
   - `run_legacy_fallback_step` in `m-bz3/src/client/game/tank_motion_authority_state_machine.hpp:48`.
 
@@ -77,6 +78,7 @@ This is an intentionally cross-cutting cleanup program, not a feature slice. It 
   - `m-karma/src/renderer/backend_factory.cpp:13`
   - `m-karma/src/window/backend_factory.cpp:14`
   - `m-karma/src/ui/backend_factory.cpp:13`
+  - drift already exists (`renderer` uses `isValid()` gating, `ui` always includes software fallback, window macro naming differs from `KARMA_HAS_*` convention).
 - Config/path helper duplication in two modules:
   - `TryCanonical`, `ResolveWithBase`, JSON merge, asset lookup logic duplicated between:
     - `m-karma/src/common/config/store.cpp:42`
@@ -104,8 +106,8 @@ This is an intentionally cross-cutting cleanup program, not a feature slice. It 
 
 ### 5) Poor Naming / Organization
 - Directory naming drift:
-  - `m-bz3/src/game` is mostly CMake wiring plus `game.hpp`; gameplay/runtime code is elsewhere (`client/*`, `server/*`).
-  - `m-karma/src/engine` is build wiring, while engine runtime code sits in other top-level dirs.
+  - `m-bz3` used to place build wiring under `src/game`; this was normalized in this pass to `cmake/game/*` and `game.hpp` moved under `src/client/game/`.
+  - `m-karma` used to place SDK build wiring under `src/engine`; this was normalized in this pass to `cmake/sdk/*`.
 - Generic file names reduce discoverability at scale:
   - repeated `core.cpp`, `internal.hpp`, `factory_internal.hpp`.
 - Backend naming style is inconsistent (`sdl3audio` vs snake_case conventions used broadly elsewhere).
@@ -127,7 +129,13 @@ This is an intentionally cross-cutting cleanup program, not a feature slice. It 
 - Repeated stub implementations (especially physics/audio backend stubs) can be generated from one shared pattern layer.
 
 ### 8) Standardization Opportunities
-- Standardize backend factory shape once (parse/name/compiled/create flow).
+- Standardize `backend_factory.cpp` behavior through one shared contract:
+  - shared lowercase parse + alias policy (same canonical names and accepted spellings pattern).
+  - `CompiledBackends()` order is the single source of truth for `Auto` fallback order.
+  - `CreateBackend()` always sets `out_selected=Auto` first, only mutates on success, and never silently rewrites explicit preference.
+  - optional post-create validator hook (`renderer::Backend::isValid()`) handled by the shared selector path.
+- Keep per-subsystem factory files, but reduce them to backend spec tables plus thin wrappers over one shared selector utility.
+- Normalize backend feature macro naming to one shape (`KARMA_HAS_<SUBSYSTEM>_<BACKEND>`), including window backend feature flags.
 - Standardize runtime/config key loading via typed config structs rather than long imperative blocks.
 - Standardize test entrypoint utilities with shared contract-test support helpers.
 - Standardize naming conventions for backends and module folders.
@@ -194,10 +202,22 @@ This is an intentionally cross-cutting cleanup program, not a feature slice. It 
   - extract shared panel logic (community/start-server/settings/bindings).
   - keep framework-specific rendering/event glue only in frontend implementations.
 
-### `CLN-S8` (P2): Factory + Stub Standardization
+### `CLN-S8` (P2): Factory + Stub Standardization (`backend_factory.cpp` normalization)
 - Scope:
-  - introduce shared backend registry/selection utility.
+  - introduce shared backend selector utility (`parse/name/compiled/create` path) with:
+    - per-backend spec entries: `kind`, canonical name, aliases, compiled flag, create thunk, optional validate thunk.
+    - shared parse helper to remove repeated `Lower()` + manual `if` chains.
+    - shared `CreateBackend` loop used by audio/physics/renderer/window/ui with subsystem-specific wrapper signatures.
+  - preserve existing subsystem-specific behavior intentionally:
+    - renderer keeps post-create validity check (`isValid()`).
+    - ui keeps guaranteed software fallback in compiled list.
+    - window keeps `CreateWindow` convenience wrapper.
   - generate or template repetitive stub behavior for unavailable backends.
+  - add backend-factory contract tests that assert identical semantics across subsystems:
+    - parse aliases/canonical names.
+    - compiled ordering and `Auto` fallback selection.
+    - explicit selection failure semantics when backend not compiled or invalid.
+    - `out_selected` update contract.
 
 ### `CLN-S9` (P2): Test Harness Consolidation
 - Scope:
@@ -239,10 +259,16 @@ ctest --test-dir <karma-build-dir> -R "physics_backend_parity_.*|.*transport_con
 - `2026-02-21`: Highest-value blocker identified: large unwired `m-bz3/src/ui` codepath.
 - `2026-02-21`: Operator direction accepted: `m-bz3/src/ui` cleanup/integration deferred to late-stage work; active cleanup starts at `CLN-S2`.
 - `2026-02-21`: Prioritized cleanup queue (`CLN-S1`..`CLN-S10`) defined.
+- `2026-02-21`: Normalized stale `src/game/AGENTS.md` references in `m-bz3/src/ui` docs to current `src/ui/...` paths.
+- `2026-02-21`: Captured concrete `backend_factory.cpp` normalization plan and behavior contract under `CLN-S8`.
+- `2026-02-21`: Removed source-tree CMake ownership anti-patterns:
+  - `m-bz3/src/game/CMakeLists.txt` removed; build wiring moved to `m-bz3/cmake/game/*`; `m-bz3/src/game/game.hpp` moved to `m-bz3/src/client/game/game.hpp`.
+  - `m-karma/src/engine/CMakeLists.txt` removed; SDK build wiring moved to `m-karma/cmake/sdk/*`; `m-karma/cmake/40_sdk_subdir.cmake` now includes `cmake/sdk/*` directly.
 
 ## Open Questions
 - Do we want to preserve manual/standalone test binaries, or adopt a shared lightweight test harness layer first?
 - For naming rationalization, should we enforce one repository-wide convention immediately or phase it per subsystem?
+- For backend naming strings, do we keep legacy CLI tokens exactly (e.g. `sdl3audio`) or add canonical+alias pairs (`sdl3-audio`) while preserving compatibility?
 
 ## Handoff Checklist
 - [x] Deep-dive findings captured with concrete file references.
