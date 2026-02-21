@@ -22,6 +22,12 @@ Examples:
 - renderer runtime-select: `./abuild.py -c -d <build-dir> -b bgfx,diligent`
 - ui runtime-select: `./abuild.py -c -d <build-dir> -b imgui,rmlui`
 - physics runtime-select: `./abuild.py -c -d <build-dir> -b jolt,physx`
+- static SDK contract: `./abuild.py -c -d <build-dir> --sdk-linkage static --install-sdk <prefix>`
+- mobile shared override (explicit-only): `./abuild.py -c -d <build-dir> --sdk-linkage shared --mobile-allow-shared`
+
+Renderer policy:
+- Combined renderer mode (`-b bgfx,diligent`) is Linux shared-mode only.
+- Non-Linux targets and static SDK linkage must select one renderer backend.
 
 ## Build Slot Ownership
 Required in parallel delegated work:
@@ -46,8 +52,29 @@ Core wrappers:
 Touch-scope rules:
 - network/transport/protocol scope -> server-net wrapper required.
 - physics/audio/backend-test wiring scope -> engine-backends wrapper required.
+- SDK packaging/runtime scope (Linux) -> `m-karma/scripts/test-sdk-runtime-linux.sh <sdk-prefix> [consumer-bin ...]` required.
+- SDK packaging/runtime scope (macOS) -> `m-karma/scripts/test-sdk-runtime-macos.sh <sdk-prefix> [consumer-bin ...]` required.
+- SDK packaging/runtime scope (Windows) -> `m-karma/scripts/test-sdk-runtime-windows.sh <sdk-prefix> [consumer-bin ...]` required.
+- SDK packaging/policy scope (mobile static contract) -> `m-karma/scripts/test-sdk-mobile-static.sh <sdk-prefix>` required.
 - cross-scope changes -> run both wrappers.
 - docs-only/project-tracking edits -> wrappers optional unless project doc says otherwise.
+
+## CI Gate Bring-Up (MP5)
+Required-check target set (after first green stabilization):
+- `SDK Packaging Matrix / SDK Desktop (ubuntu-latest)` in `m-karma`
+- `SDK Packaging Matrix / SDK Desktop (macos-latest)` in `m-karma`
+- `SDK Packaging Matrix / SDK Desktop (windows-latest)` in `m-karma`
+- `SDK Packaging Matrix / SDK Mobile Policy Contract` in `m-karma`
+- `SDK Consumer Smoke / Consumer Desktop (ubuntu-latest)` in `m-bz3`
+- `SDK Consumer Smoke / Consumer Desktop (macos-latest)` in `m-bz3`
+- `SDK Consumer Smoke / Consumer Desktop (windows-latest)` in `m-bz3`
+
+First-run CI triage order:
+1. Run Linux legs first (`ubuntu-latest`) in both repos.
+2. Fix toolchain/bootstrap issues before touching runtime gate logic.
+3. Run `macOS` and `Windows` legs one at a time and capture per-leg artifacts.
+4. If host-specific runtime scripts fail, compare dependency output (`ldd`/`otool`/`dumpbin|objdump`) from uploaded artifacts before changing packaging rules.
+5. Promote jobs to required only after two consecutive green runs on both `pull_request` and branch push triggers.
 
 ## Demo Fixture Policy
 Reusable local test/demo state must live under tracked `demo/` roots:
@@ -58,6 +85,7 @@ Reusable local test/demo state must live under tracked `demo/` roots:
 Avoid relying on personal `~/.config/...` or ad-hoc `/tmp` state for durable workflows.
 
 ## KARMA -> BZ3 SDK Contract (Locked)
+- `m-karma` build graph is SDK-only; package/export generation is always configured (no non-SDK mode toggle).
 - Consumer integration path is package-based only:
   - `find_package(KarmaEngine CONFIG REQUIRED)`
 - Diligent renderer dependency is package-based in both repos:

@@ -71,12 +71,24 @@ Add backend selectors only when required by scope:
 - ui: `-b imgui,rmlui`
 - physics: `-b jolt,physx`
 
+SDK linkage selectors:
+- static contract: `--sdk-linkage static`
+- mobile shared override (explicit-only): `--sdk-linkage shared --mobile-allow-shared`
+
+Renderer policy:
+- Combined renderer mode (`bgfx,diligent`) is Linux shared-mode only.
+- Non-Linux targets and static SDK linkage must choose one renderer.
+
 ### Required Gates By Touch Scope
 
 | Touch scope | Required validation |
 |---|---|
 | Network / transport / protocol / server runtime | `./scripts/test-server-net.sh <build-dir>` |
 | Physics / audio / backend test registration | `./scripts/test-engine-backends.sh <build-dir>` |
+| SDK packaging/runtime (Linux) | `./scripts/test-sdk-runtime-linux.sh <sdk-prefix> [consumer-bin ...]` |
+| SDK packaging/runtime (macOS) | `./scripts/test-sdk-runtime-macos.sh <sdk-prefix> [consumer-bin ...]` |
+| SDK packaging/runtime (Windows) | `./scripts/test-sdk-runtime-windows.sh <sdk-prefix> [consumer-bin ...]` |
+| SDK packaging/policy (mobile static contract) | `./scripts/test-sdk-mobile-static.sh <sdk-prefix>` |
 | Cross-scope (network + physics/audio/backend) | Run both wrappers with explicit `<build-dir>` |
 | Community webserver/auth paths | Run community runbook checks in `docs/testing.md` plus wrapper(s) if engine/game code also changed |
 | Docs-only / project-tracking only | Wrapper gates optional unless project doc explicitly requires them |

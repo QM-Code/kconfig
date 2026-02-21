@@ -124,8 +124,10 @@ Only the following files and/or subdirectories should exist:
   - Make sure you have all the access you need as described in "Restrictions" (read/write, network I/O, git, etc).
     - If you lack some capability, explain as best you can to the human how to fix the problem (e.g. codex has ~/.config/config.toml on some systems) and what lacking this capability will mean (this is not a hard fail).
   - Check to see that all of the repos
+  - Get a listing of the projects in <home>/agent/projects/, but do not parse any of the files.
   - Introduce yourself and give a brief overview of the project. Prompt the user with the following:
     - Get a high-level project overview
-	- Explore current projects (in agents/projects)
+	- Explore current projects
+	  - list of projects here
 	- Something else
 

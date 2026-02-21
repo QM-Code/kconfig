@@ -2,12 +2,19 @@
 
 ## Project Snapshot
 - Current owner: `overseer`
-- Status: `in progress (SDK-only policy pivot accepted; MP0 contract lock + CMake migration planning active)`
-- Immediate next task: lock SDK-only contract details and execute `MP0-SDK1` (remove `KARMA_INSTALL_ENGINE_SDK` mode branches while preserving platform linkage policy).
+- Status: `in progress (MP5 CI scaffolding landed; first runner evidence pending; MP2/MP3 host validation still deferred pending external hosts)`
+- Immediate next task: run the new CI workflow matrix on GitHub runners, fix first-pass runner breakage, and promote stable jobs to required checks.
 - Validation gate:
-  - `m-overseer`: `./scripts/lint-projects.sh`
+  - `m-overseer`: `./agent/scripts/lint-projects.sh`
   - `m-karma`: `./abuild.py -c -d build-sdk -b bgfx,diligent --install-sdk out/karma-sdk`
+  - `m-karma`: `./scripts/test-sdk-runtime-linux.sh out/karma-sdk ../m-bz3/build-sdk/bz3 ../m-bz3/build-a7/bz3`
+  - `m-karma`: `./scripts/test-sdk-runtime-macos.sh out/karma-sdk ../m-bz3/build-sdk/bz3 ../m-bz3/build-a7/bz3` (run on macOS host)
+  - `m-karma`: `./scripts/test-sdk-runtime-windows.sh out/karma-sdk ../m-bz3/build-sdk/bz3.exe ../m-bz3/build-a7/bz3.exe` (run on Windows host)
+  - `m-karma`: `./abuild.py -c -d build-sdk-static --sdk-linkage static --install-sdk out/karma-sdk-static`
+  - `m-karma`: `./scripts/test-sdk-mobile-static.sh out/karma-sdk-static`
   - `m-bz3`: `./build-sdk/bz3 -h` and `./build-a7/bz3 -h`
+  - `github actions`: `m-karma/.github/workflows/core-test-suite.yml` (`SDK Packaging Matrix`)
+  - `github actions`: `m-bz3/.github/workflows/core-test-suite.yml` (`SDK Consumer Smoke`)
 
 ## Mission
 Define and implement one maintainable, explicit SDK-only build+packaging contract for `KarmaEngine` outputs across Linux/macOS/Windows/iOS/Android so consumers can build and run without ad-hoc runtime dependency fixes.
@@ -138,6 +145,7 @@ Use a hybrid linkage policy with one exported target contract:
 ### MP2: macOS Runtime Packaging Parity
 - Implement `@loader_path`/`@rpath` policy and dependency staging for SDK/app payload.
 - Add macOS smoke test for installed SDK consumer.
+- Status note: deferred until macOS host access is available.
 - Acceptance:
   - no absolute/local-machine dylib paths in installed artifacts.
 
@@ -145,18 +153,49 @@ Use a hybrid linkage policy with one exported target contract:
 - Stage runtime DLL set for SDK consumers.
 - Ensure CMake export/import library behavior is deterministic for shared mode.
 - Add Windows installed-SDK smoke test.
+- Status note: deferred until Windows host access is available.
 - Acceptance:
   - consumer runs with app-local DLL payload, no global PATH requirements.
 
 ### MP4: Mobile Policy Alignment (iOS/Android)
 - iOS: static packaging contract, framework/archive guidance, no transitive runtime staging assumptions.
 - Android: static-first policy; if shared path is needed, define ABI packaging contract.
+- Lock policy:
+  - `KARMA_SDK_LINKAGE=auto` resolves to static on mobile.
+  - shared mobile builds require explicit `KARMA_MOBILE_ALLOW_SHARED=ON`.
+  - combined renderer mode (`bgfx+diligent`) is Linux shared-only; mobile/static paths must choose one renderer.
+- Wrapper controls:
+  - `./abuild.py --sdk-linkage <auto|shared|static>`
+  - `./abuild.py --mobile-allow-shared` (requires `--sdk-linkage shared`)
+- Reference commands:
+  - iOS static contract (single renderer): `./abuild.py -c -d build-ios --sdk-linkage static -b bgfx --install-sdk out/karma-sdk-ios`
+  - Android static contract (single renderer): `./abuild.py -c -d build-android --sdk-linkage static -b bgfx --install-sdk out/karma-sdk-android`
+  - policy gate: `./scripts/test-sdk-mobile-static.sh <sdk-prefix>`
 - Acceptance:
   - reproducible reference build instructions for both mobile targets.
 
 ### MP5: CI Gate Coverage
 - Expand CI from current Linux-only baseline to include installed-SDK consumer smoke on desktop platforms.
 - Require gate pass before accepting build-system packaging changes.
+- Landed scaffolding:
+  - `m-karma/.github/workflows/core-test-suite.yml`: desktop SDK packaging/runtime matrix (`Linux`/`macOS`/`Windows`) plus mobile static-policy contract gate.
+  - `m-bz3/.github/workflows/core-test-suite.yml`: desktop consumer smoke matrix that builds `m-karma` SDK + runs installed-SDK consumer/runtime gates.
+- Remaining:
+  - execute these workflows on hosted runners and resolve first-pass platform issues.
+  - after green stabilization, mark the intended jobs as required branch checks.
+- Required-check names to enforce after stabilization:
+  - `SDK Packaging Matrix / SDK Desktop (ubuntu-latest)` (`m-karma`)
+  - `SDK Packaging Matrix / SDK Desktop (macos-latest)` (`m-karma`)
+  - `SDK Packaging Matrix / SDK Desktop (windows-latest)` (`m-karma`)
+  - `SDK Packaging Matrix / SDK Mobile Policy Contract` (`m-karma`)
+  - `SDK Consumer Smoke / Consumer Desktop (ubuntu-latest)` (`m-bz3`)
+  - `SDK Consumer Smoke / Consumer Desktop (macos-latest)` (`m-bz3`)
+  - `SDK Consumer Smoke / Consumer Desktop (windows-latest)` (`m-bz3`)
+- First-run runner triage checklist:
+  1. trigger workflow-dispatch for Linux legs in both repos; fix bootstrap/toolchain failures first.
+  2. run macOS and Windows legs independently; avoid parallel policy changes across both.
+  3. use uploaded `ci-logs/*` plus `CMakeCache.txt` and exported package files to isolate dependency/runtime issues.
+  4. require two consecutive green runs on PR + push before branch-protection promotion.
 - Acceptance:
   - packaging regressions caught pre-merge.
 
@@ -184,9 +223,14 @@ cd ../m-bz3
 ./build-sdk/bz3 -h
 ./build-a7/bz3 -h
 
+# Mobile/static policy contract (host-safe artifact audit)
+cd ../m-karma
+./abuild.py -c -d build-sdk-static --sdk-linkage static --install-sdk out/karma-sdk-static
+./scripts/test-sdk-mobile-static.sh out/karma-sdk-static
+
 # Overseer docs
 cd ../m-overseer
-./scripts/lint-projects.sh
+./agent/scripts/lint-projects.sh
 ```
 
 ## First Session Checklist
@@ -201,17 +245,70 @@ cd ../m-overseer
 - `2026-02-21`: Linux local unblocker validated (`build-sdk` + `build-a7` consumer binaries run without `LD_LIBRARY_PATH`).
 - `2026-02-21`: SDK artifact naming normalized to `libkarma_core.so` / `libkarma_client.so`; consumer package-target contract remains stable.
 - `2026-02-21`: SDK-only policy direction accepted; `MP0-SDK1` migration plan drafted in this project doc.
-- `2026-02-21`: cross-platform packaging parity still pending (`MP1+` execution not closed).
+- `2026-02-21`: `MP0-SDK1` implemented in `m-karma` CMake graph:
+  - removed `KARMA_INSTALL_ENGINE_SDK` mode branch.
+  - added `KARMA_SDK_LINKAGE=auto|shared|static` policy switch with platform default resolution (`auto` => shared desktop, static mobile).
+  - made SDK install/export/package generation unconditional.
+- `2026-02-21`: validation rerun after migration:
+  - producer: `cd m-karma && export ABUILD_AGENT_NAME=overseer-mp0-sdk1 && ./abuild.py --claim-lock -d build-sdk && ./abuild.py -c -d build-sdk -b bgfx,diligent --install-sdk out/karma-sdk && ./abuild.py --release-lock -d build-sdk` (pass)
+  - consumer smoke: `cd m-bz3 && ./build-sdk/bz3 -h && ./build-a7/bz3 -h` (pass)
+- `2026-02-21`: `MP1` Linux runtime hardening landed:
+  - set installed runtime path on shared `libkarma_core.so` to `$ORIGIN` (matching shared client behavior), eliminating `ldd` unresolved `libassimp*.so` in direct SDK library audits.
+  - added `m-karma/scripts/test-sdk-runtime-linux.sh` for canonical Linux SDK runtime evidence (`ldd` unresolved-dependency gate + consumer `-h` launch smoke).
+  - validation:
+    - `cd m-karma && export ABUILD_AGENT_NAME=overseer-mp1-linux && ./abuild.py --claim-lock -d build-sdk && ./abuild.py -c -d build-sdk -b bgfx,diligent --install-sdk out/karma-sdk && ./abuild.py --release-lock -d build-sdk` (pass)
+    - `cd m-karma && ./scripts/test-sdk-runtime-linux.sh out/karma-sdk ../m-bz3/build-sdk/bz3 ../m-bz3/build-a7/bz3` (pass)
+- `2026-02-21`: `MP2` prework landed (Darwin validation pending):
+  - extended SDK install staging for macOS shared mode in `m-karma/cmake/50_sdk_install_export.cmake` to include `libassimp*.dylib*` sidecar payload from local vcpkg runtime dirs.
+  - added `m-karma/scripts/test-sdk-runtime-macos.sh` (`otool -D/-L` install-name/dependency audit + consumer `-h` smoke contract).
+  - Linux regression gate rerun after MP2 prework:
+    - `cd m-karma && export ABUILD_AGENT_NAME=overseer-mp2-prework && ./abuild.py --claim-lock -d build-sdk && ./abuild.py -c -d build-sdk -b bgfx,diligent --install-sdk out/karma-sdk && ./abuild.py --release-lock -d build-sdk` (pass)
+    - `cd m-karma && ./scripts/test-sdk-runtime-linux.sh out/karma-sdk ../m-bz3/build-sdk/bz3 ../m-bz3/build-a7/bz3` (pass)
+- `2026-02-21`: `MP3` prework landed (Windows validation pending):
+  - extended SDK install staging for Windows shared mode in `m-karma/cmake/50_sdk_install_export.cmake` to include `assimp*.dll` sidecar payload from local vcpkg runtime dirs.
+  - added `m-karma/scripts/test-sdk-runtime-windows.sh` (SDK DLL payload audit + dependency listing + consumer `-h` smoke contract).
+  - Linux regression gate rerun after MP3 prework:
+    - `cd m-karma && export ABUILD_AGENT_NAME=overseer-mp3-prework && ./abuild.py --claim-lock -d build-sdk && ./abuild.py -c -d build-sdk -b bgfx,diligent --install-sdk out/karma-sdk && ./abuild.py --release-lock -d build-sdk` (pass)
+    - `cd m-karma && ./scripts/test-sdk-runtime-linux.sh out/karma-sdk ../m-bz3/build-sdk/bz3 ../m-bz3/build-a7/bz3` (pass)
+- `2026-02-21`: `MP4` mobile policy wiring landed:
+  - added explicit mobile shared override guard in CMake: `KARMA_MOBILE_ALLOW_SHARED` (default `OFF`) and fatal guard when mobile targets request shared without explicit override.
+  - added wrapper controls in `m-karma/abuild.py`:
+    - `--sdk-linkage <auto|shared|static>`
+    - `--mobile-allow-shared` (requires `--sdk-linkage shared`)
+  - added `m-karma/scripts/test-sdk-mobile-static.sh` to audit static SDK payload + exported target contract.
+  - codified renderer policy:
+    - combined mode (`bgfx+diligent`) allowed only for Linux shared-mode rapid testing.
+    - static SDK linkage and non-Linux targets must choose one renderer.
+  - validation:
+    - `cd m-karma && export ABUILD_AGENT_NAME=overseer-mp4 && ./abuild.py --claim-lock -d build-sdk-static && ./abuild.py -c -d build-sdk-static --sdk-linkage static --install-sdk out/karma-sdk-static && ./abuild.py --release-lock -d build-sdk-static` (pass)
+    - `cd m-karma && ./scripts/test-sdk-mobile-static.sh out/karma-sdk-static` (pass)
+    - `cd m-karma && export ABUILD_AGENT_NAME=overseer-mp4 && ./abuild.py --claim-lock -d build-mp4-combined && ./abuild.py -c -d build-mp4-combined -b bgfx,diligent --sdk-linkage static ; ./abuild.py --release-lock -d build-mp4-combined` (expected fail at configure: combined renderer mode unsupported for static linkage)
+    - Linux shared regression retained:
+      - `cd m-karma && export ABUILD_AGENT_NAME=overseer-mp4 && ./abuild.py --claim-lock -d build-sdk && ./abuild.py -c -d build-sdk -b bgfx,diligent --install-sdk out/karma-sdk && ./abuild.py --release-lock -d build-sdk` (pass)
+      - `cd m-karma && ./scripts/test-sdk-runtime-linux.sh out/karma-sdk ../m-bz3/build-sdk/bz3 ../m-bz3/build-a7/bz3` (pass)
+- `2026-02-21`: desktop host validation for `MP2`/`MP3` remains deferred until macOS/Windows hosts are available.
+- `2026-02-21`: `MP5` CI scaffolding landed (runner execution evidence pending):
+  - replaced stale core CI workflows with packaging-focused matrix jobs in:
+    - `m-karma/.github/workflows/core-test-suite.yml`
+    - `m-bz3/.github/workflows/core-test-suite.yml`
+  - `m-karma` workflow now includes:
+    - desktop SDK packaging/runtime matrix (`Linux` shared `bgfx+diligent`; `macOS`/`Windows` single-renderer shared mode),
+    - local-branch `m-bz3` checkout/build for installed-SDK consumer smoke,
+    - mobile static-policy contract gate (`test-sdk-mobile-static.sh`) plus negative combined-renderer/static assertion.
+  - `m-bz3` workflow now includes:
+    - local-branch `m-karma` checkout/build for SDK producer in CI,
+    - desktop consumer smoke matrix and SDK runtime gate execution.
+  - note: workflows were YAML-validated locally; hosted-runner execution evidence is still outstanding.
 
 ## Open Questions
-- Should desktop policy allow a `STATIC` override for integrators who require single-binary deployment, or should SDK-only desktop policy be hard `SHARED`?
+- Should Linux shared-only combined renderer mode (`bgfx+diligent`) remain as a long-term supported developer feature, or be retired once parity confidence is high?
 - Do we standardize on one SDK output layout (`lib`, `bin`, `cmake`) for all desktop platforms, or permit platform-specific layouts with a normalized CMake contract?
 - Should full transitive runtime staging use manual allowlist control or automated dependency discovery with explicit exclude rules?
 
 ## Handoff Checklist
-- [ ] `MP0` policy lock accepted
-- [ ] `MP1` Linux hardening complete with consumer smoke gate
+- [x] `MP0` policy lock accepted
+- [x] `MP1` Linux hardening complete with consumer smoke gate
 - [ ] `MP2` macOS packaging parity landed
 - [ ] `MP3` Windows packaging parity landed
-- [ ] `MP4` mobile policy alignment documented and validated
-- [ ] `MP5` multi-OS CI gates active
+- [x] `MP4` mobile policy alignment documented + wired (`abuild` controls, static policy gate, reference commands)
+- [ ] `MP5` multi-OS CI gates active (workflow scaffolding landed; runner stabilization + required-check promotion pending)
