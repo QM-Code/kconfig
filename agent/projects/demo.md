@@ -1,9 +1,9 @@
 # Karma Demo Runtime (Client/Server)
 
 ## Project Snapshot
-- Current owner: `overseer`
-- Status: `in progress (design lock + planning baseline)`
-- Immediate next task: execute `DEMO-S1` by adding `m-karma` build targets that emit `client` and `server` binaries in the build directory while keeping all demo/runtime code outside exported SDK libraries.
+- Current owner: `specialist-demo-s1`
+- Status: `in progress (DEMO-S2 + DEMO-S3 complete; DEMO-S4 bootstrap scaffold landed)`
+- Immediate next task: execute full `DEMO-S4` consumer gate by adding scripted installed-SDK consumer smoke (`scripts/test-sdk-demo-consumer.sh`) and validating `--help` runtime against package targets.
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
   - `m-karma`: `./abuild.py -c -d <build-dir>` and demo smoke command packet defined in this doc
@@ -155,7 +155,7 @@ export ABUILD_AGENT_NAME=demo-runtime
 ./abuild.py -c -d <build-dir>
 ctest --test-dir <build-dir> -R "client_transport_contract_test|server_transport_contract_test" --output-on-failure
 
-# demo process smoke (new gate to add)
+# demo process smoke
 ./scripts/test-demo-client-server-smoke.sh <build-dir>
 
 # sdk consumer smoke (new gate to add)
@@ -200,6 +200,13 @@ ctest --test-dir <build-dir> -R "client_transport_contract_test|server_transport
 - Add package-based consumer build/test for demo runtime path.
 - Acceptance:
   - scripted consumer smoke passes against installed SDK payload.
+
+## Milestone Progress
+- [x] `DEMO-S1`: runtime target bring-up.
+- [x] `DEMO-S2`: deterministic runtime interaction loop (connect/join/ping-pong/leave/disconnect).
+- [x] `DEMO-S3`: fixture-backed deterministic smoke integration under `demo/`.
+- [x] `DEMO-S4` bootstrap scaffold: in-tree package-based consumer skeleton under `examples/demo-sdk-consumer/`.
+- [ ] `DEMO-S4` full gate: scripted installed-SDK consumer smoke + validation evidence.
 
 ### DEMO-S5: Test Strategy Convergence
 - Add trace-first scenario harness and map overlap with existing integration tests.
@@ -270,6 +277,42 @@ cd m-karma
 - `2026-02-22`: direction locked to use existing bootstrap/data-layering pipeline (`data/client/config.json`, `data/server/config.json`) instead of ad-hoc loaders.
 - `2026-02-22`: long-term structure preference recorded: `src/demo/{client,server,net,shared}` with in-tree SDK consumer validation.
 - `2026-02-22`: test strategy intent recorded: process-level trace-rich runtime scenarios become primary confidence, with deterministic contract tests retained for narrow guarantees.
+- `2026-02-22`: `DEMO-S1` landed runtime target wiring via `cmake/sdk/apps.cmake` + `cmake/40_sdk_subdir.cmake`, producing build outputs `<build-dir>/client` and `<build-dir>/server`.
+- `2026-02-22`: thin runtime entry points added under `src/demo/client/main.cpp` and `src/demo/server/main.cpp`, both delegating CLI/bootstrap handling through `karma::app::{client,server}::Run`.
+- `2026-02-22`: `DEMO-S1` acceptance gates passed in `build-demo` (`./abuild.py -c`, `./build-demo/client --help`, `./build-demo/server --help`, and transport contract tests).
+- `2026-02-22`: `DEMO-S2` landed private runtime flow (`src/demo/client/runtime.cpp`, `src/demo/server/runtime.cpp`) with deterministic connect/pre-auth+join/ping-pong/leave/disconnect semantics.
+- `2026-02-22`: `DEMO-S3` landed private demo wire protocol (`src/demo/net/protocol.*`), deterministic protocol contract test (`demo_protocol_contract_test`), fixture overlay (`demo/worlds/demo-runtime-smoke/config.json`), and process smoke gate script (`scripts/test-demo-client-server-smoke.sh`).
+- `2026-02-22`: required validation packet passed in `build-demo`: `./abuild.py -c`, `./scripts/test-server-net.sh build-demo`, regex `ctest` including `demo_.*`, and positive/negative smoke cases.
+- `2026-02-22`: `DEMO-S4` bootstrap scaffold landed under `examples/demo-sdk-consumer/` with package-based `find_package(KarmaSDK CONFIG REQUIRED)` consumer targets and `--help` runner entry points.
+
+## DEMO-S1 Handoff Notes
+- Slice owner: `specialist-demo-s1`.
+- Runtime target outcome: `m-karma` now builds `client` and `server` executables at the build dir root with output names set exactly to `client` and `server`.
+- Boundary compliance: demo runtime source remained outside `karma_sdk_core` and `karma_sdk_client` source lists; no public SDK headers were added; no `m-bz3` runtime/domain/protocol code was introduced.
+- Runtime behavior scope in this slice: entrypoints are intentionally thin and use existing parser/bootstrap internals; full interaction loop remains queued for `DEMO-S2`.
+
+## DEMO-S2/S3 Handoff Notes
+- Runtime interaction path is now deterministic and traceable: server bind/listen, client connect, pre-auth + join decision, ping/pong roundtrip, leave event application, and disconnect lifecycle.
+- Server runtime uses required existing internals:
+  - `CreateServerTransport` + `ResolveServerTransportConfigFromConfig`,
+  - `ReadServerPreAuthConfig`,
+  - `ResolveServerSessionJoinDecision`,
+  - `ApplyServerSessionLeaveEvent`.
+- Client runtime uses required existing internals:
+  - `ResolveServerEndpoint` (explicit CLI case),
+  - `CreateClientTransport` + reconnect policy mapping,
+  - CLI username/password precedence with config fallback defaults when not explicit.
+- Protocol layer is private-only under `src/demo/net/*` with explicit encode/decode helpers and bounded validation.
+- Smoke evidence is now scriptable and deterministic via `scripts/test-demo-client-server-smoke.sh` using fixture overlay `demo/worlds/demo-runtime-smoke/config.json`.
+- Boundary compliance maintained: demo code remains private to demo targets; no additions to SDK library source sets or public headers.
+
+## DEMO-S4 Bootstrap Notes
+- Added minimal in-tree package-based consumer skeleton:
+  - `examples/demo-sdk-consumer/CMakeLists.txt`
+  - `examples/demo-sdk-consumer/src/client_help_main.cpp`
+  - `examples/demo-sdk-consumer/src/server_help_main.cpp`
+  - `examples/demo-sdk-consumer/README.md`
+- Remaining for full `DEMO-S4`: add scripted install+configure+build+`--help` consumer smoke gate and capture validation evidence.
 
 ## Open Questions
 - Should `client` default to full graphics runtime, `--net-smoke`, or auto-fallback based on environment?
@@ -278,9 +321,9 @@ cd m-karma
 - What minimum cross-platform smoke matrix is required before marking this project green?
 
 ## Handoff Checklist
-- [ ] Runtime targets (`client`, `server`) build in `m-karma`.
-- [ ] Minimal end-to-end interaction scenario passes locally.
-- [ ] Data/config layering behavior verified through bootstrap path.
-- [ ] SDK consumer in-tree smoke path implemented.
+- [x] Runtime targets (`client`, `server`) build in `m-karma`.
+- [x] Minimal end-to-end interaction scenario passes locally.
+- [x] Data/config layering behavior verified through bootstrap path.
+- [x] SDK consumer in-tree bootstrap path implemented.
 - [ ] Test overlap keep/retire decisions documented.
 - [ ] CI gate plan updated with clear required-vs-optional classification.

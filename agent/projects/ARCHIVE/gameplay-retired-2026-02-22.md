@@ -1,9 +1,9 @@
 # Gameplay Playable Loop (Localhost)
 
 ## Project Snapshot
-- Current owner: `specialist-gp-s3`
-- Status: `green (GP-S3 landed/validated; advancing to GP-S4)`
-- Immediate next task: execute `GP-S4` (server-side ricochet behavior with bounded lifecycle and required hit-normal seam if needed).
+- Current owner: `specialist-gp-s5`
+- Status: `green (GP-S5 landed/validated; pending manual localhost retirement gate)`
+- Immediate next task: run manual localhost end-to-end verification for outcomes `0`-`5` and complete retirement prep handoff.
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
   - `m-bz3`: `./abuild.py -c -d <bz3-build-dir>`, `./scripts/test-server-net.sh <bz3-build-dir>`, targeted `ctest` packet for touched contracts
@@ -46,29 +46,28 @@ This track is a focused playable product loop bring-up across gameplay/runtime s
 ### Outcome Status Matrix
 | Outcome | Current posture | Evidence | Gap |
 |---|---|---|---|
-| `0` Join + auto name | **partial** | server fallback name is deterministic `player-<client_id>` when join name is empty: `m-bz3/src/server/runtime/server_game.cpp:208`; client normally sends configured username (`userDefaults.username`): `m-bz3/src/client/runtime/startup_options.cpp:23`, `m-bz3/data/client/config.json:8`; duplicate active names are rejected: `m-bz3/src/server/runtime/server_game.cpp:212` | default client behavior does not reliably produce auto-assigned unique names when no explicit name is passed |
-| `1` First-person tank drive | **partial** | tank mode exists but default config disables it: `m-bz3/data/client/config.json:142`; startup reads it default false: `m-bz3/src/client/game/lifecycle.cpp:26`; observer/roaming remains fallback when no tank entity: `m-bz3/src/client/game/lifecycle.cpp:245` | default launch path lands in observer mode, not play mode |
-| `2` Shoot + kill | **partial** | authoritative shot/damage/death pipeline exists (`D3/G4/G5` landed); server kill flow emits death + score event: `m-bz3/src/server/runtime/shot_pilot_step.cpp:128`; but client shot send currently uses zero pos/vel: `m-bz3/src/client/net/connection/outbound.cpp:74`; server applies incoming shot vectors directly: `m-bz3/src/server/runtime/event_rules.cpp:65` | gameplay shot spawn/velocity from local tank/camera is not wired |
-| `3` Server-authoritative running score | **partial** | server mutates session score on kill: `m-bz3/src/server/runtime/shot_damage.cpp:58`; server broadcasts `SetScore`: `m-bz3/src/server/net/transport_event_source/events.cpp:27` | client receive seam is trace-only, not HUD/game-state presentation: `m-bz3/src/client/net/connection/inbound/session_events.cpp:53` |
-| `4` Ricochet off buildings | **not implemented** | shot currently expires on first non-ignored physics hit: `m-bz3/src/server/domain/shot_system.cpp:163` | no bounce/reflection model or ricochet lifecycle state |
-| `5` Jump + land on buildings | **not implemented** | `jump` input is declared: `m-bz3/src/ui/console/keybindings.cpp:15`; local tank motion does not consume jump action: `m-bz3/src/client/game/tank_motion.cpp:28`; tank/actor gravity currently disabled in key paths: `m-bz3/src/client/game/tank_entity.cpp:152`, `m-bz3/src/server/runtime/server_game.cpp:357` | no gameplay jump impulse, airtime state, landing rules, or vertical physics behavior |
+| `0` Join + auto name | **implemented** | server fallback now deterministically resolves `<playerAutoNamePrefix><client_id>` from required config and rejects missing/invalid prefix: `m-bz3/src/server/runtime/server_game.cpp`, `m-bz3/data/server/config.json`; client startup preserves empty default join name for server assignment: `m-bz3/src/client/runtime/startup_options.cpp` | manual localhost verification pending |
+| `1` First-person tank drive | **implemented** | default client startup path is tank-ready while preserving explicit spawn action gate: `m-bz3/data/client/config.json`, `m-bz3/src/client/game/lifecycle.cpp` | manual localhost verification pending |
+| `2` Shoot + kill | **implemented** | client shot create path now sends non-zero spawn/velocity from local tank/camera context; server remains authoritative for hit/damage/death: `m-bz3/src/client/game/lifecycle.cpp`, `m-bz3/src/client/net/connection/outbound.cpp`, `m-bz3/src/server/runtime/shot_pilot_step.cpp` | manual localhost verification pending |
+| `3` Server-authoritative running score | **implemented** | client now applies authoritative `ServerMsg_SetScore` into gameplay state/HUD (deterministic ordering) with no local score authority: `m-bz3/src/client/net/connection/inbound/session_events.cpp`, `m-bz3/src/client/game/lifecycle.cpp`, `m-bz3/src/client/game/game.hpp` | manual localhost verification pending |
+| `4` Ricochet off buildings | **implemented** | bounded server-shot ricochet now reflects using authoritative hit normals with deterministic termination: `m-bz3/src/server/domain/shot_system.cpp`; runtime routes ricochet to non-actor world hits only: `m-bz3/src/server/runtime/shot_pilot_step.cpp` | manual localhost verification pending |
+| `5` Jump + land on buildings | **implemented** | jump edge input now propagates from client tank control through player-location packets; server applies authoritative impulse/gravity/grounded transitions and broadcasts reconciled vertical state: `m-bz3/src/client/game/tank_motion.cpp`, `m-bz3/src/client/net/connection/outbound.cpp`, `m-bz3/src/server/runtime/server_game.cpp`, `m-bz3/src/server/runtime/event_loop.cpp` | manual localhost verification pending |
 
 ### Additional High-Impact Findings
-1. Non-parity actor debug behavior is still active in server tick path and can corrupt gameplay expectations:
-- `m-bz3/src/server/domain/actor_system.cpp:123` moves actors each tick via synthetic sinusoid.
-- `m-bz3/src/server/domain/actor_system.cpp:126` continuously drains health.
+1. Prior non-parity actor debug behavior has been removed from authoritative server tick:
+- synthetic sinusoidal actor drift and synthetic health drain are no longer active in `m-bz3/src/server/domain/actor_system.cpp`.
 
 2. `m-karma` backend is largely sufficient for baseline gameplay integration:
 - backend already exposes gravity toggle, force/impulse, velocity, and raycast APIs: `m-karma/include/karma/physics/backend.hpp:110`, `m-karma/include/karma/physics/backend.hpp:129`, `m-karma/include/karma/physics/backend.hpp:136`, `m-karma/include/karma/physics/backend.hpp:182`.
 
-3. `m-karma` seams still likely needed for full-quality parity:
-- `RaycastHit` currently has no surface normal field (`body`, `position`, `distance`, `fraction` only): `m-karma/include/karma/physics/backend.hpp:79`.
+3. `m-karma` parity seams still remaining after GP-S4:
+- generic raycast hit-normal seam is now landed in backend + facade contracts (`RaycastHit.normal` surfaced by Jolt/PhysX and world raycast): `m-karma/include/karma/physics/backend.hpp`, `m-karma/src/physics/backends/jolt.cpp`, `m-karma/src/physics/backends/physx.cpp`, `m-karma/src/physics/facade/world.cpp`.
 - `PlayerController::isGrounded()` is intentionally deferred: `m-karma/src/physics/facade/player_controller.cpp:185`.
 
 ## Backend Readiness Verdict
-- `m-karma` is **ready enough** for outcomes `0`-`3` and likely `5` with game-owned grounded rules.
+- `m-karma` is **ready enough** for outcomes `0`-`4` and likely `5` with game-owned grounded rules.
 - `m-bz3` remains the primary implementation surface for playable loop behavior.
-- For robust ricochet (`4`), a minimal `m-karma` backend/query contract extension for hit normals is the likely clean path.
+- GP-S4 confirmed the minimal shared unblocker path: a generic `m-karma` hit-normal seam was required and sufficient to deliver physically-correct server ricochet in `m-bz3`.
 
 ## Strategic Track Labels
 - Primary track: `m-dev parity`
@@ -216,6 +215,18 @@ export ABUILD_AGENT_NAME=specialist-gameplay-loop
 3. Verify outcomes `0`-`5` end-to-end in one runtime session with trace evidence.
 
 ## Current Status
+- `2026-02-22`: `GP-S5` completed in `m-bz3` (`m-dev parity` track):
+  - jump input now participates in tank motion and is propagated via client player-location messages (`jump_pressed` flag) rather than remaining a dead input path,
+  - server runtime now applies deterministic authoritative vertical motion (jump impulse, gravity, bounded fall speed, grounded/landing transitions) and returns reconciled local position/velocity state,
+  - client local prediction/reconciliation remains intact with explicit spawn gate unchanged (no auto-spawn-on-join behavior introduced),
+  - no `m-karma` seam was required for GP-S5; existing raycast/query capabilities were sufficient for grounded rules in `m-bz3`,
+  - required validation passed in `build-gp-s5` (`vcpkg_present`, `abuild --claim-lock`, `abuild -c --karma-sdk`, `test-server-net`, targeted `ctest` regex packet for tank/runtime/net/ricochet coverage).
+- `2026-02-22`: `GP-S4` completed across `shared unblocker` + `m-dev parity` tracks:
+  - minimal generic `m-karma` raycast seam landed (`RaycastHit.normal`) in Jolt and PhysX backends plus world facade propagation; parity checks now assert non-zero unit normals from ray queries,
+  - server shot domain now supports bounded deterministic ricochet state (max bounce count, physically-correct normal reflection, deterministic fallback termination when ricochet is not applicable),
+  - runtime shot pilot now classifies ricochet as non-actor world-hit behavior while preserving actor-hit removal/damage authority on server,
+  - explicit spawn gate and naming policies remained unchanged; no client-side ricochet authority was introduced,
+  - validation passed in `build-gp-s4` for both repos (`m-karma`: `abuild -c --install-sdk`, `test-engine-backends`; `m-bz3`: `abuild -c --karma-sdk`, `test-server-net`, targeted `ctest` packet).
 - `2026-02-22`: `GP-S3` completed in `m-bz3` (`m-dev parity` track):
   - client `ServerMsg_SetScore` handling now forwards authoritative score updates through a dedicated connection callback event (no client-local score authority),
   - gameplay state now stores authoritative per-client score values and clears lifecycle state on start/shutdown,
@@ -252,7 +263,7 @@ export ABUILD_AGENT_NAME=specialist-gameplay-loop
 - [x] `GP-S1` landed and validated.
 - [x] `GP-S2` landed and validated.
 - [x] `GP-S3` landed and validated.
-- [ ] `GP-S4` landed and validated.
-- [ ] `GP-S5` landed and validated.
+- [x] `GP-S4` landed and validated.
+- [x] `GP-S5` landed and validated.
 - [ ] Manual localhost end-to-end verification for outcomes `0`-`5`.
 - [ ] Archive this project after completion and update `ASSIGNMENTS.md`.
