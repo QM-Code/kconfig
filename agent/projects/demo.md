@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `specialist-demo-s1`
-- Status: `in progress (DEMO-S2/S3/S4/S5/S6/S7/S8A complete)`
-- Immediate next task: collect Linux CI telemetry trend and trigger `DEMO-S8` only when escalation criteria match telemetry fields.
+- Status: `in progress (DEMO-S2/S3/S4/S5/S6/S7/S8A/S8B complete)`
+- Immediate next task: run trend summary on rolling Linux telemetry history and execute DEMO-S8 only when trend policy returns escalation.
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
   - `m-karma`: `./abuild.py -c -d <build-dir>` and demo smoke command packet defined in this doc
@@ -214,6 +214,7 @@ ctest --test-dir <build-dir> -R "client_transport_contract_test|server_transport
 - [x] `DEMO-S6`: Linux CI-required wiring for trace matrix gate with bounded retry and diagnostics retention.
 - [x] `DEMO-S7`: timeout-race hardening + phase/timestamp diagnostics + repeat stability gate.
 - [x] `DEMO-S8A`: post-S7 telemetry automation for evidence-based DEMO-S8 escalation decisions.
+- [x] `DEMO-S8B`: telemetry trend decision tooling + closeout-readiness procedure.
 
 ### DEMO-S5: Test Strategy Convergence
 - Add trace-first scenario harness and map overlap with existing integration tests.
@@ -248,6 +249,22 @@ ctest --test-dir <build-dir> -R "client_transport_contract_test|server_transport
   - Linux `sdk-desktop` workflow runs telemetry summary after trace matrix execution and uploads telemetry artifacts,
   - demo trace-matrix pass/fail semantics remain unchanged.
 
+### DEMO-S8B: Telemetry Trend Decision Tooling
+- Add deterministic trend evaluator over telemetry history so DEMO-S8 trigger decisions are policy-derived.
+- Acceptance:
+  - `scripts/test-demo-telemetry-trend.sh <telemetry-dir> [window]` reads telemetry JSON files recursively and evaluates latest window (`default=10`) sorted by newest timestamp,
+  - emits:
+    - `<telemetry-dir>/trend-summary.log`,
+    - `<telemetry-dir>/trend-summary.json`,
+  - computes and reports:
+    - `runs_considered`,
+    - `consecutive_escalate_tail`,
+    - `retry_with_marker_count`,
+    - `trend_recommendation` (`monitor` or `escalate_demo_s8`),
+  - applies escalation policy exactly:
+    - escalate if `consecutive_escalate_tail >= 2`, or
+    - escalate if `retry_with_marker_count >= 3` within latest window.
+
 ## Owned Paths
 - `m-overseer/agent/projects/demo.md`
 - `m-overseer/agent/projects/ASSIGNMENTS.md`
@@ -259,6 +276,7 @@ ctest --test-dir <build-dir> -R "client_transport_contract_test|server_transport
 - `m-karma/scripts/test-demo-trace-matrix.sh` (new)
 - `m-karma/scripts/test-demo-transport-stability.sh` (new)
 - `m-karma/scripts/test-demo-telemetry-summary.sh` (new)
+- `m-karma/scripts/test-demo-telemetry-trend.sh` (new)
 
 ## Interface Boundaries
 - Inputs consumed:
@@ -330,6 +348,8 @@ cd m-karma
 - `2026-02-22`: `DEMO-S7` diagnostics now emit stage/timestamp evidence for `timeout-race.phase2.wait-drop` and `timeout-race.phase2.wait-terminal`; stability gate evidence passed at `15/15` using `scripts/test-demo-transport-stability.sh build-demo 15`.
 - `2026-02-22`: `DEMO-S8A` added telemetry summarizer `scripts/test-demo-telemetry-summary.sh` that emits JSON + concise log under `ci-logs/` with fields for attempt count/retry usage/final status/timeout-race marker detection/recommendation.
 - `2026-02-22`: `DEMO-S8A` wired Linux `sdk-desktop` CI to run telemetry summary after matrix execution with `if: always()`, preserving matrix failure semantics while guaranteeing telemetry artifact generation for both pass and fail outcomes.
+- `2026-02-22`: `DEMO-S8B` added trend evaluator `scripts/test-demo-telemetry-trend.sh <telemetry-dir> [window]`, which scans telemetry JSON recursively, sorts newest-first by timestamp, evaluates latest window (`default=10`), and emits `trend-summary.log` + `trend-summary.json`.
+- `2026-02-22`: `DEMO-S8B` implemented deterministic policy mapping in tooling: escalate when `consecutive_escalate_tail >= 2` or `retry_with_marker_count >= 3`; otherwise monitor.
 
 ## DEMO-S1 Handoff Notes
 - Slice owner: `specialist-demo-s1`.
@@ -449,6 +469,31 @@ Retention policy now:
   - two consecutive required Linux CI runs with `recommendation == escalate_demo_s8`, or
   - three `retry_used == true` runs within the latest ten required Linux CI runs with timeout-race markers observed.
 
+## DEMO-S8B Handoff Notes
+- New trend helper:
+  - `scripts/test-demo-telemetry-trend.sh <telemetry-dir> [window]`
+  - input: telemetry directory tree containing S8A `demo-trace-matrix-telemetry.json` (or equivalent JSON records),
+  - output files:
+    - `<telemetry-dir>/trend-summary.log`
+    - `<telemetry-dir>/trend-summary.json`
+- Computed fields:
+  - `runs_considered`: latest window size actually evaluated,
+  - `consecutive_escalate_tail`: consecutive newest runs with `recommendation == escalate_demo_s8`,
+  - `retry_with_marker_count`: runs in latest window where `retry_used == true` and timeout marker seen,
+  - `trend_recommendation`: `monitor` or `escalate_demo_s8`.
+- Policy mapping is exact and deterministic:
+  - escalate on `consecutive_escalate_tail >= 2`, OR
+  - escalate on `retry_with_marker_count >= 3` in latest window.
+
+### Operator Procedure (Closeout Readiness)
+1. Run required Linux CI matrix with S8A telemetry enabled.
+2. Collect telemetry artifacts (or workspace `ci-logs/` mirror).
+3. Run:
+   - `./scripts/test-demo-telemetry-trend.sh <telemetry-dir> 10`
+4. Read `trend-summary.log`/`.json`:
+   - if `trend_recommendation=monitor`, continue S7 monitoring without DEMO-S8 escalation,
+   - if `trend_recommendation=escalate_demo_s8`, open DEMO-S8 reliability escalation slice with attached telemetry evidence.
+
 ## Open Questions
 - Should `client` default to full graphics runtime, `--net-smoke`, or auto-fallback based on environment?
 - Should demo runtime binaries be installed with SDK artifacts or remain build-tree-only reference apps?
@@ -464,3 +509,4 @@ Retention policy now:
 - [x] CI gate plan updated with Linux-required trace-first matrix wiring and retry/diagnostics policy.
 - [x] Post-S6 transport timeout-race hardening validated with repeated stability gate runs.
 - [x] Post-S7 telemetry automation landed with explicit DEMO-S8 escalation criteria and CI artifact capture.
+- [x] Post-S7 trend decision tooling landed with deterministic DEMO-S8 escalation policy evaluation.

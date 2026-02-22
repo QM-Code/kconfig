@@ -3,7 +3,7 @@
 ## Project Snapshot
 - Current owner: `overseer`
 - Status: `in progress (converted to parent superproject; child tracks staged)`
-- Immediate next task: dispatch one implementation slice from `cleanup/server-actor-session-runtime.md` while queuing parallel prep slices in `cleanup/physics-parity-suite.md` and `cleanup/factory-stub-standardization.md`.
+- Immediate next task: dispatch one implementation slice from `cleanup/server-actor-session-runtime.md` while queuing a parallel prep slice in `cleanup/test-harness-consolidation.md`.
 - Validation gate: `cd m-overseer && ./agent/scripts/lint-projects.sh`.
 
 ## Mission
@@ -12,12 +12,9 @@ Coordinate cross-repo cleanup/refactor work across `m-karma/src` and `m-bz3/src`
 ## Foundation References
 - `projects/cleanup/ui-orphaned-subsystem.md`
 - `projects/cleanup/server-actor-session-runtime.md`
-- `projects/cleanup/config-path-resolver-dedupe.md`
-- `projects/cleanup/physics-sync-decomposition.md`
-- `projects/cleanup/physics-parity-suite.md`
+- `projects/ARCHIVE/cleanup-config-path-resolver-dedupe-retired-2026-02-22.md`
 - `projects/cleanup/renderer-backend-core-decomposition.md`
 - `projects/cleanup/ui-frontend-redundancy.md`
-- `projects/cleanup/factory-stub-standardization.md`
 - `projects/cleanup/test-harness-consolidation.md`
 - `projects/cleanup/naming-directory-rationalization.md`
 - `../docs/building.md`
@@ -29,21 +26,16 @@ Cleanup is cross-cutting and spans runtime behavior, build wiring, naming, tests
 ## Subproject Map (`CLN-S1..CLN-S10`)
 - `cleanup/ui-orphaned-subsystem.md` (`CLN-S1`): deferred UI subtree integration/archive decision.
 - `cleanup/server-actor-session-runtime.md` (`CLN-S2`): actor/session runtime cleanup and indexing.
-- `cleanup/config-path-resolver-dedupe.md` (`CLN-S3`): config/path duplication removal.
-- `cleanup/physics-sync-decomposition.md` (`CLN-S4`): `ecs_sync_system` decomposition and typed decision flow.
-- `cleanup/physics-parity-suite.md` (`CLN-S5`): parity test split completion (current split scaffold follow-through).
 - `cleanup/renderer-backend-core-decomposition.md` (`CLN-S6`): BGFX/Diligent core decomposition.
 - `cleanup/ui-frontend-redundancy.md` (`CLN-S7`): cross-frontend UI logic extraction.
-- `cleanup/factory-stub-standardization.md` (`CLN-S8`): backend factory/selector standardization.
 - `cleanup/test-harness-consolidation.md` (`CLN-S9`): shared test harness utilities.
 - `cleanup/naming-directory-rationalization.md` (`CLN-S10`): naming/layout normalization.
 
 ## Parallelization Lanes
 1. `Server Runtime Lane`: `cleanup/server-actor-session-runtime.md`
-2. `Physics Lane`: `cleanup/physics-sync-decomposition.md` + `cleanup/physics-parity-suite.md`
-3. `Engine Infrastructure Lane`: `cleanup/config-path-resolver-dedupe.md` + `cleanup/factory-stub-standardization.md` + `cleanup/test-harness-consolidation.md`
-4. `Renderer Lane`: `cleanup/renderer-backend-core-decomposition.md`
-5. `Naming/Structure Lane`: `cleanup/naming-directory-rationalization.md`
+2. `Engine Infrastructure Lane`: `cleanup/test-harness-consolidation.md`
+3. `Renderer Lane`: `cleanup/renderer-backend-core-decomposition.md`
+4. `Naming/Structure Lane`: `cleanup/naming-directory-rationalization.md`
 
 ## Interface Boundaries
 - Inputs consumed:
@@ -63,7 +55,7 @@ Cleanup is cross-cutting and spans runtime behavior, build wiring, naming, tests
   - all `CLN-S1..CLN-S10` tracked as individual child docs.
 
 ### C1: Highest-Value Execution
-- execute `CLN-S2`, then `CLN-S4`/`CLN-S5` or `CLN-S8` in parallel lanes.
+- execute `CLN-S2`, then `CLN-S9` in parallel lanes.
 - acceptance:
   - at least two independent lanes show validated progress.
 
@@ -104,6 +96,16 @@ cd m-overseer
 - `2026-02-22`: `CLN-S3` `S3-3` contract tests landed (`data_path_contract_test`) and validated; next `CLN-S3` action is `S3-4` canonicalization dedupe follow-on.
 - `2026-02-22`: `CLN-S3` `S3-4` targeted canonicalization dedupe landed (`audio/*`, `root_policy`, `cli/server/runtime_options`) and validated; next `CLN-S3` action is `S3-5` closeout decision for `directory_override`.
 - `2026-02-22`: `CLN-S3` `S3-5` decision landed by migrating `src/common/data/directory_override.cpp` canonicalization to shared `path_utils::Canonicalize`; validated via `./abuild.py -c -d build-cln-s3`, `ctest --test-dir build-cln-s3 -R "data_path_contract_test" --output-on-failure`, and `./scripts/test-engine-backends.sh build-cln-s3`. CLN-S3 implementation slices are now closed.
+- `2026-02-22`: `CLN-S3` lane marked complete in project tracking (`ASSIGNMENTS.md`) before archival handoff sequencing.
+- `2026-02-22`: `CLN-S3` closeout completed; subproject archived as `projects/ARCHIVE/cleanup-config-path-resolver-dedupe-retired-2026-02-22.md`.
+- `2026-02-22`: `CLN-S8` `S8-1` landed by introducing shared selector utility `src/common/backend/selector.hpp` and migrating `src/audio/backend_factory.cpp` as reference usage; validated via `./abuild.py -c -d build-cln-s8`, `./scripts/test-engine-backends.sh build-cln-s8`, and `ctest --test-dir build-cln-s8 -R "physics_backend_parity_.*|audio_backend_smoke_.*" --output-on-failure`.
+- `2026-02-22`: `CLN-S8` `S8-2` landed by migrating `src/physics/backend_factory.cpp` to shared selector helpers in `src/common/backend/selector.hpp`; validated via `./abuild.py -c -d build-cln-s8`, `./scripts/test-engine-backends.sh build-cln-s8`, and `ctest --test-dir build-cln-s8 -R "physics_backend_parity_.*|audio_backend_smoke_.*" --output-on-failure`.
+- `2026-02-22`: `CLN-S8` `S8-3` landed by migrating `src/window/backend_factory.cpp` to shared selector helpers in `src/common/backend/selector.hpp`; validated via `./abuild.py -c -d build-cln-s8`, `./scripts/test-engine-backends.sh build-cln-s8`, and `ctest --test-dir build-cln-s8 -R "physics_backend_parity_.*|audio_backend_smoke_.*" --output-on-failure`.
+- `2026-02-22`: `CLN-S8` `S8-4` landed by migrating `src/ui/backend_factory.cpp` to shared selector helpers in `src/common/backend/selector.hpp` while preserving `software-overlay` alias parsing; validated via `./abuild.py -c -d build-cln-s8`, `./scripts/test-engine-backends.sh build-cln-s8`, and `ctest --test-dir build-cln-s8 -R "physics_backend_parity_.*|audio_backend_smoke_.*" --output-on-failure`.
+- `2026-02-22`: `CLN-S8` `S8-5` landed by migrating `src/renderer/backend_factory.cpp` to shared selector helpers in `src/common/backend/selector.hpp` while preserving `backend->isValid()` acceptance semantics; validated via `./abuild.py -c -d build-cln-s8`, `./scripts/test-engine-backends.sh build-cln-s8`, and `ctest --test-dir build-cln-s8 -R "physics_backend_parity_.*|audio_backend_smoke_.*" --output-on-failure`.
+- `2026-02-22`: `CLN-S8` `S8-6` landed by adding `backend_selector_contract_test` (`src/common/tests/backend_selector_contract_test.cpp`) and wiring `cmake/sdk/tests.cmake` test registration; validated via `./abuild.py -c -d build-cln-s8`, `./scripts/test-engine-backends.sh build-cln-s8`, and `ctest --test-dir build-cln-s8 -R "backend_selector_contract_test|physics_backend_parity_.*|audio_backend_smoke_.*" --output-on-failure`. CLN-S8 rollout is now closed behavior-neutrally.
+- `2026-02-22`: `CLN-S8` closeout completed; subproject archived as `projects/ARCHIVE/cleanup-factory-stub-standardization-retired-2026-02-22.md` and removed from active assignment tracking.
+- `2026-02-22`: `CLN-S4` closeout completed; subproject archived as `projects/ARCHIVE/cleanup-physics-sync-decomposition-retired-2026-02-22.md`.
 
 ## Open Questions
 - Which two lanes should be executed concurrently after `CLN-S2` to maximize throughput without merge contention?

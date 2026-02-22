@@ -31,7 +31,7 @@ Naming/layout normalization is cross-cutting and often mechanical; isolating it 
 - Outputs exposed:
   - consistent naming conventions and path ownership.
 - Coordinate before changing:
-  - `projects/cleanup/factory-stub-standardization.md`
+  - `projects/cleanup.md`
   - `projects/ui.md`
 
 ## Non-Goals
@@ -62,7 +62,7 @@ cd m-bz3
 - `2026-02-22`: follow-on naming cleanup tracked as dedicated child lane under superproject.
 
 ## Open Questions
-- Should backend naming canonicalization (`sdl3audio` style) be handled entirely under `CLN-S8`, or also tracked as naming debt here?
+- With `CLN-S8` archived, should any remaining backend naming canonicalization (`sdl3audio` style) be tracked as `CLN-S10` naming debt?
 - Which remaining path tokens should be treated as archival-only and left unchanged?
 
 ## Handoff Checklist

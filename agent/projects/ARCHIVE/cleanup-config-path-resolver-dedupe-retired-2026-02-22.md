@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `codex`
-- Status: `in progress (S3-5 decision executed; CLN-S3 implementation slices are closed behavior-neutrally)`
-- Immediate next task: hand off CLN-S3 closeout state to cleanup parent sequencing and reallocate engine-infrastructure lane capacity.
+- Status: `complete (retired/archived after S3-1..S3-5 closeout)`
+- Immediate next task: none (archived).
 - Validation gate: `cd m-karma && ./abuild.py -c -d <karma-build-dir>`.
 
 ## Mission
@@ -20,7 +20,7 @@ This is an engine utility-layer refactor that can proceed independently from ser
 ## Owned Paths
 - `m-karma/src/common/config/*`
 - `m-karma/src/common/data/*`
-- `m-overseer/agent/projects/cleanup/config-path-resolver-dedupe.md`
+- `m-overseer/agent/projects/ARCHIVE/cleanup-config-path-resolver-dedupe-retired-2026-02-22.md`
 
 ## Interface Boundaries
 - Inputs consumed:
@@ -28,8 +28,8 @@ This is an engine utility-layer refactor that can proceed independently from ser
 - Outputs exposed:
   - stable shared utility contract for canonicalization/merge resolution.
 - Coordinate before changing:
-  - `projects/cleanup/factory-stub-standardization.md`
-  - `projects/cleanup/naming-directory-rationalization.md`
+- `projects/cleanup.md`
+- `projects/cleanup/naming-directory-rationalization.md`
 
 ## Non-Goals
 - Do not change public config key semantics.
@@ -61,6 +61,7 @@ cd m-karma
 - `2026-02-22`: completed `S3-3` by adding `src/common/tests/data_path_contract_test.cpp` and wiring `data_path_contract_test` in `cmake/sdk/tests.cmake`; validated with `./abuild.py -c -d build-cln-s3`, `ctest --test-dir build-cln-s3 -R "data_path_contract_test" --output-on-failure`, and `./scripts/test-engine-backends.sh build-cln-s3`.
 - `2026-02-22`: completed `S3-4` by migrating canonicalization call sites in `src/audio/backends/{sdl3audio,miniaudio}.cpp`, `src/common/data/root_policy.cpp`, and `src/cli/server/runtime_options.cpp` to `path_utils::Canonicalize`; validated with `./abuild.py -c -d build-cln-s3`, `ctest --test-dir build-cln-s3 -R "data_path_contract_test" --output-on-failure`, and `./scripts/test-engine-backends.sh build-cln-s3`.
 - `2026-02-22`: completed `S3-5` decision by migrating `src/common/data/directory_override.cpp` canonicalization to shared `path_utils::Canonicalize` (removing the last local weak/absolute canonicalization helper in CLN-S3 scope); validated with `./abuild.py -c -d build-cln-s3`, `ctest --test-dir build-cln-s3 -R "data_path_contract_test" --output-on-failure`, and `./scripts/test-engine-backends.sh build-cln-s3`.
+- `2026-02-22`: CLN-S3 closeout completed; subproject archived under `projects/ARCHIVE/cleanup-config-path-resolver-dedupe-retired-2026-02-22.md`.
 
 ## Decision (`S3-2`)
 - Decision: keep `path_utils` in `common/data` as an internal utility surface for engine implementation files.

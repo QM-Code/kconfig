@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `specialist-cln-s5`
-- Status: `in progress (S5-4 residual common-domain extraction landed and validated; CLN-S5 closeout cleanup next)`
-- Immediate next task: execute `S5` closeout by deciding whether to keep the remaining shared `common.cpp` support surface (`RunLifecycleChecks`, `RunReinitCycleChecks`, `RunBackendSelectionChecks`, `RunFacadeScaffoldChecks`) as intentional shared core or perform one final residual split.
+- Status: `complete (CLN-S5 closed with intentional shared-core decision for residual common.cpp checks)`
+- Immediate next task: hand off to cleanup parent sequencing for CLN-S5 archive/retire workflow and lane-capacity reallocation.
 - Validation gate: `cd m-karma && ctest --test-dir <karma-build-dir> -R "physics_backend_parity_.*" --output-on-failure`.
 
 ## Mission
@@ -73,10 +73,12 @@ cd m-karma
 - `2026-02-22`: S5-4 helper boundary outcome: no new shared helper surface introduced; the moved functions were transferred verbatim into `ecs_sync_checks.cpp` and now consume existing ECS/runtime-command includes and local utilities already owned by that domain unit.
 - `2026-02-22`: measured S5-4 file-shape change from pre-slice baseline to migrated state: `common.cpp` `1551 -> 662` lines (`-889`), `ecs_sync_checks.cpp` `2137 -> 3028` lines (`+891`).
 - `2026-02-22`: completed S5-4 validation green in `build-cln-s5`: `./abuild.py -c -d build-cln-s5 -b jolt,physx`, `./scripts/test-engine-backends.sh build-cln-s5`, and `ctest --test-dir build-cln-s5 -R "physics_backend_parity_jolt|physics_backend_parity_physx" --output-on-failure`.
+- `2026-02-22`: executed CLN-S5 closeout decision path `1` (docs-only): keep remaining `common.cpp` checks as intentional shared core (`RunLifecycleChecks`, `RunReinitCycleChecks`, `RunBackendSelectionChecks`, `RunFacadeScaffoldChecks`) and close the lane without further residual split.
+- `2026-02-22`: closeout rationale: remaining checks are cross-domain preflight/scaffold responsibilities rather than concentrated domain families. `RunBackendSelectionChecks` is a CLI-level preflight contract invoked directly by `parity/main.cpp` before backend-domain suites, while `RunLifecycleChecks` + `RunReinitCycleChecks` compose a compact shared lifecycle baseline and `RunFacadeScaffoldChecks` anchors the facade-wide trace/scaffold contract. Additional extraction would add wiring churn with limited maintainability gain and higher parity drift risk.
+- `2026-02-22`: required closeout evidence captured: `wc -l src/physics/tests/parity/common.cpp` -> `662`; `rg -n "^bool Run[A-Za-z0-9_]+\\(" src/physics/tests/parity/common.cpp` -> `RunLifecycleChecks`, `RunReinitCycleChecks`, `RunBackendSelectionChecks`, `RunFacadeScaffoldChecks`; `./agent/scripts/lint-projects.sh` -> `OK`.
 
 ## Open Questions
-- Which domain split yields the highest immediate maintainability gain first (`engine_sync`, `ecs_sync`, or `collider/runtime`)?
-- Should shared fixture helpers be split into multiple headers before migrating checks?
+- None for CLN-S5. Residual follow-up, if any, should be managed by cleanup parent sequencing as a new lane.
 
 ## Handoff Checklist
 - [x] `S5-1`: `RunEcsSyncSystemPolicyChecks` domain family migrated from `common.cpp` into `ecs_sync_checks.cpp` with local helpers.
@@ -89,4 +91,4 @@ cd m-karma
 - [x] `common.cpp` no longer contains the majority of suite logic.
 - [x] Domain files own migrated domain checks and local helpers.
 - [x] Parity binary behavior and backend CLI semantics unchanged.
-- [ ] `S5` closeout: finalize remaining `common.cpp` ownership policy (intentional shared core vs final residual split) and close CLN-S5.
+- [x] `S5` closeout: remaining `common.cpp` ownership finalized as intentional shared core and CLN-S5 marked complete.

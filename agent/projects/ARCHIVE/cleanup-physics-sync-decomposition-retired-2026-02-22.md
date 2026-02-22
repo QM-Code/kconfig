@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `specialist-cln-s4`
-- Status: `in progress (S4-4 complete: boundary pass decided no additional shared fallback extraction; CLN-S4 implementation slices are closed behavior-neutrally)`
-- Immediate next task: prepare CLN-S5 handoff package (stable seams + deferred-risk notes) for parity-suite decomposition work.
+- Status: `complete (retired/archived after S4-1..S4-4 closeout)`
+- Immediate next task: none (archived).
 - Validation gate: `cd m-karma && ./abuild.py -c -d <karma-build-dir> -b jolt,physx` plus `./scripts/test-engine-backends.sh <karma-build-dir>` and targeted parity tests.
 
 ## Mission
@@ -19,7 +19,7 @@ This is high-complexity physics-internal refactoring that can run in parallel wi
 
 ## Owned Paths
 - `m-karma/src/physics/sync/*`
-- `m-overseer/agent/projects/cleanup/physics-sync-decomposition.md`
+- `m-overseer/agent/projects/ARCHIVE/cleanup-physics-sync-decomposition-retired-2026-02-22.md`
 
 ## Interface Boundaries
 - Inputs consumed:
@@ -65,6 +65,7 @@ cd m-karma
 - `2026-02-22`: measured `ecs_sync_system.cpp` line reduction for `S4-3` validation run from `911` lines (`BEFORE`) to `910` lines (`AFTER`) (`-1`), with cumulative CLN-S4 reduction from `1538` to `910` (`-628`).
 - `2026-02-22`: completed `S4-4` boundary pass with explicit no-extract decision for shared create/update fallback helper. Rationale: fallback paths are not equivalent at call-contract level (`create_binding` failure destroys transient body pre-commit, while update rebuild path must destroy existing bound body, clear metadata, erase existing binding iterator, optionally preserve state, and optionally mark runtime-command recovery path), so a shared helper here would either widen coupling/context or risk subtle behavior drift.
 - `2026-02-22`: CLN-S5-facing seams are now stable: runtime-command classification/trace/apply/create orchestration is isolated in `runtime_command_sync.*`, while `ecs_sync_system` retains orchestration-only call sites for create/update and deterministic fallback decisions.
+- `2026-02-22`: CLN-S4 closeout completed and this subproject doc was archived under `projects/ARCHIVE/`.
 
 ## CLN-S5 Handoff Notes
 - Stable seams for parity-suite decomposition:
