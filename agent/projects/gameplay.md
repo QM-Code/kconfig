@@ -1,9 +1,9 @@
 # Gameplay Playable Loop (Localhost)
 
 ## Project Snapshot
-- Current owner: `overseer`
-- Status: `in progress (new active bring-up track; prior migration track retired)`
-- Immediate next task: dispatch first bounded implementation slice `GP-S1` (join/play defaults + remove non-parity actor tick drift).
+- Current owner: `specialist-gp-s3`
+- Status: `green (GP-S3 landed/validated; advancing to GP-S4)`
+- Immediate next task: execute `GP-S4` (server-side ricochet behavior with bounded lifecycle and required hit-normal seam if needed).
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
   - `m-bz3`: `./abuild.py -c -d <bz3-build-dir>`, `./scripts/test-server-net.sh <bz3-build-dir>`, targeted `ctest` packet for touched contracts
@@ -216,6 +216,26 @@ export ABUILD_AGENT_NAME=specialist-gameplay-loop
 3. Verify outcomes `0`-`5` end-to-end in one runtime session with trace evidence.
 
 ## Current Status
+- `2026-02-22`: `GP-S3` completed in `m-bz3` (`m-dev parity` track):
+  - client `ServerMsg_SetScore` handling now forwards authoritative score updates through a dedicated connection callback event (no client-local score authority),
+  - gameplay state now stores authoritative per-client score values and clears lifecycle state on start/shutdown,
+  - HUD now surfaces server-authoritative score entries deterministically (sorted by score desc, then client_id asc),
+  - explicit spawn-on-action policy and server-owned naming policy remain unchanged,
+  - no server authority semantics changed for kill/score mutation (presentation/state wiring only),
+  - required validation gates passed in `build-gp-s1` (`abuild -c --karma-sdk`, `test-server-net`, targeted `ctest` packet including `.*score.*`).
+- `2026-02-22`: `GP-S2` completed in `m-bz3` (`m-dev parity` track):
+  - client fire path now computes deterministic shot spawn vectors from local tank/camera state and sends non-zero shot position/velocity payloads instead of zero vectors,
+  - client outbound shot send seam now accepts explicit shot position/velocity while preserving local prediction and authoritative reconciliation flow,
+  - server authority boundaries remain unchanged (server still validates create_shot, owns kill/death/score mutation path),
+  - contract coverage added for client create_shot payload round-trip and local shot vector computation fallback behavior,
+  - required validation gates passed in `build-gp-s1` (`abuild -c --karma-sdk`, `test-server-net`, targeted `ctest` packet).
+- `2026-02-22`: `GP-S1` completed in `m-bz3` (`m-dev parity` track):
+  - server fallback names now resolve as required `<server.playerAutoNamePrefix><client_id>` with deterministic failure when prefix config is missing/invalid (no hardcoded fallback),
+  - client network startup now preserves empty default join name when no explicit username is provided, enabling server-side deterministic auto-assignment,
+  - explicit spawn gate preserved (no auto-spawn on join); contract coverage updated to assert join/connect does not auto-spawn,
+  - default client config is tank-ready for network play (`gameplay.tank.enabled=true`) while spawn remains explicit,
+  - synthetic sinusoidal drift and synthetic health decay removed from authoritative server actor tick,
+  - required validation gates passed in `build-gp-s1` (`abuild`, `test-server-net`, targeted `ctest` packet).
 - `2026-02-21`: New active project doc created for playable localhost loop bring-up after migration-track retirement.
 - `2026-02-21`: Baseline findings captured: join/name fallback mismatch, observer-by-default startup, shot send vector gap, score display seam missing, ricochet/jump not implemented, and residual non-parity actor tick behavior.
 - `2026-02-21`: Backend readiness clarified: `m-karma` largely sufficient for baseline gameplay, with likely raycast-normal seam needed for robust ricochet.
@@ -229,9 +249,9 @@ export ABUILD_AGENT_NAME=specialist-gameplay-loop
 
 ## Handoff Checklist
 - [x] Comprehensive findings documented with concrete code evidence.
-- [ ] `GP-S1` landed and validated.
-- [ ] `GP-S2` landed and validated.
-- [ ] `GP-S3` landed and validated.
+- [x] `GP-S1` landed and validated.
+- [x] `GP-S2` landed and validated.
+- [x] `GP-S3` landed and validated.
 - [ ] `GP-S4` landed and validated.
 - [ ] `GP-S5` landed and validated.
 - [ ] Manual localhost end-to-end verification for outcomes `0`-`5`.
