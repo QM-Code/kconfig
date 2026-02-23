@@ -6,120 +6,92 @@
 - m-overseer does not build anything
 - m-dev and q-karma provide bzbuild.py, but generally we will never be building there
 - Always use abuild.py for building.
-- IMPORTANT: Never use raw `cmake -S/-B`. Always use abuild.py.
+- Always build from the branch/repo root.
+
+## Toolchain Policy
+- These instructions apply to all repos/branches individually:
+- Each must have their own branch-level `./vcpkg`.
+- A missing/unbootstrapped local `./vcpkg` is a blocker
+- Do not improvise or attempt workarounds for vcpkg errors.
+- On bootstrap, if a repo exists but vcpkg has not been set up:
+  - Inform the human operator that builds will not work until vcpkg is set up.
+  - Offer to set up vcpkg.
+
+## Restrictions
+
+- IMPORTANT: Never use raw `cmake -S/-B` except for very specific tests. In general, always use abuild.py.
+- Build directories must always start with 'build-'. NO EXCEPTIONS.
+
+
+## Basics of abuild.py
+
+- abuild.py assigns agents their own build directories and handles all build configuration
+- abuild.py ensures ownership by having agents claim and lock directoires before usage
+- Basic usage:
+  - Claiming and locking a build directory:
+    - ./abuild.py --agent <agent-name> -d <build-dir> --claim-lock
+	- Note: If this fails, it means the build directory is already claimed
+  - Building: 
+    - ./abuild.py --agent <agent-name> -d <build-dir> --configure
+	- Note: You may omit `-c/--configure` when intentionally reusing a configured build dir.
+  - Releasing a build directory:
+    - ./abuild.py --agent <agent-name> -d <build-dir> --release-lock
+
+
+## Agent naming
+
+- Specialists should receive their names from the project manager/overseer.
+
+
+## SDK builds
+
+- m-karma builds must specify an SDK output directory:
+  - ./abuild.py -c -d <build-dir> --install-sdk <sdk-output-dir>
+- m-bz3 builds must specify an SDK intake directory:
+  - ./abuild.py -c -d <build-dir> --karma-sdk <karma-sdk-dir>
+- These must align in practice: <sdk-output-dir> = <karma-sdk-dir>
+- Real-world example:
+  - m-karma:
+    - `./abuild.py -a <agent> -c -d <build-dir> --install-sdk out/karma-sdk`
+  - m-bz3:
+    - `./abuild.py -a <agent> -c -d <build-dir> --karma-sdk ../m-karma/out/karma-sdk`
 
 
 
-- Always run build commands from the branch/repo root, e.g.:
-  - cd m-karma/
-  - ./abuild.py ...
+### Advancd SDK builds
 
-Purpose:
-- define canonical delegated execution mechanics,
-- keep build/validation behavior deterministic across specialists.
-
-## Execution Root
-- Run commands from the assigned repo root for the active project.
-- If launching from workspace root, use explicit repo prefixes or `cd` first.
-
-## Build Policy
-- Use `./abuild.py -c -d <build-dir>` for delegated configure/build/test flows.
-- Omit `-c` only when intentionally reusing a configured build dir.
-- Do not use raw `cmake -S/-B` for delegated specialist work.
-
-Default-first backend rule:
-- Most slices should omit `-b`.
-- Use `-b` only for categories touched by the slice.
-
-Examples:
-- default: `./abuild.py -c -d <build-dir>`
-- renderer runtime-select: `./abuild.py -c -d <build-dir> -b bgfx,diligent`
-- ui runtime-select: `./abuild.py -c -d <build-dir> -b imgui,rmlui`
-- physics runtime-select: `./abuild.py -c -d <build-dir> -b jolt,physx`
 - static SDK contract: `./abuild.py -c -d <build-dir> --sdk-linkage static --install-sdk <prefix>`
 - mobile shared override (explicit-only): `./abuild.py -c -d <build-dir> --sdk-linkage shared --mobile-allow-shared`
 
-Renderer policy:
+## Backends
+
+- m-karma (engine/sdk) has a branched backend structure
+- Different subsystems can choose which infrastructure they build around
+  - physics: jolt/physx
+  - audio: sdl3audio/miniaudio
+  - renderer: bgfx/diligent
+  - ui: imgui/rmlui
+- abuild.py allows you select which backends to build around.
+- You can also include mutliple backends in a single build, allowing for runtime backend selection.
+- The default backend selection can be seen by running `./abuild.py --defaults`
+
+### Enabling alternate/multiple backends
+
+- Use `--backends` for building non-default backend options
+- IMPORTANT: Most agents should not use `--backends`, and just use the default build configuration.
+- Only use `--backends` when making changes that affect multiple backends
+- Example usage:
+  - Build using the diligent backend instead of the bgfx backend:
+    - ./abuild -c -d <build-dir> -b diligent
+  - Build allowing bgfx/diligent to be selected at runtime
+    - ./abuild -c -d <build-dir> -b bgfx,diligent
+  - Build overriding ui backend to use imgui and allowing bgfx/diligent to be selected at runtime
+    - ./abuild -c -d <build-dir> -b imgui,bgfx,diligent
+
+### Backend bugs
+
 - Combined renderer mode (`-b bgfx,diligent`) is Linux shared-mode only.
 - Non-Linux targets and static SDK linkage must select one renderer backend.
 
-## Build Slot Ownership
-Required in parallel delegated work:
-- set agent identity: `export ABUILD_AGENT_NAME=<agent-name>`
-- claim slot before first build: `./abuild.py --claim-lock -d <build-dir>`
-- release on retire/transfer: `./abuild.py --release-lock -d <build-dir>`
 
-Rules:
-- use only assigned `build-*` slots,
-- pass explicit build-dir args to wrapper scripts,
-- `--ignore-lock` is emergency-only and requires overseer approval.
 
-## Toolchain Policy
-- Local repo `./vcpkg` is mandatory for delegated builds.
-- Missing/unbootstrapped local `./vcpkg` is a blocker; escalate instead of improvising external toolchains.
-
-## Validation Gates
-Core wrappers:
-- `./scripts/test-engine-backends.sh <build-dir>`
-- `./scripts/test-server-net.sh <build-dir>`
-
-Touch-scope rules:
-- network/transport/protocol scope -> server-net wrapper required.
-- physics/audio/backend-test wiring scope -> engine-backends wrapper required.
-- SDK packaging/runtime scope (Linux) -> `m-karma/scripts/test-sdk-runtime-linux.sh <sdk-prefix> [consumer-bin ...]` required.
-- SDK packaging/runtime scope (macOS) -> `m-karma/scripts/test-sdk-runtime-macos.sh <sdk-prefix> [consumer-bin ...]` required.
-- SDK packaging/runtime scope (Windows) -> `m-karma/scripts/test-sdk-runtime-windows.sh <sdk-prefix> [consumer-bin ...]` required.
-- SDK packaging/policy scope (mobile static contract) -> `m-karma/scripts/test-sdk-mobile-static.sh <sdk-prefix>` required.
-- cross-scope changes -> run both wrappers.
-- docs-only/project-tracking edits -> wrappers optional unless project doc says otherwise.
-
-## CI Gate Bring-Up (MP5)
-Required-check target set (after first green stabilization):
-- `SDK Packaging Matrix / SDK Desktop (ubuntu-latest)` in `m-karma`
-- `SDK Packaging Matrix / SDK Desktop (macos-latest)` in `m-karma`
-- `SDK Packaging Matrix / SDK Desktop (windows-latest)` in `m-karma`
-- `SDK Packaging Matrix / SDK Mobile Policy Contract` in `m-karma`
-- `SDK Consumer Smoke / Consumer Desktop (ubuntu-latest)` in `m-bz3`
-- `SDK Consumer Smoke / Consumer Desktop (macos-latest)` in `m-bz3`
-- `SDK Consumer Smoke / Consumer Desktop (windows-latest)` in `m-bz3`
-
-First-run CI triage order:
-1. Run Linux legs first (`ubuntu-latest`) in both repos.
-2. Fix toolchain/bootstrap issues before touching runtime gate logic.
-3. Run `macOS` and `Windows` legs one at a time and capture per-leg artifacts.
-4. If host-specific runtime scripts fail, compare dependency output (`ldd`/`otool`/`dumpbin|objdump`) from uploaded artifacts before changing packaging rules.
-5. Promote jobs to required only after two consecutive green runs on both `pull_request` and branch push triggers.
-
-## Demo Fixture Policy
-Reusable local test/demo state must live under tracked `demo/` roots:
-- `demo/communities/*`
-- `demo/users/*`
-- `demo/worlds/*`
-
-Avoid relying on personal `~/.config/...` or ad-hoc `/tmp` state for durable workflows.
-
-## KARMA -> BZ3 SDK Contract (Locked)
-- `m-karma` build graph is SDK-only; package/export generation is always configured (no non-SDK mode toggle).
-- Consumer integration path is package-based only:
-  - `find_package(KarmaSDK CONFIG REQUIRED)`
-- Diligent renderer dependency is package-based in both repos:
-  - `find_package(DiligentEngine CONFIG REQUIRED)`
-  - source should come from repo overlay port `vcpkg-overlays/diligentengine` (no `FetchContent` fallback)
-- Raw include/lib wiring from consumer into KARMA build artifacts is disallowed.
-
-Canonical commands:
-- producer (`m-karma`):
-  - `./abuild.py -c -d build-sdk --install-sdk out/karma-sdk`
-- consumer (`m-bz3`):
-  - `./abuild.py -c -d build-sdk --karma-sdk ../m-karma/out/karma-sdk --ignore-lock`
-
-Required imported targets:
-- `karma::core`
-- `karma::client`
-
-## Handoff Minimum
-Every specialist handoff must include:
-- files changed,
-- exact commands run + outcomes,
-- open risks/questions,
-- project-doc and assignment-row updates.

@@ -9,6 +9,17 @@ Use this runbook when touching:
 - client/server community integration behavior,
 - demo community/user/world fixture flows.
 
+##
+Do not try to use "real-user" home config directoies (e.g. ~/.config/xyz).
+Always use "virtual users" under demo/users/*
+
+## Demo Fixture Policy
+Reusable local test/demo state must live under tracked `demo/` roots:
+- `demo/communities/*`
+- `demo/users/*`
+- `demo/worlds/*`
+
+
 ## Fixture Roots (Canonical)
 - communities: `demo/communities/*`
 - users: `demo/users/*`
