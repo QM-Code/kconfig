@@ -211,10 +211,10 @@ cd m-karma
 
 # Runtime smoke (radar/HUD visibility path in both renderer and UI backends)
 cd m-bz3
-timeout 20s ./<build-dir>/bz3 --backend-render bgfx --backend-ui imgui --data-dir ./data --user-config data/client/config.json
-timeout 20s ./<build-dir>/bz3 --backend-render diligent --backend-ui imgui --data-dir ./data --user-config data/client/config.json
-timeout 20s ./<build-dir>/bz3 --backend-render bgfx --backend-ui rmlui --data-dir ./data --user-config data/client/config.json
-timeout 20s ./<build-dir>/bz3 --backend-render diligent --backend-ui rmlui --data-dir ./data --user-config data/client/config.json
+timeout 20s ./<build-dir>/bz3 --backend-render bgfx --backend-ui imgui --data ./data --user-config data/client/config.json
+timeout 20s ./<build-dir>/bz3 --backend-render diligent --backend-ui imgui --data ./data --user-config data/client/config.json
+timeout 20s ./<build-dir>/bz3 --backend-render bgfx --backend-ui rmlui --data ./data --user-config data/client/config.json
+timeout 20s ./<build-dir>/bz3 --backend-render diligent --backend-ui rmlui --data ./data --user-config data/client/config.json
 
 # Docs structure gate
 cd m-overseer

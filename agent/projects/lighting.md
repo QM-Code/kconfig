@@ -214,7 +214,7 @@ Legend:
   - `./abuild.py -c -d build-a5 -b bgfx,diligent`: pass.
   - `./build-a5/src/engine/renderer_shadow_sandbox --backend-render bgfx ...`: pass.
   - `./build-a5/src/engine/renderer_shadow_sandbox --backend-render diligent ...`: passes when run with `SDL_VIDEODRIVER=wayland` in this environment.
-  - runtime smoke canonical recipe updated to current CLI (`--data-dir`, `--user-config`, `--trace`); both backend runs complete to expected timeout (`EXIT:124`) with sustained render traces.
+  - runtime smoke canonical recipe updated to current CLI (`--data`, `--user-config`, `--trace`); both backend runs complete to expected timeout (`EXIT:124`) with sustained render traces.
 
 ### P0-S2: Compare-Sampler Shadow Sampling
 - Replace manual `step`-based directional/point shadow compare with hardware compare sampling path (per backend capability).
@@ -301,8 +301,8 @@ From `m-rewrite/`:
 # SDL_VIDEODRIVER=wayland ./<build-dir>/src/engine/renderer_shadow_sandbox --backend-render diligent ...
 
 # Runtime smoke
-timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx
-timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent --data-dir ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render bgfx --data ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.bgfx
+timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent --data ./data --strict-config=true --user-config data/client/config.json --trace engine.sim,render.system,render.diligent
 
 ./docs/scripts/lint-project-docs.sh
 ```

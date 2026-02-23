@@ -138,8 +138,8 @@ export ABUILD_AGENT_NAME=demo-enhance
 cd m-karma
 ./abuild.py -c -d build-demo
 
-./build-demo/server --data-dir ./data --listen-port 11899 --trace net.server,engine.server,config
-./build-demo/client --data-dir ./data --server 127.0.0.1:11899 --trace net.client,engine.app,config
+./build-demo/server --data ./data --listen-port 11899 --trace net.server,engine.server,config
+./build-demo/client --data ./data --server 127.0.0.1:11899 --trace net.client,engine.app,config
 ```
 
 ## First Session Checklist
