@@ -2,20 +2,18 @@
 
 ## Project Snapshot
 - Current owner: `overseer`
-- Status: `in progress (converted to parent superproject; child tracks staged)`
-- Immediate next task: dispatch one implementation slice from `cleanup/server-actor-session-runtime.md` while queuing a parallel prep slice in `cleanup/test-harness-consolidation.md`.
+- Status: `in progress (converted to parent superproject; active non-UI child tracks staged)`
+- Immediate next task: keep `cleanup/server-actor-session-runtime.md` as highest-priority active lane while sequencing remaining cleanup child tracks.
 - Validation gate: `cd m-overseer && ./agent/scripts/lint-projects.sh`.
 
 ## Mission
 Coordinate cross-repo cleanup/refactor work across `m-karma/src` and `m-bz3/src` through independent, parallelizable subprojects with clear ownership boundaries and shared acceptance criteria.
 
 ## Foundation References
-- `projects/cleanup/ui-orphaned-subsystem.md`
 - `projects/cleanup/server-actor-session-runtime.md`
 - `projects/ARCHIVE/cleanup-config-path-resolver-dedupe-retired-2026-02-22.md`
 - `projects/cleanup/renderer-backend-core-decomposition.md`
-- `projects/cleanup/ui-frontend-redundancy.md`
-- `projects/cleanup/test-harness-consolidation.md`
+- `projects/ARCHIVE/cleanup-test-harness-consolidation-retired-2026-02-23.md`
 - `projects/cleanup/naming-directory-rationalization.md`
 - `../docs/building.md`
 - `../docs/testing.md`
@@ -23,19 +21,15 @@ Coordinate cross-repo cleanup/refactor work across `m-karma/src` and `m-bz3/src`
 ## Why This Is Separate
 Cleanup is cross-cutting and spans runtime behavior, build wiring, naming, tests, and architecture boundaries in multiple repos. A parent orchestration track is required to keep high-value work parallel without drifting contracts.
 
-## Subproject Map (`CLN-S1..CLN-S10`)
-- `cleanup/ui-orphaned-subsystem.md` (`CLN-S1`): deferred UI subtree integration/archive decision.
+## Active Subproject Map
 - `cleanup/server-actor-session-runtime.md` (`CLN-S2`): actor/session runtime cleanup and indexing.
 - `cleanup/renderer-backend-core-decomposition.md` (`CLN-S6`): BGFX/Diligent core decomposition.
-- `cleanup/ui-frontend-redundancy.md` (`CLN-S7`): cross-frontend UI logic extraction.
-- `cleanup/test-harness-consolidation.md` (`CLN-S9`): shared test harness utilities.
 - `cleanup/naming-directory-rationalization.md` (`CLN-S10`): naming/layout normalization.
 
 ## Parallelization Lanes
 1. `Server Runtime Lane`: `cleanup/server-actor-session-runtime.md`
-2. `Engine Infrastructure Lane`: `cleanup/test-harness-consolidation.md`
-3. `Renderer Lane`: `cleanup/renderer-backend-core-decomposition.md`
-4. `Naming/Structure Lane`: `cleanup/naming-directory-rationalization.md`
+2. `Renderer Lane`: `cleanup/renderer-backend-core-decomposition.md`
+3. `Naming/Structure Lane`: `cleanup/naming-directory-rationalization.md`
 
 ## Interface Boundaries
 - Inputs consumed:
@@ -52,7 +46,7 @@ Cleanup is cross-cutting and spans runtime behavior, build wiring, naming, tests
 ### C0: Superproject Conversion (this slice)
 - convert monolithic cleanup plan into parent + child docs.
 - acceptance:
-  - all `CLN-S1..CLN-S10` tracked as individual child docs.
+  - initial cleanup lanes split into independent child docs with assignment tracking.
 
 ### C1: Highest-Value Execution
 - execute `CLN-S2`, then `CLN-S9` in parallel lanes.
@@ -65,7 +59,7 @@ Cleanup is cross-cutting and spans runtime behavior, build wiring, naming, tests
   - no cross-lane blocker caused by naming/API drift.
 
 ### C3: Closeout
-- remaining deferred/late-stage tracks (`CLN-S1`, `CLN-S7`) integrated or archived by explicit decision.
+- remaining active lanes integrated or archived by explicit decision.
 - acceptance:
   - child docs resolved and parent archived.
 
@@ -92,6 +86,7 @@ cd m-overseer
 - `2026-02-21`: deep-dive analysis completed and `CLN-S1..CLN-S10` backlog defined.
 - `2026-02-21`: source-tree CMake ownership anti-pattern removed (`src/game` and `src/engine` build wiring relocation).
 - `2026-02-22`: cleanup program converted into parent/child superproject architecture.
+- `2026-02-22`: `CLN-S1` and `CLN-S7` UI-focused child docs removed from cleanup scope by operator direction; active UI work continues under `projects/ui.md` lanes.
 - `2026-02-22`: `CLN-S3` advanced from extraction to placement decision; `path_utils` remains internal and `S3-3` contract-test slice is next.
 - `2026-02-22`: `CLN-S3` `S3-3` contract tests landed (`data_path_contract_test`) and validated; next `CLN-S3` action is `S3-4` canonicalization dedupe follow-on.
 - `2026-02-22`: `CLN-S3` `S3-4` targeted canonicalization dedupe landed (`audio/*`, `root_policy`, `cli/server/runtime_options`) and validated; next `CLN-S3` action is `S3-5` closeout decision for `directory_override`.
@@ -106,10 +101,13 @@ cd m-overseer
 - `2026-02-22`: `CLN-S8` `S8-6` landed by adding `backend_selector_contract_test` (`src/common/tests/backend_selector_contract_test.cpp`) and wiring `cmake/sdk/tests.cmake` test registration; validated via `./abuild.py -c -d build-cln-s8`, `./scripts/test-engine-backends.sh build-cln-s8`, and `ctest --test-dir build-cln-s8 -R "backend_selector_contract_test|physics_backend_parity_.*|audio_backend_smoke_.*" --output-on-failure`. CLN-S8 rollout is now closed behavior-neutrally.
 - `2026-02-22`: `CLN-S8` closeout completed; subproject archived as `projects/ARCHIVE/cleanup-factory-stub-standardization-retired-2026-02-22.md` and removed from active assignment tracking.
 - `2026-02-22`: `CLN-S4` closeout completed; subproject archived as `projects/ARCHIVE/cleanup-physics-sync-decomposition-retired-2026-02-22.md`.
+- `2026-02-23`: `CLN-S9` advanced from queued prep to active execution: `m-bz3` shared test harness modules landed (`src/tests/support/test_harness.hpp`, `src/tests/support/loopback_harness.hpp`), broad test migration validated (`ctest` `30/30`), and next step is mirrored `m-karma` parity/gating follow-on.
+- `2026-02-23`: `CLN-S9` parity follow-on landed in `m-karma` (`src/tests/support/test_harness.hpp` + targeted suite migrations), validated with targeted contract tests (`5/5`), leaving only closeout decisions (client transport diagnostics helper exception + m-bz3 loopback target-gating policy).
+- `2026-02-23`: `CLN-S9` closeout decisions documented (loopback gating rationale in `m-bz3/cmake/targets/tests.cmake`; client transport diagnostics-helper exception in `m-karma/src/network/tests/contracts/client_transport_contract_test.cpp`); lane is now closeout-ready pending archival call.
+- `2026-02-23`: `CLN-S9` closeout completed by operator decision not to export `network_test_support` through Karma SDK targets; subproject archived as `projects/ARCHIVE/cleanup-test-harness-consolidation-retired-2026-02-23.md`.
 
 ## Open Questions
 - Which two lanes should be executed concurrently after `CLN-S2` to maximize throughput without merge contention?
-- Should `CLN-S7` remain fully deferred behind UI integration, or can backend-neutral presenter extraction begin early?
 
 ## Handoff Checklist
 - [ ] Child docs stay aligned with parent sequencing.

@@ -11,7 +11,7 @@ Align naming and directory ownership with actual runtime/build responsibilities,
 
 ## Foundation References
 - `projects/cleanup.md`
-- `m-bz3/cmake/game/*`
+- `m-bz3/cmake/targets/*`
 - `m-bz3/src/client/game/game.hpp`
 - `m-karma/cmake/40_sdk_subdir.cmake`
 - `m-karma/cmake/sdk/*`

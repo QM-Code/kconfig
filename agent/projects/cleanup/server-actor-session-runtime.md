@@ -30,7 +30,6 @@ This slice is runtime-critical and independent from renderer/UI/factory cleanup 
 - Outputs exposed:
   - deterministic server actor/session update semantics.
 - Coordinate before changing:
-  - `projects/gameplay.md`
   - `projects/cleanup.md`
 
 ## Non-Goals

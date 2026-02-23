@@ -1,4 +1,4 @@
-# Specialist Community Runbook
+# Testing Policy
 
 Purpose:
 - provide one concise workflow for community webserver + auth validation using demo fixtures.

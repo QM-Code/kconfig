@@ -1,4 +1,18 @@
-# Overseer Execution Policy
+# Build Policy
+
+## Per-branch/repo building
+
+- m-karma and m-bz3 both provide the abuild.py script for building
+- m-overseer does not build anything
+- m-dev and q-karma provide bzbuild.py, but generally we will never be building there
+- Always use abuild.py for building.
+- IMPORTANT: Never use raw `cmake -S/-B`. Always use abuild.py.
+
+
+
+- Always run build commands from the branch/repo root, e.g.:
+  - cd m-karma/
+  - ./abuild.py ...
 
 Purpose:
 - define canonical delegated execution mechanics,
