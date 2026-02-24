@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `specialist-client-refactor-a1`
-- Status: `in progress (CR-A3 landed with direct convergence and no compatibility artifacts; CR-A4.1 pending)`
-- Immediate next task: execute `CR-A4.1` (CMake source-list convergence + target list naming cleanup after `src/client/game/*` relocation) in `m-bz3` using build dir `build-client-refactor-a1`.
+- Status: `in progress (CR-A4.2 landed with direct docs/reference convergence and no compatibility artifacts; CR-A4.3 pending)`
+- Immediate next task: execute `CR-A4.3` (legacy-path purge closeout: remove empty `src/client/game/` directory and run final zero-reference verification) in `m-bz3` using build dir `build-client-refactor-a1`.
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
   - `m-bz3`: `./abuild.py --agent specialist-client-refactor-a1 --claim-lock -d build-client-refactor-a1 && ./abuild.py --agent specialist-client-refactor-a1 -c -d build-client-refactor-a1 --karma-sdk ../m-karma/out/karma-sdk && ./abuild.py --agent specialist-client-refactor-a1 --release-lock -d build-client-refactor-a1`
@@ -261,6 +261,24 @@ This is a broad structural migration across CMake paths, include paths, tests, a
 - Execute slices `CR-A4.1` -> `CR-A4.3` after `CR-A3` builds green.
 - Do not introduce compatibility artifacts in this track; each slice must fully converge include and CMake references for moved files.
 
+#### `CR-A4` Progress (`2026-02-24`)
+- `CR-A4.1` completed with direct convergence (no compatibility layer):
+  - renamed `BZ3_CLIENT_GAME_SRCS` -> `BZ3_CLIENT_DOMAIN_SRCS` in `cmake/targets/sources.cmake`
+  - updated `cmake/targets/targets.cmake` to consume `${BZ3_CLIENT_DOMAIN_SRCS}`
+  - source membership preserved (naming/topology alignment only; no target behavior changes)
+  - `cmake/targets` scan confirms no `src/client/game/` path references remain
+- Compatibility-artifact audit result for `CR-A4.1`:
+  - no compatibility shims/forwarders introduced
+  - no dual-path include/target fallback logic introduced
+- `CR-A4.2` completed with direct convergence (no compatibility layer):
+  - updated `m-bz3/src/ui/architecture.md` stale path reference: `src/client/game/lifecycle.cpp` -> `src/client/runtime/lifecycle.cpp`
+  - scoped audit in `src`, `cmake`, and `CMakeLists.txt` confirms no remaining `#include "client/game/*"` references
+  - scoped audit in `src`, `cmake`, and `CMakeLists.txt` confirms no remaining `src/client/game/*` path references
+  - `find src/client/game -maxdepth 1 -type f` confirms directory contains zero files (empty directory retained for `CR-A4.3`)
+- Compatibility-artifact audit result for `CR-A4.2`:
+  - no compatibility shims/forwarders introduced
+  - no dual-path include/target fallback logic introduced
+
 ### `CR-A5` Optional Namespace Convergence
 - If approved by operator, migrate `bz3::client::game::*` namespaces to topology-aligned names.
 - Keep this as a separate pass after path migration is green.
@@ -338,6 +356,24 @@ cd m-bz3
   - `#include "client/game/(tank_motion_authority_pilot|tank_motion_authority_state_machine).hpp"` scan in `src` + `cmake`: no matches
   - `src/client/game/(tank_motion_authority_pilot|tank_motion_authority_state_machine).cpp` scan in `cmake/targets` + `src`: no matches
   - `#include "client/domain/(tank_motion_authority_pilot|tank_motion_authority_state_machine).hpp"` scan in runtime + tests: expected matches present
+- `2026-02-24`: `CR-A4.1` landed with CMake source-list variable convergence and no compatibility artifacts.
+- `2026-02-24`: CR-A4.1 validation results:
+  - `m-overseer` lint before + after: pass
+  - `m-bz3` lock claim + `abuild.py -c` + lock release: pass
+  - `ctest --test-dir build-client-refactor-a1 -R "tank_.*|client_.*|server_.*runtime.*" --output-on-failure`: `18/19` pass, only known baseline fail (`server_join_runtime_contract_test`: missing key `feedback.server.runtime.joinRejectReasons.Default`)
+  - `BZ3_CLIENT_GAME_SRCS` scan in `cmake/targets`: no matches
+  - `BZ3_CLIENT_DOMAIN_SRCS` scan in `cmake/targets/sources.cmake` + `cmake/targets/targets.cmake`: expected matches present
+  - `src/client/game/` scan in `cmake/targets`: no matches
+  - non-CMake stale reference discovered for CR-A4.2 follow-up: `m-bz3/src/ui/architecture.md:68` references `src/client/game/lifecycle.cpp`
+- `2026-02-24`: `CR-A4.2` landed with test/docs path convergence and no compatibility artifacts.
+- `2026-02-24`: CR-A4.2 validation results:
+  - `m-overseer` lint before + after: pass
+  - `m-bz3` lock claim + `abuild.py -c` + lock release: pass
+  - `ctest --test-dir build-client-refactor-a1 -R "tank_.*|client_.*|server_.*runtime.*" --output-on-failure`: `18/19` pass, only known baseline fail (`server_join_runtime_contract_test`: missing key `feedback.server.runtime.joinRejectReasons.Default`)
+  - `#include "client/game/` scan in `src` + `cmake` + `CMakeLists.txt`: no matches
+  - `src/client/game/` path scan in `src` + `cmake` + `CMakeLists.txt`: no matches
+  - `src/ui/architecture.md` stale path scan: no matches
+  - `find src/client/game -maxdepth 1 -type f`: no output (directory empty; ready for `CR-A4.3` purge)
 
 ## Open Questions
 - Should namespace migration (`bz3::client::game::*`) be mandatory in this track, or deferred until path migration is complete?
@@ -348,8 +384,8 @@ cd m-bz3
 
 ## Handoff Checklist
 - [x] `CR-A1` inventory + move map + staged slice map documented
-- [ ] `src/client/game/*` removed
-- [ ] CMake/test wiring updated
+- [x] `src/client/game/*` removed
+- [x] CMake/test wiring updated
 - [x] `CR-A2.1` runtime entrypoint relocation landed (`game.hpp`, `lifecycle.cpp`, `audio.cpp`)
 - [x] No compatibility artifacts introduced or retained for CR-A2.1
 - [x] `CR-A2.2` runtime tank-orchestration/query-context relocation landed
@@ -362,6 +398,10 @@ cd m-bz3
 - [x] `CR-A3.3` authority pilot/state-machine relocation landed (`tank_motion_authority_pilot.*`, `tank_motion_authority_state_machine.*`)
 - [x] No compatibility artifacts introduced or retained for CR-A3.3
 - [x] `CR-A3` domain relocation landed
+- [x] `CR-A4.1` CMake source-list variable convergence landed (`BZ3_CLIENT_GAME_SRCS` -> `BZ3_CLIENT_DOMAIN_SRCS`)
+- [x] No compatibility artifacts introduced or retained for CR-A4.1
+- [x] `CR-A4.2` test/docs path convergence landed (stale non-CMake `src/client/game/*` references removed)
+- [x] No compatibility artifacts introduced or retained for CR-A4.2
 - [ ] `CR-A4` convergence + legacy path purge landed
 - [x] Validation commands run and summarized
 - [x] Remaining naming debt and risks documented
