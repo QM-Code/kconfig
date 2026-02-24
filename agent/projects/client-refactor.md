@@ -2,8 +2,8 @@
 
 ## Project Snapshot
 - Current owner: `specialist-client-refactor-a1`
-- Status: `in progress (CR-A3.1 landed with direct path convergence and no compatibility artifacts; CR-A3.2 pending)`
-- Immediate next task: execute `CR-A3.2` (move collision mechanics units to `src/client/domain/*` with direct include/CMake convergence and no compatibility layer) in `m-bz3` using build dir `build-client-refactor-a1`.
+- Status: `in progress (CR-A3 landed with direct convergence and no compatibility artifacts; CR-A4.1 pending)`
+- Immediate next task: execute `CR-A4.1` (CMake source-list convergence + target list naming cleanup after `src/client/game/*` relocation) in `m-bz3` using build dir `build-client-refactor-a1`.
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
   - `m-bz3`: `./abuild.py --agent specialist-client-refactor-a1 --claim-lock -d build-client-refactor-a1 && ./abuild.py --agent specialist-client-refactor-a1 -c -d build-client-refactor-a1 --karma-sdk ../m-karma/out/karma-sdk && ./abuild.py --agent specialist-client-refactor-a1 --release-lock -d build-client-refactor-a1`
@@ -234,6 +234,28 @@ This is a broad structural migration across CMake paths, include paths, tests, a
   - no pre-existing forwarding headers/shims/dual-path include logic found for these three headers
   - no compatibility shims/forwarders introduced
   - no bridge files retained under `src/client/game/`
+- `CR-A3.2` completed with direct convergence (no compatibility layer):
+  - moved `src/client/game/tank_collision_guardrails.hpp/.cpp` -> `src/client/domain/tank_collision_guardrails.hpp/.cpp`
+  - moved `src/client/game/tank_collision_query.hpp/.cpp` -> `src/client/domain/tank_collision_query.hpp/.cpp`
+  - moved `src/client/game/tank_collision_probe_shape.hpp/.cpp` -> `src/client/domain/tank_collision_probe_shape.hpp/.cpp`
+  - moved `src/client/game/tank_collision_resolution.hpp/.cpp` -> `src/client/domain/tank_collision_resolution.hpp/.cpp`
+  - moved `src/client/game/tank_collision_step_stats.hpp/.cpp` -> `src/client/domain/tank_collision_step_stats.hpp/.cpp`
+  - moved `src/client/game/tank_camera_collision.hpp/.cpp` -> `src/client/domain/tank_camera_collision.hpp/.cpp`
+  - updated include callsites in runtime/tests from `client/game/*` to `client/domain/*` for the six relocated collision mechanics headers
+  - updated `cmake/targets/sources.cmake` and `cmake/targets/tests.cmake` `.cpp` paths from `src/client/game/*` to `src/client/domain/*` for relocated units
+- Compatibility-artifact audit result for `CR-A3.2`:
+  - no pre-existing forwarding headers/shims/dual-path include logic found for these six collision mechanics units
+  - no compatibility shims/forwarders introduced
+  - no bridge files retained under `src/client/game/`
+- `CR-A3.3` completed with direct convergence (no compatibility layer):
+  - moved `src/client/game/tank_motion_authority_pilot.hpp/.cpp` -> `src/client/domain/tank_motion_authority_pilot.hpp/.cpp`
+  - moved `src/client/game/tank_motion_authority_state_machine.hpp/.cpp` -> `src/client/domain/tank_motion_authority_state_machine.hpp/.cpp`
+  - updated include callsites from `client/game/*` to `client/domain/*` in runtime (`game.hpp`, `tank_entity.cpp`, `tank_motion.cpp`) and authority tests
+  - updated `cmake/targets/sources.cmake` and `cmake/targets/tests.cmake` `.cpp` paths from `src/client/game/*` to `src/client/domain/*` for authority pilot/state-machine units
+- Compatibility-artifact audit result for `CR-A3.3`:
+  - no pre-existing forwarding headers/shims/dual-path include logic found for authority pilot/state-machine units
+  - no compatibility shims/forwarders introduced
+  - no bridge files retained under `src/client/game/`
 
 ### `CR-A4` CMake/Test/Doc Convergence
 - Execute slices `CR-A4.1` -> `CR-A4.3` after `CR-A3` builds green.
@@ -298,12 +320,31 @@ cd m-bz3
   - moved-path existence/absence checks for `math.hpp`, `score_state.hpp`, `shot_spawn.hpp`: pass
   - `#include "client/game/(math|score_state|shot_spawn).hpp"` scan in `src` + `cmake`: no matches
   - `#include "client/domain/(math|score_state|shot_spawn).hpp"` scan in runtime + tests: expected matches present
+- `2026-02-24`: `CR-A3.2` landed with direct collision-mechanics relocation and no compatibility artifacts.
+- `2026-02-24`: CR-A3.2 validation results:
+  - `m-overseer` lint before + after: pass
+  - `m-bz3` lock claim + `abuild.py -c` + lock release: pass
+  - `ctest --test-dir build-client-refactor-a1 -R "tank_.*|client_.*|server_.*runtime.*" --output-on-failure`: `18/19` pass, only known baseline fail (`server_join_runtime_contract_test`: missing key `feedback.server.runtime.joinRejectReasons.Default`)
+  - moved-path existence/absence checks for twelve `CR-A3.2` files: pass
+  - `#include "client/game/(tank_collision_guardrails|tank_collision_query|tank_collision_probe_shape|tank_collision_resolution|tank_collision_step_stats|tank_camera_collision).hpp"` scan in `src` + `cmake`: no matches
+  - `src/client/game/(tank_collision_guardrails|tank_collision_query|tank_collision_probe_shape|tank_collision_resolution|tank_collision_step_stats|tank_camera_collision).cpp` scan in `cmake/targets` + `src`: no matches
+  - `#include "client/domain/(tank_collision_guardrails|tank_collision_query|tank_collision_probe_shape|tank_collision_resolution|tank_collision_step_stats|tank_camera_collision).hpp"` scan in runtime + tests: expected matches present
+- `2026-02-24`: `CR-A3.3` landed with direct authority pilot/state-machine relocation and no compatibility artifacts.
+- `2026-02-24`: CR-A3.3 validation results:
+  - `m-overseer` lint before + after: pass
+  - `m-bz3` lock claim + `abuild.py -c` + lock release: pass
+  - `ctest --test-dir build-client-refactor-a1 -R "tank_.*|client_.*|server_.*runtime.*" --output-on-failure`: `18/19` pass, only known baseline fail (`server_join_runtime_contract_test`: missing key `feedback.server.runtime.joinRejectReasons.Default`)
+  - moved-path existence/absence checks for four `CR-A3.3` files: pass
+  - `#include "client/game/(tank_motion_authority_pilot|tank_motion_authority_state_machine).hpp"` scan in `src` + `cmake`: no matches
+  - `src/client/game/(tank_motion_authority_pilot|tank_motion_authority_state_machine).cpp` scan in `cmake/targets` + `src`: no matches
+  - `#include "client/domain/(tank_motion_authority_pilot|tank_motion_authority_state_machine).hpp"` scan in runtime + tests: expected matches present
 
 ## Open Questions
 - Should namespace migration (`bz3::client::game::*`) be mandatory in this track, or deferred until path migration is complete?
 - Should runtime orchestration keep a `Game` type name or adopt a more topology-neutral name once paths are stabilized?
 - Should `CR-A5` namespace convergence be executed immediately after `CR-A4`, or deferred until at least one full gameplay stabilization packet validates the post-move topology?
 - Does the `server_join_runtime_contract_test` i18n-key failure represent unrelated pre-existing data drift, or should CR-A2 lanes pause until string-key contract baseline is restored?
+- Is the strict no-shim/no-forwarder policy intended to remain mandatory through `CR-A3.3` and `CR-A4` even if cross-track cherry-picks temporarily lag?
 
 ## Handoff Checklist
 - [x] `CR-A1` inventory + move map + staged slice map documented
@@ -316,7 +357,11 @@ cd m-bz3
 - [ ] `CR-A2` runtime relocation landed
 - [x] `CR-A3.1` utility/state header relocation landed (`math.hpp`, `score_state.hpp`, `shot_spawn.hpp`)
 - [x] No compatibility artifacts introduced or retained for CR-A3.1
-- [ ] `CR-A3` domain relocation landed
+- [x] `CR-A3.2` collision mechanics relocation landed (`tank_collision_guardrails.*`, `tank_collision_query.*`, `tank_collision_probe_shape.*`, `tank_collision_resolution.*`, `tank_collision_step_stats.*`, `tank_camera_collision.*`)
+- [x] No compatibility artifacts introduced or retained for CR-A3.2
+- [x] `CR-A3.3` authority pilot/state-machine relocation landed (`tank_motion_authority_pilot.*`, `tank_motion_authority_state_machine.*`)
+- [x] No compatibility artifacts introduced or retained for CR-A3.3
+- [x] `CR-A3` domain relocation landed
 - [ ] `CR-A4` convergence + legacy path purge landed
 - [x] Validation commands run and summarized
 - [x] Remaining naming debt and risks documented
