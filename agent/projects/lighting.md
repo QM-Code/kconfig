@@ -82,8 +82,6 @@ Implement every lighting/shadow technique that is actively used in q-karma demo 
 - `docs/building.md`
 - `docs/overseer/operating-model.md`
 - `docs/overseer/playbook.md`
-- `docs/archive/renderer-shadow-hardening-superseded-2026-02-17.md` (source of carry-over unfinished items)
-- `docs/archive/renderer-parity-retired-2026-02-17.md` (historical parity/VQ ledger; retired)
 
 ## Why This Is Separate
 - Shadow hardening moved from isolated bug-fix mode into a full capability-parity program.
@@ -92,7 +90,6 @@ Implement every lighting/shadow technique that is actively used in q-karma demo 
 - This document now also carries the remaining actionable concerns from retired `renderer-parity.md` so active renderer/shadow execution stays in one place.
 
 ## Renderer-Parity Retirement Intake (2026-02-17)
-- Retired file: `docs/projects/renderer-parity.md` -> `docs/archive/renderer-parity-retired-2026-02-17.md`.
 - Active carry-over concern from the retired track:
   - VQ4 deterministic visual regression guardrails (`assertions/metrics + wrapper/docs alignment`).
 - Carry-over closure accepted by operator:
@@ -127,7 +124,6 @@ Read-only comparison root:
   - runtime-wired controls needed for deterministic bz3 verification.
 - Coordinate before changing:
   - `docs/specialists.md`
-  - `docs/archive/renderer-parity-retired-2026-02-17.md` (historical thresholds/rubrics)
   - `docs/overseer/operating-model.md`
 
 ## Non-Goals
@@ -174,7 +170,7 @@ Legend:
 4. Regression watch stays active for prior distance-dropout behavior; every slice must include an explicit distance-persistence check.
 5. Runtime debug UI timing question is now explicit: defer full panel until core parity slices land, then add bounded panel for maintainability.
 6. Cascade-count policy decision is now attached to CSM slice acceptance (`fixed 4 first`, optional configurability only after parity proof).
-7. VQ4 deterministic visual regression guardrails are now tracked here (not in retired `renderer-parity.md`).
+7. VQ4 deterministic visual regression guardrails are now tracked directly in this file.
 
 ## Execution Plan
 
@@ -315,7 +311,7 @@ timeout -k 2s 20s ./<build-dir>/bz3 --backend-render diligent --data ./data --st
 - `render.mesh`
 
 ## First Session Checklist
-1. Read this file + `docs/archive/renderer-shadow-hardening-superseded-2026-02-17.md` carry-over section only.
+1. Read this file, focusing on the carry-over items and `P0-S3` restart notes before selecting a slice.
 2. Re-run canonical sandbox command for both backends and capture baseline evidence.
 3. Pick exactly one active slice from this plan and scope it narrowly.
 4. Land code + validation + doc updates in same handoff.

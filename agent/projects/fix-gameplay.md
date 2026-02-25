@@ -1,9 +1,9 @@
 # Gameplay Stabilization & Glitch Fixes (Localhost)
 
 ## Project Snapshot
-- Current owner: `overseer`
-- Status: `in progress (post-GP bring-up stabilization track)`
-- Immediate next task: dispatch `FG-S1` to reproduce the reported runtime glitches with traces and convert symptoms into bounded fixes.
+- Current owner: `unassigned`
+- Status: `on hold (paused by operator)`
+- Immediate next task: wait for operator reactivation before dispatching `FG-S1`.
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
   - `m-bz3`: `./abuild.py -c -d <bz3-build-dir> --karma-sdk ../m-karma/out/karma-sdk`, `./scripts/test-server-net.sh <bz3-build-dir>`, targeted `ctest`
@@ -13,9 +13,8 @@
 Keep the playable localhost loop that GP-S1..S5 established, and eliminate the remaining gameplay quality/runtime glitches blocking a dependable player experience.
 
 ## Foundation References
-- `m-overseer/agent/projects/ARCHIVE/gameplay-retired-2026-02-22.md`
-- `m-bz3/src/client/game/lifecycle.cpp`
-- `m-bz3/src/client/game/tank_motion.cpp`
+- `m-bz3/src/client/runtime/lifecycle.cpp`
+- `m-bz3/src/client/runtime/tank_motion.cpp`
 - `m-bz3/src/client/domain/tank_drive_controller.cpp`
 - `m-bz3/src/client/net/connection/inbound/session_events.cpp`
 - `m-bz3/src/client/net/connection/outbound.cpp`
@@ -52,7 +51,8 @@ Manual localhost run reported on `2026-02-22`:
 ## Owned Paths
 - `m-overseer/agent/projects/fix-gameplay.md`
 - `m-overseer/agent/projects/ASSIGNMENTS.md`
-- `m-bz3/src/client/game/*`
+- `m-bz3/src/client/runtime/*`
+- `m-bz3/src/client/domain/*`
 - `m-bz3/src/client/net/*`
 - `m-bz3/src/server/runtime/*`
 - `m-bz3/src/server/domain/*` (only if required by a bounded stabilization fix)
@@ -139,8 +139,9 @@ ctest --test-dir <bz3-build-dir> -R "tank_.*|server_runtime_.*|server_net_contra
 - Ricochet behavior against buildings.
 
 ## Current Status
-- `2026-02-22`: Previous gameplay bring-up track retired to archive after GP-S1..S5 completion.
+- `2026-02-22`: Previous gameplay bring-up track closed after GP-S1..S5 completion.
 - `2026-02-22`: New stabilization track created from manual runtime findings (shot visibility gap, movement/jump stutter, HUD visibility gap).
+- `2026-02-25`: Work unassigned and paused by operator direction; no active gameplay stabilization slice is currently dispatched.
 
 ## Open Questions
 - Is movement stutter primarily from reconciliation cadence, local prediction state resets, or render/update integration?

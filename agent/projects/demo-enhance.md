@@ -2,7 +2,7 @@
 
 ## Project Snapshot
 - Current owner: `specialist-demo-s1`
-- Status: `in progress (ENH-S0 extraction/archive complete; enhancement slices pending)`
+- Status: `in progress (ENH-S0 baseline extraction complete; enhancement slices pending)`
 - Immediate next task: execute `ENH-S1` by defining/landing first additive `--test-*` runtime mode contract without changing default client behavior yet.
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
@@ -17,7 +17,6 @@ Carry forward post-`DEMO-S8B` improvements for demo runtime usability and mainta
 - keep demo runtime binaries internal (not SDK-installed artifacts).
 
 ## Foundation References
-- `m-overseer/agent/projects/ARCHIVE/demo.md` (closed baseline track)
 - `m-karma/src/demo/client/main.cpp`
 - `m-karma/src/demo/server/main.cpp`
 - `m-karma/scripts/test-demo-trace-matrix.sh`
@@ -30,9 +29,9 @@ The baseline demo-runtime track is functionally complete through telemetry trend
 This follow-on track isolates enhancement/productization decisions from the stabilized baseline so we can:
 - keep regression risk bounded,
 - treat script-to-runtime-mode convergence as incremental,
-- preserve a clean archived baseline reference.
+- keep baseline context consolidated in this active track.
 
-## Extracted Outstanding Work (from archived demo.md)
+## Extracted Outstanding Work (from prior baseline planning)
 1. Continue Linux telemetry monitoring and open `DEMO-S8` only when trend policy escalates.
 2. Convert remaining policy-level open questions into explicit implementation decisions.
 3. Define first test-subsumption candidates and execute only after equivalent behavior coverage is proven.
@@ -45,7 +44,7 @@ This follow-on track isolates enhancement/productization decisions from the stab
 
 ## Clarification: `--net-smoke`
 - Current state: there is no implemented `--net-smoke` flag in `m-karma` runtime code today.
-- It previously appeared only as an example placeholder in the archived planning doc.
+- It previously appeared only as an example placeholder in prior planning notes.
 - Enhancement direction: if we introduce it, define it as an additive explicit test mode under a broader `--test-*` family.
 
 ## Initial Subsumption Plan (Decision for #3)
@@ -56,12 +55,12 @@ First candidates (lowest risk, high overlap):
 
 ## Milestones
 
-### ENH-S0: Extraction + Archive Baseline
+### ENH-S0: Baseline Extraction
 - Create this project doc.
-- Move prior demo baseline doc to archive.
+- Consolidate prior baseline planning notes into this track.
 - Acceptance:
   - `demo-enhance.md` active with assignment row,
-  - `demo.md` archived.
+  - baseline context captured here for follow-on slices.
 
 ### ENH-S1: Test-Mode CLI Contract
 - Define additive runtime test-mode contract (`--test-*` family) and land first mode behind explicit opt-in.
@@ -143,14 +142,14 @@ cd m-karma
 ```
 
 ## First Session Checklist
-1. Read `ARCHIVE/demo.md` and this enhancement doc.
+1. Read this enhancement doc and current demo runtime entrypoints/scripts listed in Foundation References.
 2. Confirm test-mode naming/scope for `ENH-S1`.
 3. Implement one bounded additive mode.
 4. Run validation packet.
 5. Update status + risks.
 
 ## Current Status
-- `2026-02-22`: enhancement track created from closed baseline; outstanding work extracted from archived `demo.md`.
+- `2026-02-22`: enhancement track created from closed baseline; outstanding work extracted into this active plan.
 - `2026-02-22`: policy decisions recorded: full-runtime default direction, no SDK install for runtime binaries, Linux PoC green criteria.
 - `2026-02-22`: initial subsumption candidate plan recorded (duplicate packet retirement first; deterministic leaf tests retained).
 
@@ -160,7 +159,7 @@ cd m-karma
 - What is the minimum observation window length for ENH-S4 closeout (for example 10 vs 20 Linux required runs)?
 
 ## Handoff Checklist
-- [x] Useful/unfinished baseline work extracted from archived demo project.
+- [x] Useful/unfinished baseline work extracted into this active project.
 - [x] Operator policy decisions captured.
 - [x] Initial subsumption candidates selected.
 - [ ] First additive `--test-*` mode implemented.
