@@ -6,7 +6,7 @@
 - Immediate next task: execute `ENH-S1` by defining/landing first additive `--test-*` runtime mode contract without changing default client behavior yet.
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
-  - `m-karma`: `./abuild.py -c -d <build-dir>` + demo matrix/telemetry packet in this doc
+  - `m-karma`: `./abuild.py -d <build-dir>` + demo matrix/telemetry packet in this doc
 
 ## Mission
 Carry forward post-`DEMO-S8B` improvements for demo runtime usability and maintainability:
@@ -118,7 +118,7 @@ cd m-overseer
 cd ../m-karma
 export ABUILD_AGENT_NAME=demo-enhance
 ./abuild.py --claim-lock -d <build-dir>
-./abuild.py -c -d <build-dir>
+./abuild.py -d <build-dir>
 ./scripts/test-demo-trace-matrix.sh <build-dir> <sdk-prefix>
 ./scripts/test-demo-telemetry-summary.sh ci-logs <build-dir>/demo-trace-matrix-artifacts
 ./scripts/test-demo-telemetry-trend.sh ci-logs 10
@@ -135,7 +135,7 @@ export ABUILD_AGENT_NAME=demo-enhance
 ## Build/Run Commands
 ```bash
 cd m-karma
-./abuild.py -c -d build-demo
+./abuild.py -d build-demo
 
 ./build-demo/server --data ./data --listen-port 11899 --trace net.server,engine.server,config
 ./build-demo/client --data ./data --server 127.0.0.1:11899 --trace net.client,engine.app,config

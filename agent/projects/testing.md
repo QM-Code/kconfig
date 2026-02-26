@@ -88,8 +88,8 @@ tail -n 20 demo/communities/test-heartbeat/logs/heartbeat.log
 
 ## Build/Run Commands
 ```bash
-cd m-karma && ./abuild.py -a mike -d build-test --install-sdk out/karma-sdk
-cd m-bz3 && ./abuild.py -a mike -d build-test --karma-sdk ../m-karma/out/karma-sdk
+cd m-karma && ./abuild.py -a mike -d build-test
+cd m-bz3 && ./abuild.py -a mike -d build-test --karma-sdk ../m-karma/build-test/sdk
 ```
 
 ## Current Status

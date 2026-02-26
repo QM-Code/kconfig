@@ -207,7 +207,7 @@ Legend:
   - atlas tiling metadata + per-cascade UV projection.
 - Integrated cascade rendering/sampling in BGFX and Diligent backend paths while retaining explicit single-map fallback conversion for stabilization.
 - Validation status this session:
-  - `./abuild.py -c -d build-a5 -b bgfx,diligent`: pass.
+  - `./abuild.py -d build-a5 -b bgfx,diligent`: pass.
   - `./build-a5/src/engine/renderer_shadow_sandbox --backend-render bgfx ...`: pass.
   - `./build-a5/src/engine/renderer_shadow_sandbox --backend-render diligent ...`: passes when run with `SDL_VIDEODRIVER=wayland` in this environment.
   - runtime smoke canonical recipe updated to current CLI (`--data`, `--user-config`, `--trace`); both backend runs complete to expected timeout (`EXIT:124`) with sustained render traces.
@@ -226,7 +226,7 @@ Legend:
   - Diligent shader path now uses `SamplerComparisonState` + `SampleCmpLevelZero` for directional + point maps in base and PCF kernels.
   - Diligent immutable samplers for shadow maps now use comparison filtering (`LESS_EQUAL`) with clamp addressing.
 - Validation status this session:
-  - `./abuild.py -c -d build-a5 -b bgfx,diligent`: pass.
+  - `./abuild.py -d build-a5 -b bgfx,diligent`: pass.
   - `./build-a5/src/engine/renderer_shadow_sandbox --backend-render bgfx ...`: pass.
   - `SDL_VIDEODRIVER=wayland ./build-a5/src/engine/renderer_shadow_sandbox --backend-render diligent ...`: pass.
   - `timeout -k 2s 20s ./build-a5/bz3 --backend-render bgfx ...`: expected timeout pass (`EXIT:124`) with sustained render traces.
@@ -276,7 +276,7 @@ Legend:
 From `m-rewrite/`:
 
 ```bash
-./abuild.py -c -d <build-dir> -b bgfx,diligent
+./abuild.py -d <build-dir> -b bgfx,diligent
 
 # Canonical sandbox parity recipes (backend-specific)
 # Keep default UI/physics/audio/window backends for this track.

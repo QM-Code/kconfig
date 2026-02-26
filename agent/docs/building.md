@@ -18,9 +18,10 @@
 
 ## Restrictions
 
-- IMPORTANT: Never use raw `cmake -S/-B` except for very specific tests. In general, always use abuild.py.
-- Build directories must always start with 'build-'. NO EXCEPTIONS.
-
+- Never use raw `cmake -S/-B` except for very specific tests. In general, always use abuild.py.
+- Build directories must always start with 'build-' and live in the corresponding branch/repo root. No exceptions.
+- Builds must always take place in the corresponding repo/brach root. No exceptions.
+- Do not build until being explicitly assigned an ID and a build directory, either from a human operator or an agent overseer/manager.
 
 ## Basics of abuild.py
 
@@ -28,39 +29,45 @@
 - abuild.py ensures ownership by having agents claim and lock directories before usage
 - Basic usage:
   - Claiming and locking a build directory:
-    - ./abuild.py --agent <agent-name> -d <build-dir> --claim-lock
+    - ./abuild.py --agent <agent-name> --directory <build-dir> --claim-lock
 	- Note: If this fails, it means the build directory is already claimed
+	- Never try to claim an already-claimed directory.
   - Building: 
-    - ./abuild.py --agent <agent-name> -d <build-dir> --configure
-	- Note: You may omit `-c/--configure` when intentionally reusing a configured build dir.
+    - ./abuild.py --agent <agent-name> --directory <build-dir>
+	- Note: Configure runs by default; use `--no-configure` only when intentionally reusing a configured build dir.
   - Releasing a build directory:
-    - ./abuild.py --agent <agent-name> -d <build-dir> --release-lock
+    - ./abuild.py --agent <agent-name> --directory <build-dir> --release-lock
+- Note:
+  - -a is an alias for --agent
+  - -d is an alias for --directory
 
+## Agent naming and build directories
 
-## Agent naming
-
-- Specialists should receive their names from the project manager/overseer.
+- Overseers/managers should receive a name/ID and a build directory from the human operator.
+- A specialist should receive a build names/ID and a build directory from the project manager/overseer.
+- If you need to build and you have not been assigned a build name/id and/or a build directory, do not build. You must request and receive the neccessary information (id and directory) before building.
 
 
 ## SDK builds
 
-- m-karma builds must specify an SDK output directory:
-  - ./abuild.py -c -d <build-dir> --install-sdk <sdk-output-dir>
+- m-karma installs SDK to `<build-dir>/sdk` automatically on each build.
+  - Optional override:
+    - ./abuild.py -d <build-dir> --install-sdk <sdk-output-dir>
 - m-bz3 builds must specify an SDK intake directory:
-  - ./abuild.py -c -d <build-dir> --karma-sdk <karma-sdk-dir>
-- These must align in practice: <sdk-output-dir> = <karma-sdk-dir>
+  - ./abuild.py -d <build-dir> --karma-sdk <karma-sdk-dir>
+- These must align in practice: `<karma-sdk-dir>` should point to the m-karma SDK output for the producer build.
 - Real-world example:
   - m-karma:
-    - `./abuild.py -a <agent> -c -d <build-dir> --install-sdk out/karma-sdk`
+    - `./abuild.py -a <agent> -d build-sdk`
   - m-bz3:
-    - `./abuild.py -a <agent> -c -d <build-dir> --karma-sdk ../m-karma/out/karma-sdk`
+    - `./abuild.py -a <agent> -d <build-dir> --karma-sdk ../m-karma/build-sdk/sdk`
 
 
 
 ### Advanced SDK builds
 
-- static SDK contract: `./abuild.py -c -d <build-dir> --sdk-linkage static --install-sdk <prefix>`
-- mobile shared override (explicit-only): `./abuild.py -c -d <build-dir> --sdk-linkage shared --mobile-allow-shared`
+- static SDK contract: `./abuild.py -d <build-dir> --sdk-linkage static --install-sdk <prefix>`
+- mobile shared override (explicit-only): `./abuild.py -d <build-dir> --sdk-linkage shared --mobile-allow-shared`
 
 ## Backends
 
@@ -72,7 +79,7 @@
   - ui: imgui/rmlui
 - abuild.py allows you to select which backends to build around.
 - You can also include multiple backends in a single build, allowing for runtime backend selection.
-- The default backend selection can be seen by running `./abuild.py --defaults`
+- The default backend selection can be seen by running `./abuild.py --print-defaults`
 
 ### Enabling alternate/multiple backends
 
@@ -81,14 +88,13 @@
 - Only use `--backends` when making changes that affect multiple backends
 - Example usage:
   - Build using the diligent backend instead of the bgfx backend:
-    - ./abuild.py -c -d <build-dir> -b diligent
+    - ./abuild.py -d <build-dir> -b diligent
   - Build allowing bgfx/diligent to be selected at runtime
-    - ./abuild.py -c -d <build-dir> -b bgfx,diligent
+    - ./abuild.py -d <build-dir> -b bgfx,diligent
   - Build overriding ui backend to use imgui and allowing bgfx/diligent to be selected at runtime
-    - ./abuild.py -c -d <build-dir> -b imgui,bgfx,diligent
+    - ./abuild.py -d <build-dir> -b imgui,bgfx,diligent
 
 ### Backend bugs
 
 - Combined renderer mode (`-b bgfx,diligent`) is Linux shared-mode only.
 - Non-Linux targets and static SDK linkage must select one renderer backend.
-

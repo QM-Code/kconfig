@@ -168,7 +168,7 @@ cd m-overseer
 ```bash
 cd m-bz3
 ./abuild.py -a hs-overseer -d build-handshake --claim-lock
-./abuild.py -a hs-overseer -d build-handshake --configure --karma-sdk ../m-karma/out/karma-sdk
+./abuild.py -a hs-overseer -d build-handshake --karma-sdk ../m-karma/<karma-build-dir>/sdk
 cmake --build build-handshake --target server_net_contract_test transport_loopback_integration_test transport_disconnect_lifecycle_integration_test -- -j4
 ctest --test-dir build-handshake -R "server_net_contract_test|transport_loopback_integration_test|transport_disconnect_lifecycle_integration_test" --output-on-failure
 ./abuild.py -a hs-overseer -d build-handshake --release-lock
@@ -185,7 +185,7 @@ ctest --test-dir build-handshake -R "server_net_contract_test|transport_loopback
 ## Build/Run Commands
 ```bash
 cd m-bz3
-./abuild.py -a hs-overseer -d build-handshake --configure --karma-sdk ../m-karma/out/karma-sdk
+./abuild.py -a hs-overseer -d build-handshake --karma-sdk ../m-karma/<karma-build-dir>/sdk
 ./build-handshake/bz3-server --trace net,engine,net.server
 ```
 

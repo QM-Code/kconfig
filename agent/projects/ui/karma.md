@@ -4,7 +4,7 @@
 - Current owner: `codex`
 - Status: `in progress (overlay technique under active convergence)`
 - Immediate next task: produce a concrete engine overlay contract map that `m-bz3/src/ui/*` and `ui/radar.md` can both consume without backend leakage.
-- Validation gate: docs updates: `cd m-overseer && ./agent/scripts/lint-projects.sh`; implementation slices: `cd m-karma && ./abuild.py -c -d <build-dir> -b bgfx,diligent,imgui,rmlui` plus runtime smoke in `m-bz3`.
+- Validation gate: docs updates: `cd m-overseer && ./agent/scripts/lint-projects.sh`; implementation slices: `cd m-karma && ./abuild.py -d <build-dir> -b bgfx,diligent,imgui,rmlui` plus runtime smoke in `m-bz3`.
 
 ## Mission
 Expose a workable, engine-owned overlay rendering/integration technique in `m-karma` so game/UI code in `m-bz3` can integrate HUD/console/radar behavior through one stable path.
@@ -83,7 +83,7 @@ From `m-karma/` and `m-bz3/` as needed:
 
 ```bash
 cd m-karma
-./abuild.py -c -d <build-dir> -b bgfx,diligent,imgui,rmlui
+./abuild.py -d <build-dir> -b bgfx,diligent,imgui,rmlui
 
 cd m-bz3
 timeout 20s ./<build-dir>/bz3 --backend-render bgfx --backend-ui imgui

@@ -4,7 +4,7 @@
 - Current owner: `overseer`
 - Status: `in progress (research baseline complete; implementation not started)`
 - Immediate next task: execute `R1` engine substrate slice: add generic offscreen render-target contract + multi-camera pass scheduling scaffold in `m-karma` renderer interfaces.
-- Validation gate: docs updates: `cd m-overseer && ./agent/scripts/lint-projects.sh`; implementation slices: `cd m-karma && ./abuild.py -c -d <build-dir> -b bgfx,diligent,imgui,rmlui` with runtime smoke in `m-bz3`.
+- Validation gate: docs updates: `cd m-overseer && ./agent/scripts/lint-projects.sh`; implementation slices: `cd m-karma && ./abuild.py -d <build-dir> -b bgfx,diligent,imgui,rmlui` with runtime smoke in `m-bz3`.
 
 ## Mission
 Deliver a radar system where:
@@ -204,7 +204,7 @@ From repo roots as appropriate:
 ```bash
 # Build with renderer + UI backend coverage for radar slices
 cd m-karma
-./abuild.py -c -d <build-dir> -b bgfx,diligent,imgui,rmlui
+./abuild.py -d <build-dir> -b bgfx,diligent,imgui,rmlui
 
 # Renderer contract regression (required when renderer/backend files are touched)
 ./scripts/test-engine-backends.sh <build-dir>

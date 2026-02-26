@@ -177,6 +177,6 @@ What has already been implemented:
   - `src/common/tests/config_store_named_api_test.cpp`
   - Wired in `cmake/sdk/tests.cmake`
 - Validation already run:
-  - `./abuild.py -a mike -c -d build-test/ -k out/karma-sdk` passed
+  - `./abuild.py -a mike -d build-test/` passed
   - `./build-test/config_store_named_api_test` passed
   - `ctest --test-dir build-test -R config_store_named_api_test --output-on-failure` passed

@@ -65,8 +65,9 @@ Constraints:
   - Do not use unassigned slots or mismatched owner locks.
 - Use only assigned build dirs/slots from <assignments-doc>.
 - Use explicit build-dir args on every build command:
-  - default-first pattern: `<build-wrapper> -c -d <dir>`
-  - selector pattern (only when needed): `<build-wrapper> -c -d <dir> -b <token_csv>`
+  - default-first pattern: `<build-wrapper> -d <dir>`
+  - selector pattern (only when needed): `<build-wrapper> -d <dir> -b <token_csv>`
+  - if intentional reuse without configure is needed, add `--no-configure`.
   - keep selector lists scoped to the categories touched by this slice.
 
 Validation (required):
@@ -116,8 +117,9 @@ Constraints:
   - keep work in the same claimed slot(s) unless overseer explicitly reassigns.
 - Use only assigned build dirs listed in <assignments-doc>.
 - Use explicit build-dir args on every build command:
-  - default-first pattern: `<build-wrapper> -c -d <dir>`
-  - selector pattern (only when needed): `<build-wrapper> -c -d <dir> -b <token_csv>`
+  - default-first pattern: `<build-wrapper> -d <dir>`
+  - selector pattern (only when needed): `<build-wrapper> -d <dir> -b <token_csv>`
+  - if intentional reuse without configure is needed, add `--no-configure`.
   - keep backend lists scoped to the exact category/categories touched by the slice.
 
 Validation (required):

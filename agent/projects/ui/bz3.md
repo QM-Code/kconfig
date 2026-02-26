@@ -4,7 +4,7 @@
 - Current owner: `overseer`
 - Status: `in progress (legacy UI imported; adaptation not yet wired)`
 - Immediate next task: execute `G0` file-level classification and dependency ledger for `m-bz3/src/ui/*`, then map each class to the shared engine contract in `ui/karma.md`.
-- Validation gate: planning/docs slices: `cd m-overseer && ./agent/scripts/lint-projects.sh`; compile/wiring slices: `cd m-bz3 && ./abuild.py -c -d <build-dir> -b bgfx,diligent,imgui,rmlui`.
+- Validation gate: planning/docs slices: `cd m-overseer && ./agent/scripts/lint-projects.sh`; compile/wiring slices: `cd m-bz3 && ./abuild.py -d <build-dir> -b bgfx,diligent,imgui,rmlui`.
 
 ## Mission
 Refactor and integrate imported legacy HUD/console code in `m-bz3/src/ui/*` so it cleanly targets the engine-owned overlay substrate from `m-karma` while preserving game-owned behavior.
@@ -80,7 +80,7 @@ This track is a game-facing migration/refactor effort and should not redefine en
 From `m-bz3/` when compile wiring starts:
 
 ```bash
-./abuild.py -c -d <build-dir> -b bgfx,diligent,imgui,rmlui
+./abuild.py -d <build-dir> -b bgfx,diligent,imgui,rmlui
 
 # Runtime smoke matrix (as slices become runnable)
 timeout 20s ./<build-dir>/bz3 --backend-render bgfx --backend-ui imgui

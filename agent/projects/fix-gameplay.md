@@ -6,7 +6,7 @@
 - Immediate next task: wait for operator reactivation before dispatching `FG-S1`.
 - Validation gate:
   - `m-overseer`: `./agent/scripts/lint-projects.sh`
-  - `m-bz3`: `./abuild.py -c -d <bz3-build-dir> --karma-sdk ../m-karma/out/karma-sdk`, `./scripts/test-server-net.sh <bz3-build-dir>`, targeted `ctest`
+  - `m-bz3`: `./abuild.py -d <bz3-build-dir> --karma-sdk ../m-karma/<karma-build-dir>/sdk`, `./scripts/test-server-net.sh <bz3-build-dir>`, targeted `ctest`
   - Manual localhost smoke for touched behavior (server + two clients) before closing any stabilization slice.
 
 ## Mission
@@ -112,8 +112,8 @@ Manual localhost run reported on `2026-02-22`:
 cd m-bz3
 export ABUILD_AGENT_NAME=specialist-fix-gameplay
 ./abuild.py --claim-lock -d <bz3-build-dir>
-./abuild.py -c -d <bz3-build-dir> --karma-sdk ../m-karma/out/karma-sdk
-KARMA_SDK_ROOT=../m-karma/out/karma-sdk ./scripts/test-server-net.sh <bz3-build-dir>
+./abuild.py -d <bz3-build-dir> --karma-sdk ../m-karma/<karma-build-dir>/sdk
+KARMA_SDK_ROOT=../m-karma/<karma-build-dir>/sdk ./scripts/test-server-net.sh <bz3-build-dir>
 
 # targeted ctest packet (expand per stabilization scope)
 ctest --test-dir <bz3-build-dir> -R "tank_.*|server_runtime_.*|server_net_contract_test|client_.*score.*|client_shot_reconciliation_test|shot_system_ricochet_test" --output-on-failure
