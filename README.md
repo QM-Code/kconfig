@@ -1,16 +1,33 @@
-# NOTICE
+# m-kconfig
 
-This project is intended to be worked on using a CLI coding agent.
+Standalone configuration/data/i18n/serialization SDK extracted from `m-karma`.
 
-Start your favorite CLI coding agent from this directory.
+Public headers are installed under:
 
-If the agent does not automatically bootstrap, tell the agent to follow the instructions in AGENT.md.
+- `include/kconfig`
+- `include/kconfig/data`
 
-Passing AGENTS.md as a command line parameter may also initiate bootstrap depending on CLI.
+Trace setup API for consumers:
 
-If all else fails, send the following prompt:
+- `#include <kconfig/trace.hpp>`
+- `kconfig::InitializeTraceLogging()`
 
-```text
-Follow the instructions in agents/BOOTSTRAP.md.
+When built via `abuild.py`, these public headers are installed to:
+
+- `<build-dir>/sdk/include/kconfig/...`
+
+The CMake package exports target:
+
+- `kconfig::sdk` via `find_package(KConfigSDK CONFIG REQUIRED)`
+
+## Build
+
+```bash
+./abuild.py -a <name> -d build/test
 ```
 
+Default SDK install output:
+
+- `build/test/sdk/include`
+- `build/test/sdk/lib`
+- `build/test/sdk/lib/cmake/KConfigSDK`
