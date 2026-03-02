@@ -3,7 +3,7 @@
 
 #include "data/path_resolver.hpp"
 #include "helpers.hpp"
-#include "json.hpp"
+#include <kconfig/json.hpp>
 #include "spdlog/spdlog.h"
 
 #include <algorithm>

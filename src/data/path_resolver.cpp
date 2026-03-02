@@ -18,7 +18,7 @@
 #include <vector>
 
 #include "store.hpp"
-#include "json.hpp"
+#include <kconfig/json.hpp>
 #include <ktrace/trace.hpp>
 #include <spdlog/spdlog.h>
 

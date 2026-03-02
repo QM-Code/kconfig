@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "json.hpp"
+#include <kconfig/json.hpp>
 #include <spdlog/spdlog.h>
 
 namespace kconfig::common::config {

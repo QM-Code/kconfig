@@ -6,7 +6,7 @@
 #include <string>
 #include <string_view>
 
-#include "json.hpp"
+#include <kconfig/json.hpp>
 
 namespace kconfig::common::data::path_utils {
 

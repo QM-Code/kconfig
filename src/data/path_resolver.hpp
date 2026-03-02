@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "json.hpp"
+#include <kconfig/json.hpp>
 #include <spdlog/spdlog.h>
 
 namespace kconfig::common::data {

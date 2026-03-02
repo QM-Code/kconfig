@@ -2,7 +2,7 @@
 
 #include "data/path_utils.hpp"
 #include "data/path_resolver.hpp"
-#include "json.hpp"
+#include <kconfig/json.hpp>
 #include <ktrace/trace.hpp>
 #include <spdlog/spdlog.h>
 

@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-#include "json.hpp"
+#include <kconfig/json.hpp>
 
 namespace kconfig::common::config {
 
