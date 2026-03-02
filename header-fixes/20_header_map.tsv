@@ -1,0 +1,18 @@
+new_header	legacy_header	legacy_exists
+m-kconfig/include/kconfig/data/directory_override.hpp	m-karma/src/common/data/directory_override.hpp	True
+m-kconfig/include/kconfig/data/directory_override.hpp	m-karma/src/karma/common/data/directory_override.hpp	True
+m-kconfig/include/kconfig/data/path_resolver.hpp	m-karma/include/karma/common/data/path_resolver.hpp	True
+m-kconfig/include/kconfig/data/path_resolver.hpp	m-karma/src/common/data/path_resolver.hpp	True
+m-kconfig/include/kconfig/data/path_utils.hpp	m-karma/src/common/data/path_utils.hpp	True
+m-kconfig/include/kconfig/data/root_policy.hpp	m-karma/src/common/data/root_policy.hpp	True
+m-kconfig/include/kconfig/helpers.hpp	m-karma/include/karma/common/config/helpers.hpp	True
+m-kconfig/include/kconfig/helpers.hpp	m-karma/src/common/config/helpers.hpp	True
+m-kconfig/include/kconfig/i18n.hpp	m-karma/include/karma/common/i18n/i18n.hpp	True
+m-kconfig/include/kconfig/i18n.hpp	m-karma/src/common/i18n/i18n.hpp	True
+m-kconfig/include/kconfig/json.hpp	m-karma/include/karma/common/serialization/json.hpp	True
+m-kconfig/include/kconfig/json.hpp	m-karma/src/common/serialization/json.hpp	True
+m-kconfig/include/kconfig/store.hpp	m-karma/include/karma/common/config/store.hpp	True
+m-kconfig/include/kconfig/store.hpp	m-karma/src/common/config/store.hpp	True
+m-kconfig/include/kconfig/trace.hpp		False
+m-kconfig/include/kconfig/validation.hpp	m-karma/include/karma/common/config/validation.hpp	True
+m-kconfig/include/kconfig/validation.hpp	m-karma/src/common/config/validation.hpp	True

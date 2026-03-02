@@ -1,7 +1,7 @@
-#include "kconfig/store.hpp"
-#include "kconfig/data/path_resolver.hpp"
-#include "kconfig/i18n.hpp"
-#include "kconfig/trace.hpp"
+#include <kconfig/store.hpp>
+#include <kconfig/data/path_resolver.hpp>
+#include <kconfig/i18n.hpp>
+#include <kconfig/trace.hpp>
 
 #include <filesystem>
 #include <iostream>

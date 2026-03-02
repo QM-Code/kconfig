@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <initializer_list>
 #include <string>
 #include <string_view>
 
@@ -15,6 +16,15 @@ inline Value Parse(std::string_view text) {
 
 inline Value Object() {
     return Value::object();
+}
+
+inline Value Array() {
+    return Value::array();
+}
+
+template <typename T>
+inline Value Array(std::initializer_list<T> values) {
+    return Value(values);
 }
 
 inline std::string Dump(const Value& value, int indent = -1) {

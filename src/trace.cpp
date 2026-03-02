@@ -1,4 +1,4 @@
-#include "kconfig/trace.hpp"
+#include <kconfig/trace.hpp>
 
 #include <ktrace/trace.hpp>
 

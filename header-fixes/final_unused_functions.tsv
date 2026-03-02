@@ -1,0 +1,2 @@
+header	function	legacy_symbol	legacy_namespace	refs	status
+m-kconfig/include/kconfig/trace.hpp	InitializeTraceLogging	InitializeTraceLogging		0	no_legacy_mapping

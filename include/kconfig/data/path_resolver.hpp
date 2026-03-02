@@ -1,27 +1,28 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <map>
 #include <optional>
 #include <string>
 #include <vector>
 
-#include "kconfig/json.hpp"
+#include <kconfig/json.hpp>
 #include <spdlog/spdlog.h>
 
 namespace kconfig::common::data {
 
-// Resolve paths located under the runtime data directory.
-std::filesystem::path Resolve(const std::filesystem::path &relativePath);
+std::filesystem::path Resolve(const std::filesystem::path& relativePath);
+void SetDataRootOverride(const std::filesystem::path& path);
+void SetUserConfigRootOverride(const std::filesystem::path& path);
 
-void SetDataRootOverride(const std::filesystem::path &path);
-void SetUserConfigRootOverride(const std::filesystem::path &path);
-
-std::optional<kconfig::common::serialization::Value> LoadJsonFile(const std::filesystem::path &path,
-                                                                   const std::string &label,
-                                                                   spdlog::level::level_enum missingLevel);
+std::optional<kconfig::common::serialization::Value> LoadJsonFile(const std::filesystem::path& path,
+                                                                  const std::string& label,
+                                                                  spdlog::level::level_enum missingLevel);
 
 std::filesystem::path UserConfigDirectory();
+std::filesystem::path EnsureUserWorldsDirectory();
+std::filesystem::path EnsureUserWorldDirectoryForServer(const std::string& host, uint16_t port);
 
 struct ConfigLayerSpec {
     std::filesystem::path relativePath;
@@ -36,14 +37,12 @@ struct ConfigLayer {
     std::string label;
 };
 
-std::vector<ConfigLayer> LoadConfigLayers(const std::vector<ConfigLayerSpec> &specs);
-
-void MergeJsonObjects(kconfig::common::serialization::Value &destination, const kconfig::common::serialization::Value &source);
-
-void CollectAssetEntries(const kconfig::common::serialization::Value &node,
-                         const std::filesystem::path &baseDir,
-                         std::map<std::string, std::filesystem::path> &assetMap,
-                         const std::string &prefix = "");
+std::vector<ConfigLayer> LoadConfigLayers(const std::vector<ConfigLayerSpec>& specs);
+void MergeJsonObjects(kconfig::common::serialization::Value& destination, const kconfig::common::serialization::Value& source);
+void CollectAssetEntries(const kconfig::common::serialization::Value& node,
+                         const std::filesystem::path& baseDir,
+                         std::map<std::string, std::filesystem::path>& assetMap,
+                         const std::string& prefix = "");
 
 struct DataPathSpec {
     std::string appName = "app";
@@ -53,8 +52,15 @@ struct DataPathSpec {
 };
 
 void SetDataPathSpec(DataPathSpec spec);
-std::filesystem::path ResolveConfiguredAsset(const std::string &assetKey,
-                                             const std::filesystem::path &defaultRelativePath = {});
-const std::filesystem::path &DataRoot();
+
+void RegisterPackageMount(const std::string& id,
+                          const std::filesystem::path& packagePath,
+                          const std::filesystem::path& mountPoint = {});
+void ClearPackageMounts();
+
+std::filesystem::path ExecutableDirectory();
+std::filesystem::path ResolveConfiguredAsset(const std::string& assetKey,
+                                             const std::filesystem::path& defaultRelativePath = {});
+const std::filesystem::path& DataRoot();
 
 } // namespace kconfig::common::data

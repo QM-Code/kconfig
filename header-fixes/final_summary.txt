@@ -1,0 +1,14 @@
+headers_total=10
+functions_total=56
+scan_files_total=528
+include_refs_total=137
+function_refs_total=604
+type_refs_total=215
+used_files_total=9
+unused_files_total=1
+used_functions_total=55
+unused_functions_total=1
+
+scan_scope=m-karma/src + m-bz3/src
+excluded=m-karma/src/common/{config,data,i18n,serialization}
+mapping=legacy header+namespace+symbol mapping from m-kconfig/include to m-karma paths

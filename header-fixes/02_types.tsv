@@ -1,0 +1,15 @@
+header	kind	name	signature
+m-kconfig/include/kconfig/data/directory_override.hpp	struct	DataDirectoryOverrideResult	struct DataDirectoryOverrideResult {
+m-kconfig/include/kconfig/data/path_resolver.hpp	struct	ConfigLayerSpec	struct ConfigLayerSpec {
+m-kconfig/include/kconfig/data/path_resolver.hpp	struct	ConfigLayer	struct ConfigLayer {
+m-kconfig/include/kconfig/data/path_resolver.hpp	struct	DataPathSpec	struct DataPathSpec {
+m-kconfig/include/kconfig/data/root_policy.hpp	struct	DataPathSpec	struct DataPathSpec;
+m-kconfig/include/kconfig/data/root_policy.hpp	struct	RootPathPolicy	struct RootPathPolicy {
+m-kconfig/include/kconfig/i18n.hpp	class	I18n	class I18n {
+m-kconfig/include/kconfig/i18n.hpp	enum class	RuntimeRole	enum class RuntimeRole {
+m-kconfig/include/kconfig/json.hpp	using	Value	using Value = nlohmann::json;
+m-kconfig/include/kconfig/store.hpp	struct	ConfigFileSpec	struct ConfigFileSpec {
+m-kconfig/include/kconfig/store.hpp	class	ConfigStore	class ConfigStore {
+m-kconfig/include/kconfig/validation.hpp	enum class	RequiredType	enum class RequiredType {
+m-kconfig/include/kconfig/validation.hpp	struct	RequiredKey	struct RequiredKey {
+m-kconfig/include/kconfig/validation.hpp	struct	ValidationIssue	struct ValidationIssue {
