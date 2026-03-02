@@ -7,14 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(KConfigSDK CONFIG REQUIRED)
 
-add_executable(demo_compile_client
-    src/client/main.cpp
+add_executable(kconfig_demo_compile
+    src/main.cpp
 )
-target_link_libraries(demo_compile_client PRIVATE kconfig::sdk)
-set_target_properties(demo_compile_client PROPERTIES OUTPUT_NAME client)
-
-add_executable(demo_compile_server
-    src/server/main.cpp
-)
-target_link_libraries(demo_compile_server PRIVATE kconfig::sdk)
-set_target_properties(demo_compile_server PROPERTIES OUTPUT_NAME server)
+target_link_libraries(kconfig_demo_compile PRIVATE kconfig::sdk)
+set_target_properties(kconfig_demo_compile PROPERTIES OUTPUT_NAME test)

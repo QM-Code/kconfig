@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: ./demo/compile/full-test.sh --version <slot> [--agent <name>] [--ktrace-sdk <path>]"
+    echo "Usage: ./tests/full-test.sh --version <slot> [--agent <name>] [--ktrace-sdk <path>]"
 }
 
 version=""
@@ -55,12 +55,14 @@ if [[ -z "${version}" ]]; then
     exit 1
 fi
 
-repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${repo_root}"
 
 if [[ -z "${ktrace_sdk}" ]]; then
     ktrace_sdk="${repo_root}/../m-ktrace/build/${version}/sdk/"
 fi
+# Normalize to absolute path so demo/compile/abuild.py sees a stable SDK prefix.
+ktrace_sdk="$(cd "$(dirname "${ktrace_sdk}")" && pwd)/$(basename "${ktrace_sdk}")"
 
 # Build kconfig SDK
 ./abuild.py -a "${agent}" -d "build/${version}/"

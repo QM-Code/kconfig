@@ -14,8 +14,7 @@ cd m-kconfig/demo/compile
 ## Run
 
 ```bash
-./build/<slot>/client
-./build/<slot>/server
+./build/<slot>/test
 ```
 
 ## Full Test Script
@@ -23,9 +22,9 @@ cd m-kconfig/demo/compile
 From `m-kconfig` root:
 
 ```bash
-./demo/compile/full-test.sh --version <slot> --agent <agent>
+./tests/full-test.sh --version <slot> --agent <agent>
 ```
 
-Expected output from each executable:
+Expected output:
 
 - `KConfig SDK compile/link/load check passed`

@@ -7,11 +7,11 @@
 namespace {
 
 void RegisterKConfigChannels() {
-    ktrace::RegisterChannel("config", ktrace::ResolveColor("DeepSkyBlue1"));
-    ktrace::RegisterChannel("config.requests", ktrace::ResolveColor("LightGoldenrod2"));
-    ktrace::RegisterChannel("data", ktrace::ResolveColor("MediumSpringGreen"));
-    ktrace::RegisterChannel("cli", ktrace::ResolveColor("Orange3"));
-    ktrace::RegisterChannel("content", ktrace::ResolveColor("MediumOrchid1"));
+    ktrace::RegisterChannel("config", ktrace::Color("DeepSkyBlue1"));
+    ktrace::RegisterChannel("config.requests", ktrace::Color("LightGoldenrod2"));
+    ktrace::RegisterChannel("data", ktrace::Color("MediumSpringGreen"));
+    ktrace::RegisterChannel("cli", ktrace::Color("Orange3"));
+    ktrace::RegisterChannel("content", ktrace::Color("MediumOrchid1"));
 
     ktrace::EnableChannel("kconfig.config");
     ktrace::EnableChannel("kconfig.config.requests");
