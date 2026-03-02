@@ -1,6 +1,0 @@
-new_namespace	legacy_namespace
-kconfig::common::config	karma::common::config
-kconfig::common::data::path_utils	karma::common::data::path_utils
-kconfig::common::data	karma::common::data
-kconfig::common::i18n	karma::common::i18n
-kconfig::common::serialization	karma::common::serialization
