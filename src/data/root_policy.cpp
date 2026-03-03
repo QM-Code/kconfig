@@ -1,6 +1,6 @@
-#include "data/root_policy.hpp"
+#include <kconfig/data/root_policy.hpp>
 #include "data/path_utils.hpp"
-#include "data/path_resolver.hpp"
+#include <kconfig/data/path_resolver.hpp>
 
 #include <cstdlib>
 #include <filesystem>
@@ -16,7 +16,7 @@ bool HasValue(const std::optional<std::filesystem::path>& value) {
 
 std::filesystem::path ValidateRootPath(const std::filesystem::path& root,
                                        const std::optional<std::filesystem::path>& required_marker) {
-    const std::filesystem::path canonical_root = kconfig::common::data::path_utils::Canonicalize(root);
+    const std::filesystem::path canonical_root = kconfig::data::path_utils::Canonicalize(root);
     std::error_code ec;
     if (!std::filesystem::exists(canonical_root, ec) || !std::filesystem::is_directory(canonical_root, ec)) {
         throw std::runtime_error("root_policy: invalid root directory: " + canonical_root.string());
@@ -47,7 +47,7 @@ std::optional<std::filesystem::path> RootPathFromEnvironment(const std::string& 
 
 } // namespace
 
-namespace kconfig::common::data {
+namespace kconfig::data::root_policy {
 
 std::optional<std::filesystem::path> ResolveRootPathPolicy(const RootPathPolicy& policy) {
     if (HasValue(policy.cli_root)) {
@@ -65,8 +65,8 @@ std::optional<std::filesystem::path> ResolveRootPathPolicy(const RootPathPolicy&
     return std::nullopt;
 }
 
-void ConfigureDataRootPolicy(const DataPathSpec& spec, const std::optional<std::filesystem::path>& cli_root) {
-    SetDataPathSpec(spec);
+void ConfigureDataRootPolicy(const path_resolver::DataPathSpec& spec, const std::optional<std::filesystem::path>& cli_root) {
+    path_resolver::SetDataPathSpec(spec);
 
     RootPathPolicy policy{};
     policy.cli_root = cli_root;
@@ -76,8 +76,8 @@ void ConfigureDataRootPolicy(const DataPathSpec& spec, const std::optional<std::
     }
 
     if (const auto resolved_root = ResolveRootPathPolicy(policy)) {
-        SetDataRootOverride(*resolved_root);
+        path_resolver::SetDataRootOverride(*resolved_root);
     }
 }
 
-} // namespace kconfig::common::data
+} // namespace kconfig::data::root_policy

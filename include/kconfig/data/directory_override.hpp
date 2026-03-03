@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <optional>
 
-namespace kconfig::common::data {
+namespace kconfig::data::directory_override {
 
 struct DataDirectoryOverrideResult {
     std::filesystem::path userConfigPath;
@@ -17,4 +17,4 @@ DataDirectoryOverrideResult ApplyDataDirectoryOverride(
     bool enableUserConfig = true,
     bool allowDataDirFromUserConfigWhenUserConfigDisabled = false);
 
-} // namespace kconfig::common::data
+} // namespace kconfig::data::directory_override

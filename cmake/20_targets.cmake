@@ -1,7 +1,8 @@
 set(KCONFIG_SOURCES
+    ${PROJECT_SOURCE_DIR}/src/init.cpp
+    ${PROJECT_SOURCE_DIR}/src/json.cpp
     ${PROJECT_SOURCE_DIR}/src/helpers.cpp
     ${PROJECT_SOURCE_DIR}/src/store.cpp
-    ${PROJECT_SOURCE_DIR}/src/trace.cpp
     ${PROJECT_SOURCE_DIR}/src/data/directory_override.cpp
     ${PROJECT_SOURCE_DIR}/src/data/path_resolver.cpp
     ${PROJECT_SOURCE_DIR}/src/data/path_utils.cpp
@@ -30,7 +31,6 @@ target_link_libraries(kconfig_sdk
     PUBLIC
         ktrace::sdk
         spdlog::spdlog
-        nlohmann_json::nlohmann_json
 )
 
 target_compile_definitions(kconfig_sdk

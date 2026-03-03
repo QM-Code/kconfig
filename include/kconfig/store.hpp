@@ -8,58 +8,36 @@
 #include <vector>
 
 #include <kconfig/json.hpp>
-#include <spdlog/spdlog.h>
 
-namespace kconfig::common::config {
+namespace kconfig::store {
 
-struct ConfigFileSpec {
-    std::filesystem::path path;
-    std::string label;
-    spdlog::level::level_enum missingLevel = spdlog::level::warn;
-    bool required = false;
-    bool resolveRelativeToDataRoot = true;
-};
+// Named config API (used by external tests/tools).
+bool AddMutable(std::string_view name, const kconfig::json::Value& json);
+bool AddReadOnly(std::string_view name, const kconfig::json::Value& json);
+bool LoadMutable(std::string_view name, const std::filesystem::path& filename);
+bool LoadReadOnly(std::string_view name, const std::filesystem::path& filename);
+bool Merge(std::string_view targetName, const std::vector<std::string>& sourceNames);
+bool Unregister(std::string_view name);
+bool Delete(std::string_view name);
+std::optional<kconfig::json::Value> Get(std::string_view name, std::string_view path);
+bool Set(std::string_view name, std::string_view path, kconfig::json::Value value);
+bool Erase(std::string_view name, std::string_view path);
+bool SetAssetRoot(std::string_view name, const std::filesystem::path& fullFilesystemPath);
+bool SetBackingFile(std::string_view name, const std::filesystem::path& fullFilesystemPath);
+bool DetachBackingFile(std::string_view name);
+const std::filesystem::path* BackingFilePath(std::string_view name);
+bool WriteBackingFile(std::string_view name, std::string* error = nullptr);
+bool ReloadBackingFile(std::string_view name, std::string* error = nullptr);
 
-class ConfigStore {
-public:
-    // Named config API (used by external tests/tools).
-    static bool Add(std::string_view name,
-                    const kconfig::common::serialization::Value& json,
-                    bool isMutable = true);
-    static bool Merge(std::string_view targetName, const std::vector<std::string>& sourceNames);
-    static bool Remove(std::string_view name);
-    static std::optional<kconfig::common::serialization::Value> Get(std::string_view name, std::string_view path);
-    static bool Set(std::string_view name, std::string_view path, kconfig::common::serialization::Value value);
-    static bool Erase(std::string_view name, std::string_view path);
-    static bool SetAssetRoot(std::string_view name, const std::filesystem::path& fullFilesystemPath);
-    static bool SetBackingFile(std::string_view name, const std::filesystem::path& fullFilesystemPath);
-    static bool RemoveBackingFile(std::string_view name);
-    static const std::filesystem::path* Path(std::string_view name);
-    static bool Save(std::string_view name, std::string* error = nullptr);
+// Required typed readers over merged config data.
+bool ReadRequiredBool(const char* path);
+uint16_t ReadRequiredUInt16(const char* path);
+uint16_t ReadRequiredPositiveUInt16(const char* path);
+uint32_t ReadRequiredUInt32(const char* path);
+float ReadRequiredFloat(const char* path);
+float ReadRequiredPositiveFiniteFloat(const char* path);
+std::string ReadRequiredString(const char* path);
+std::string ReadRequiredNonEmptyString(const char* path);
+std::vector<float> ReadRequiredFloatArray(std::string_view path);
 
-    // Legacy compatibility API.
-    static void Initialize(const std::vector<ConfigFileSpec>& defaultSpecs,
-                           const std::optional<std::filesystem::path>& userConfigPath = std::nullopt,
-                           const std::vector<ConfigFileSpec>& runtimeSpecs = {});
-    static bool Initialized();
-    static uint64_t Revision();
-
-    static const kconfig::common::serialization::Value& Merged();
-
-    static const kconfig::common::serialization::Value* Get(std::string_view path);
-    static std::optional<kconfig::common::serialization::Value> GetCopy(std::string_view path);
-
-    static bool Set(std::string_view path, kconfig::common::serialization::Value value);
-    static bool Erase(std::string_view path);
-
-    static bool AddRuntimeLayer(const std::string& label,
-                                const kconfig::common::serialization::Value& layerJson,
-                                const std::filesystem::path& baseDir);
-    static bool RemoveRuntimeLayer(const std::string& label);
-    static const kconfig::common::serialization::Value* LayerByLabel(const std::string& label);
-
-    static std::filesystem::path ResolveAssetPath(const std::string& assetKey,
-                                                  const std::filesystem::path& defaultPath = {});
-};
-
-} // namespace kconfig::common::config
+} // namespace kconfig::store

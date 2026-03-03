@@ -10,13 +10,13 @@
 #include <kconfig/json.hpp>
 #include <spdlog/spdlog.h>
 
-namespace kconfig::common::data {
+namespace kconfig::data::path_resolver {
 
 std::filesystem::path Resolve(const std::filesystem::path& relativePath);
 void SetDataRootOverride(const std::filesystem::path& path);
 void SetUserConfigRootOverride(const std::filesystem::path& path);
 
-std::optional<kconfig::common::serialization::Value> LoadJsonFile(const std::filesystem::path& path,
+std::optional<kconfig::json::Value> LoadJsonFile(const std::filesystem::path& path,
                                                                   const std::string& label,
                                                                   spdlog::level::level_enum missingLevel);
 
@@ -32,14 +32,14 @@ struct ConfigLayerSpec {
 };
 
 struct ConfigLayer {
-    kconfig::common::serialization::Value json;
+    kconfig::json::Value json;
     std::filesystem::path baseDir;
     std::string label;
 };
 
 std::vector<ConfigLayer> LoadConfigLayers(const std::vector<ConfigLayerSpec>& specs);
-void MergeJsonObjects(kconfig::common::serialization::Value& destination, const kconfig::common::serialization::Value& source);
-void CollectAssetEntries(const kconfig::common::serialization::Value& node,
+void MergeJsonObjects(kconfig::json::Value& destination, const kconfig::json::Value& source);
+void CollectAssetEntries(const kconfig::json::Value& node,
                          const std::filesystem::path& baseDir,
                          std::map<std::string, std::filesystem::path>& assetMap,
                          const std::string& prefix = "");
@@ -63,4 +63,4 @@ std::filesystem::path ResolveConfiguredAsset(const std::string& assetKey,
                                              const std::filesystem::path& defaultRelativePath = {});
 const std::filesystem::path& DataRoot();
 
-} // namespace kconfig::common::data
+} // namespace kconfig::data::path_resolver

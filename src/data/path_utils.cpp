@@ -8,7 +8,7 @@
 #include <system_error>
 #include <utility>
 
-namespace kconfig::common::data::path_utils {
+namespace kconfig::data::path_utils {
 
 std::filesystem::path Canonicalize(const std::filesystem::path &path) {
     std::error_code ec;
@@ -55,7 +55,7 @@ JsonReadResult ReadJsonFile(const std::filesystem::path &path) {
     }
 
     try {
-        kconfig::common::serialization::Value json;
+        kconfig::json::Value json;
         stream >> json;
         KTRACE("data", "read-json ok path='{}'", path.string());
         return {
@@ -147,7 +147,7 @@ bool EnsureJsonObjectFile(const std::filesystem::path &path, std::string *error)
 }
 
 bool WriteJsonFile(const std::filesystem::path &path,
-                   const kconfig::common::serialization::Value &json,
+                   const kconfig::json::Value &json,
                    std::string *error) {
     if (path.empty()) {
         KTRACE("data", "write-json failed path='<empty>' reason='empty path'");
@@ -200,7 +200,7 @@ bool WriteJsonFile(const std::filesystem::path &path,
     return true;
 }
 
-void MergeJsonObjects(kconfig::common::serialization::Value &destination, const kconfig::common::serialization::Value &source) {
+void MergeJsonObjects(kconfig::json::Value &destination, const kconfig::json::Value &source) {
     if (!destination.is_object() || !source.is_object()) {
         destination = source;
         return;
@@ -217,7 +217,7 @@ void MergeJsonObjects(kconfig::common::serialization::Value &destination, const 
     }
 }
 
-void CollectAssetEntries(const kconfig::common::serialization::Value &node,
+void CollectAssetEntries(const kconfig::json::Value &node,
                          const std::filesystem::path &baseDir,
                          std::map<std::string, std::filesystem::path> &assetMap,
                          std::string_view prefix) {
@@ -244,4 +244,4 @@ void CollectAssetEntries(const kconfig::common::serialization::Value &node,
     }
 }
 
-} // namespace kconfig::common::data::path_utils
+} // namespace kconfig::data::path_utils

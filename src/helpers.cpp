@@ -1,8 +1,5 @@
-#include "helpers.hpp"
+#include <kconfig/store.hpp>
 #include <spdlog/spdlog.h>
-
-#include "store.hpp"
-#include "spdlog/spdlog.h"
 
 #include <algorithm>
 #include <cmath>
@@ -12,11 +9,21 @@
 #include <string_view>
 #include <vector>
 
-namespace kconfig::common::config {
+namespace kconfig::store {
+
+namespace {
+
+constexpr std::string_view kLegacyMergedNamespace = "__legacy.merged";
+
+std::optional<kconfig::json::Value> GetMergedValue(std::string_view path) {
+    return kconfig::store::Get(kLegacyMergedNamespace, path);
+}
+
+} // namespace
 
 bool ReadBoolConfig(std::initializer_list<const char*> paths, bool defaultValue) {
     for (const char* path : paths) {
-        if (const auto* value = ConfigStore::Get(path)) {
+        if (const auto value = GetMergedValue(path); value) {
             if (value->is_boolean()) {
                 return value->get<bool>();
             }
@@ -51,7 +58,7 @@ uint16_t ReadUInt16Config(std::initializer_list<const char*> paths, uint16_t def
         return static_cast<uint16_t>(number);
     };
     for (const char* path : paths) {
-        if (const auto* value = ConfigStore::Get(path)) {
+        if (const auto value = GetMergedValue(path); value) {
             if (value->is_number_unsigned()) {
                 if (auto clamped = clampToUint16(static_cast<long long>(value->get<unsigned long long>()))) {
                     if (*clamped > 0) {
@@ -72,7 +79,7 @@ uint16_t ReadUInt16Config(std::initializer_list<const char*> paths, uint16_t def
             }
         }
 
-        if (const auto* raw = ConfigStore::Get(path); raw && raw->is_string()) {
+        if (const auto raw = GetMergedValue(path); raw && raw->is_string()) {
             try {
                 const auto parsed = std::stoul(raw->get<std::string>());
                 if (parsed > 0 && parsed <= std::numeric_limits<uint16_t>::max()) {
@@ -89,7 +96,7 @@ uint16_t ReadUInt16Config(std::initializer_list<const char*> paths, uint16_t def
 
 float ReadFloatConfig(std::initializer_list<const char*> paths, float defaultValue) {
     for (const char* path : paths) {
-        if (const auto* value = ConfigStore::Get(path)) {
+        if (const auto value = GetMergedValue(path); value) {
             if (value->is_number_float()) {
                 return static_cast<float>(value->get<double>());
             }
@@ -111,7 +118,7 @@ float ReadFloatConfig(std::initializer_list<const char*> paths, float defaultVal
 }
 
 std::string ReadStringConfig(const char *path, const std::string &defaultValue) {
-    if (const auto* value = ConfigStore::Get(path)) {
+    if (const auto value = GetMergedValue(path); value) {
         if (value->is_string()) {
             return value->get<std::string>();
         }
@@ -119,8 +126,8 @@ std::string ReadStringConfig(const char *path, const std::string &defaultValue) 
     return defaultValue;
 }
 
-bool ReadRequiredBoolConfig(const char *path) {
-    if (const auto* value = ConfigStore::Get(path)) {
+bool ReadRequiredBool(const char *path) {
+    if (const auto value = GetMergedValue(path); value) {
         if (value->is_boolean()) {
             return value->get<bool>();
         }
@@ -145,8 +152,8 @@ bool ReadRequiredBoolConfig(const char *path) {
     throw std::runtime_error(std::string("Missing required boolean config: ") + path);
 }
 
-uint16_t ReadRequiredUInt16Config(const char *path) {
-    if (const auto* value = ConfigStore::Get(path)) {
+uint16_t ReadRequiredUInt16(const char *path) {
+    if (const auto value = GetMergedValue(path); value) {
         if (value->is_number_integer()) {
             const auto raw = value->get<long long>();
             if (raw >= 0 && raw <= std::numeric_limits<uint16_t>::max()) {
@@ -163,8 +170,8 @@ uint16_t ReadRequiredUInt16Config(const char *path) {
     throw std::runtime_error(std::string("Missing required uint16 config: ") + path);
 }
 
-uint16_t ReadRequiredPositiveUInt16Config(const char *path) {
-    const uint16_t value = ReadRequiredUInt16Config(path);
+uint16_t ReadRequiredPositiveUInt16(const char *path) {
+    const uint16_t value = ReadRequiredUInt16(path);
     if (value == 0) {
         throw std::runtime_error(std::string("Invalid required uint16 config: ")
                                  + path
@@ -173,8 +180,8 @@ uint16_t ReadRequiredPositiveUInt16Config(const char *path) {
     return value;
 }
 
-uint32_t ReadRequiredUInt32Config(const char *path) {
-    if (const auto* value = ConfigStore::Get(path)) {
+uint32_t ReadRequiredUInt32(const char *path) {
+    if (const auto value = GetMergedValue(path); value) {
         if (value->is_number_unsigned()) {
             const auto raw = value->get<unsigned long long>();
             if (raw <= std::numeric_limits<uint32_t>::max()) {
@@ -203,8 +210,8 @@ uint32_t ReadRequiredUInt32Config(const char *path) {
     throw std::runtime_error(std::string("Missing required uint32 config: ") + path);
 }
 
-float ReadRequiredFloatConfig(const char *path) {
-    if (const auto* value = ConfigStore::Get(path)) {
+float ReadRequiredFloat(const char *path) {
+    if (const auto value = GetMergedValue(path); value) {
         if (value->is_number_float()) {
             return static_cast<float>(value->get<double>());
         }
@@ -215,8 +222,8 @@ float ReadRequiredFloatConfig(const char *path) {
     throw std::runtime_error(std::string("Missing required float config: ") + path);
 }
 
-float ReadRequiredPositiveFiniteFloatConfig(const char *path) {
-    const float value = ReadRequiredFloatConfig(path);
+float ReadRequiredPositiveFiniteFloat(const char *path) {
+    const float value = ReadRequiredFloat(path);
     if (!std::isfinite(value) || value <= 0.0f) {
         throw std::runtime_error(std::string("Invalid required float config: ")
                                  + path
@@ -225,8 +232,8 @@ float ReadRequiredPositiveFiniteFloatConfig(const char *path) {
     return value;
 }
 
-std::string ReadRequiredStringConfig(const char *path) {
-    if (const auto* value = ConfigStore::Get(path)) {
+std::string ReadRequiredString(const char *path) {
+    if (const auto value = GetMergedValue(path); value) {
         if (value->is_string()) {
             return value->get<std::string>();
         }
@@ -234,8 +241,8 @@ std::string ReadRequiredStringConfig(const char *path) {
     throw std::runtime_error(std::string("Missing required string config: ") + path);
 }
 
-std::string ReadRequiredNonEmptyStringConfig(const char *path) {
-    std::string value = ReadRequiredStringConfig(path);
+std::string ReadRequiredNonEmptyString(const char *path) {
+    std::string value = ReadRequiredString(path);
     if (value.empty()) {
         throw std::runtime_error(std::string("Invalid required string config: ")
                                  + path
@@ -244,8 +251,8 @@ std::string ReadRequiredNonEmptyStringConfig(const char *path) {
     return value;
 }
 
-std::vector<float> ReadRequiredFloatArrayConfig(std::string_view path) {
-    const auto* value = ConfigStore::Get(path);
+std::vector<float> ReadRequiredFloatArray(std::string_view path) {
+    const auto value = GetMergedValue(path);
     if (!value) {
         throw std::runtime_error(std::string("Missing required float array config: ") + std::string(path));
     }
@@ -267,7 +274,7 @@ std::vector<float> ReadRequiredFloatArrayConfig(std::string_view path) {
 }
 
 std::vector<std::string> ReadRequiredStringArrayConfig(std::string_view path) {
-    const auto* value = ConfigStore::Get(path);
+    const auto value = GetMergedValue(path);
     if (!value) {
         throw std::runtime_error(std::string("Missing required string array config: ") + std::string(path));
     }
@@ -285,8 +292,8 @@ std::vector<std::string> ReadRequiredStringArrayConfig(std::string_view path) {
     return out;
 }
 
-const kconfig::common::serialization::Value& ReadRequiredObjectConfig(std::string_view path) {
-    const auto* value = ConfigStore::Get(path);
+kconfig::json::Value ReadRequiredObjectConfig(std::string_view path) {
+    const auto value = GetMergedValue(path);
     if (!value) {
         throw std::runtime_error(std::string("Missing required object config: ") + std::string(path));
     }
@@ -296,4 +303,4 @@ const kconfig::common::serialization::Value& ReadRequiredObjectConfig(std::strin
     return *value;
 }
 
-} // namespace kconfig::common::config
+} // namespace kconfig::store

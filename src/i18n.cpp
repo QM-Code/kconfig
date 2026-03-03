@@ -1,17 +1,16 @@
-#include "i18n.hpp"
+#include <kconfig/i18n.hpp>
 #include <spdlog/spdlog.h>
 
-#include "data/path_resolver.hpp"
-#include "helpers.hpp"
+#include <kconfig/data/path_resolver.hpp>
 #include <kconfig/json.hpp>
-#include "spdlog/spdlog.h"
+#include <kconfig/store.hpp>
 
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
 #include <stdexcept>
 
-namespace kconfig::common::i18n {
+namespace kconfig::i18n {
 namespace {
 
 std::string normalizeLanguage(std::string value) {
@@ -27,7 +26,7 @@ std::string normalizeLanguage(std::string value) {
     return value;
 }
 
-void flattenStrings(const kconfig::common::serialization::Value &node,
+void flattenStrings(const kconfig::json::Value &node,
                     const std::string &prefix,
                     std::unordered_map<std::string, std::string> &out) {
     if (node.is_string()) {
@@ -50,12 +49,12 @@ void flattenStrings(const kconfig::common::serialization::Value &node,
 std::unordered_map<std::string, std::string> loadLanguageStrings(const std::string &language,
                                                                  spdlog::level::level_enum missingLevel) {
     std::unordered_map<std::string, std::string> result;
-    const std::filesystem::path path = kconfig::common::data::Resolve(std::filesystem::path("strings") / (language + ".json"));
+    const std::filesystem::path path = kconfig::data::path_resolver::Resolve(std::filesystem::path("strings") / (language + ".json"));
     if (path.empty()) {
         spdlog::log(missingLevel, "i18n: data root not available when loading language '{}'.", language);
         return result;
     }
-    const auto jsonOpt = kconfig::common::data::LoadJsonFile(path, "strings/" + language + ".json", missingLevel);
+    const auto jsonOpt = kconfig::data::path_resolver::LoadJsonFile(path, "strings/" + language + ".json", missingLevel);
     if (!jsonOpt) {
         return result;
     }
@@ -78,7 +77,7 @@ std::unordered_map<std::string, std::string> loadLanguageStrings(const std::stri
 
 void I18n::loadFromConfig(RuntimeRole role) {
     const char *const config_key = role == RuntimeRole::Client ? "client.Language" : "server.Language";
-    std::string language = kconfig::common::config::ReadRequiredNonEmptyStringConfig(config_key);
+    std::string language = kconfig::store::ReadRequiredNonEmptyString(config_key);
     language = normalizeLanguage(language);
     if (language.empty()) {
         language = "en";
@@ -150,4 +149,4 @@ I18n &Get() {
     return instance;
 }
 
-} // namespace kconfig::common::i18n
+} // namespace kconfig::i18n

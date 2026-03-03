@@ -4,9 +4,11 @@
 #include <optional>
 #include <string>
 
-namespace kconfig::common::data {
-
+namespace kconfig::data::path_resolver {
 struct DataPathSpec;
+}
+
+namespace kconfig::data::root_policy {
 
 // Root resolution precedence:
 // 1) cli_root
@@ -28,7 +30,7 @@ std::optional<std::filesystem::path> ResolveRootPathPolicy(const RootPathPolicy&
 // - configure DataPathSpec first,
 // - resolve root by policy precedence (cli -> env),
 // - install resolver override only when a root source is available.
-void ConfigureDataRootPolicy(const DataPathSpec& spec,
+void ConfigureDataRootPolicy(const path_resolver::DataPathSpec& spec,
                              const std::optional<std::filesystem::path>& cli_root = std::nullopt);
 
-} // namespace kconfig::common::data
+} // namespace kconfig::data::root_policy

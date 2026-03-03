@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "store.hpp"
+#include <kconfig/store.hpp>
 #include <kconfig/json.hpp>
 #include <ktrace/trace.hpp>
 #include <spdlog/spdlog.h>
@@ -34,9 +34,9 @@
 
 namespace {
 
-using kconfig::common::data::ContentMount;
-using kconfig::common::data::ContentMountType;
-using kconfig::common::data::DataPathSpec;
+using kconfig::data::path_resolver::ContentMount;
+using kconfig::data::path_resolver::ContentMountType;
+using kconfig::data::path_resolver::DataPathSpec;
 
 std::string SanitizePathComponent(std::string_view value) {
     std::string sanitized;
@@ -77,14 +77,14 @@ std::filesystem::path ExecutableDirectory() {
             return std::filesystem::current_path();
         }
     }
-    return kconfig::common::data::path_utils::Canonicalize(std::filesystem::path(buffer.data())).parent_path();
+    return kconfig::data::path_utils::Canonicalize(std::filesystem::path(buffer.data())).parent_path();
 #else
     std::array<char, PATH_MAX> buffer{};
     const ssize_t length = ::readlink("/proc/self/exe", buffer.data(), buffer.size());
     if (length <= 0 || static_cast<size_t>(length) >= buffer.size()) {
         return std::filesystem::current_path();
     }
-    return kconfig::common::data::path_utils::Canonicalize(std::filesystem::path(buffer.data(), buffer.data() + length)).parent_path();
+    return kconfig::data::path_utils::Canonicalize(std::filesystem::path(buffer.data(), buffer.data() + length)).parent_path();
 #endif
 }
 
@@ -255,7 +255,7 @@ class ContentMountManager {
         if (const auto mountedPath = resolveFromPackageMountsLocked(normalizedPath); mountedPath.has_value()) {
             return *mountedPath;
         }
-        return kconfig::common::data::path_utils::Canonicalize(filesystem_mount_->source / normalizedPath);
+        return kconfig::data::path_utils::Canonicalize(filesystem_mount_->source / normalizedPath);
     }
 
   private:
@@ -281,7 +281,7 @@ class ContentMountManager {
 
             const size_t specificity = CountPathComponents(mount.mountPoint);
             if (!found || specificity > bestSpecificity || (specificity == bestSpecificity && index > bestOrder)) {
-                resolved = kconfig::common::data::path_utils::Canonicalize(candidatePath);
+                resolved = kconfig::data::path_utils::Canonicalize(candidatePath);
                 bestSpecificity = specificity;
                 bestOrder = index;
                 found = true;
@@ -299,7 +299,7 @@ class ContentMountManager {
 ContentMountManager g_mountManager;
 
 std::filesystem::path ValidateDataRootCandidate(const std::filesystem::path &path) {
-    const auto canonical = kconfig::common::data::path_utils::Canonicalize(path);
+    const auto canonical = kconfig::data::path_utils::Canonicalize(path);
     std::error_code ec;
     if (!std::filesystem::exists(canonical, ec) || !std::filesystem::is_directory(canonical, ec)) {
         throw std::runtime_error("data_path_resolver: Data directory is invalid: " + canonical.string());
@@ -341,7 +341,7 @@ std::filesystem::path DetectDataRoot(const std::optional<std::filesystem::path> 
 
 } // namespace
 
-namespace kconfig::common::data {
+namespace kconfig::data::path_resolver {
 
 void SetDataPathSpec(DataPathSpec spec) {
     std::lock_guard<std::mutex> lock(g_dataSpecMutex);
@@ -358,10 +358,10 @@ void RegisterPackageMount(const std::string &id,
                           const std::filesystem::path &mountPoint) {
     std::filesystem::path resolvedPackagePath = packagePath;
     if (resolvedPackagePath.is_absolute()) {
-        resolvedPackagePath = kconfig::common::data::path_utils::Canonicalize(resolvedPackagePath);
+        resolvedPackagePath = kconfig::data::path_utils::Canonicalize(resolvedPackagePath);
     } else {
         // Package mount sources are always relative to the base data root.
-        resolvedPackagePath = kconfig::common::data::path_utils::Canonicalize(DataRoot() / resolvedPackagePath);
+        resolvedPackagePath = kconfig::data::path_utils::Canonicalize(DataRoot() / resolvedPackagePath);
     }
 
     g_mountManager.registerPackageMount(id, resolvedPackagePath, mountPoint);
@@ -413,7 +413,7 @@ void SetDataRootOverride(const std::filesystem::path &path) {
 
 std::filesystem::path Resolve(const std::filesystem::path &relativePath) {
     if (relativePath.is_absolute()) {
-        return kconfig::common::data::path_utils::Canonicalize(relativePath);
+        return kconfig::data::path_utils::Canonicalize(relativePath);
     }
 
     // DataRoot() initializes the default filesystem mount on first use.
@@ -473,7 +473,7 @@ std::filesystem::path DetectDefaultUserConfigDirectory() {
         throw std::runtime_error("Unable to determine user configuration directory: no home path detected");
     }
 
-    const auto resolved = kconfig::common::data::path_utils::Canonicalize(base / appName);
+    const auto resolved = kconfig::data::path_utils::Canonicalize(base / appName);
     KTRACE("cli", "resolved default user config directory '{}'", resolved.string());
     return resolved;
 }
@@ -493,7 +493,7 @@ std::filesystem::path UserConfigDirectory() {
 }
 
 void SetUserConfigRootOverride(const std::filesystem::path &path) {
-    const auto canonical = kconfig::common::data::path_utils::Canonicalize(path);
+    const auto canonical = kconfig::data::path_utils::Canonicalize(path);
     std::lock_guard<std::mutex> lock(g_userConfigRootMutex);
     g_userConfigRootOverride = canonical;
     KTRACE("cli", "override set to '{}'", canonical.string());
@@ -508,7 +508,7 @@ std::filesystem::path EnsureUserConfigFile(const std::string &fileName) {
         throw std::runtime_error("Failed to prepare user config file " + filePath.string() + ": " + error);
     }
 
-    return kconfig::common::data::path_utils::Canonicalize(filePath);
+    return kconfig::data::path_utils::Canonicalize(filePath);
 }
 
 std::filesystem::path EnsureUserWorldsDirectory() {
@@ -521,7 +521,7 @@ std::filesystem::path EnsureUserWorldsDirectory() {
         throw std::runtime_error("Failed to create user worlds directory " + worldsDir.string() + ": " + ec.message());
     }
 
-    return kconfig::common::data::path_utils::Canonicalize(worldsDir);
+    return kconfig::data::path_utils::Canonicalize(worldsDir);
 }
 
 std::filesystem::path EnsureUserWorldDirectoryForServer(const std::string &host, uint16_t port) {
@@ -539,10 +539,10 @@ std::filesystem::path EnsureUserWorldDirectoryForServer(const std::string &host,
         throw std::runtime_error("Failed to create server world directory " + serverDir.string() + ": " + ec.message());
     }
 
-    return kconfig::common::data::path_utils::Canonicalize(serverDir);
+    return kconfig::data::path_utils::Canonicalize(serverDir);
 }
 
-std::optional<kconfig::common::serialization::Value> LoadJsonFile(const std::filesystem::path &path,
+std::optional<kconfig::json::Value> LoadJsonFile(const std::filesystem::path &path,
                                            const std::string &label,
                                            spdlog::level::level_enum missingLevel) {
     const auto result = path_utils::ReadJsonFile(path);
@@ -589,11 +589,11 @@ std::vector<ConfigLayer> LoadConfigLayers(const std::vector<ConfigLayerSpec> &sp
     return layers;
 }
 
-void MergeJsonObjects(kconfig::common::serialization::Value &destination, const kconfig::common::serialization::Value &source) {
+void MergeJsonObjects(kconfig::json::Value &destination, const kconfig::json::Value &source) {
     path_utils::MergeJsonObjects(destination, source);
 }
 
-void CollectAssetEntries(const kconfig::common::serialization::Value &node,
+void CollectAssetEntries(const kconfig::json::Value &node,
                          const std::filesystem::path &baseDir,
                          std::map<std::string, std::filesystem::path> &assetMap,
                          const std::string &prefix) {
@@ -645,12 +645,15 @@ std::filesystem::path ResolveConfiguredAsset(const std::string &assetKey,
                                              const std::filesystem::path &defaultRelativePath) {
     const auto defaultPath = defaultRelativePath.empty() ? std::filesystem::path{} : Resolve(defaultRelativePath);
 
-    if (kconfig::common::config::ConfigStore::Initialized()) {
-        const auto resolved = kconfig::common::config::ConfigStore::ResolveAssetPath(assetKey, defaultPath);
-        if (resolved.empty() && defaultPath.empty()) {
-            spdlog::warn("data_path_resolver: Asset '{}' not found in configuration layers", assetKey);
+    constexpr std::string_view kDerivedAssetsNamespace = "__legacy.assets";
+    if (const auto resolved = kconfig::store::Get(kDerivedAssetsNamespace, assetKey); resolved.has_value()) {
+        if (!resolved->is_string()) {
+            spdlog::warn("data_path_resolver: Asset '{}' exists in '{}' but is not a string path",
+                         assetKey,
+                         std::string(kDerivedAssetsNamespace));
+            return defaultPath;
         }
-        return resolved;
+        return kconfig::data::path_utils::Canonicalize(resolved->get<std::string>());
     }
 
     DataPathSpec spec;
@@ -678,4 +681,4 @@ std::filesystem::path ResolveConfiguredAsset(const std::string &assetKey,
     return defaultPath;
 }
 
-} // namespace kconfig::common::data
+} // namespace kconfig::data::path_resolver

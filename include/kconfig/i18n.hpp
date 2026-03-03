@@ -5,7 +5,7 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace kconfig::common::i18n {
+namespace kconfig::i18n {
 
 class I18n {
 public:
@@ -35,4 +35,4 @@ private:
 
 I18n& Get();
 
-} // namespace kconfig::common::i18n
+} // namespace kconfig::i18n

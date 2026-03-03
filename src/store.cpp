@@ -1,23 +1,24 @@
 #include "store.hpp"
 
 #include "data/path_utils.hpp"
-#include "data/path_resolver.hpp"
+#include <kconfig/data/path_resolver.hpp>
 
 #include <algorithm>
 #include <cctype>
-#include <chrono>
 #include <cmath>
 #include <map>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
+#include <system_error>
+#include <unordered_map>
 #include <ktrace/trace.hpp>
 #include <spdlog/spdlog.h>
 
 namespace {
 
 struct NamedConfigView {
-    kconfig::common::serialization::Value json = kconfig::common::serialization::Object();
+    kconfig::json::Value json = kconfig::json::Object();
     std::vector<std::string> sources;
     std::filesystem::path baseDir{};
     bool isMutable = true;
@@ -25,37 +26,24 @@ struct NamedConfigView {
 
 struct ConfigStoreState {
     std::mutex mutex;
-    bool initialized = false;
     uint64_t revision = 0;
-    std::vector<kconfig::common::config::ConfigLayer> defaultLayers;
-    std::optional<kconfig::common::config::ConfigLayer> userLayer;
-    std::vector<kconfig::common::config::ConfigLayer> runtimeLayers;
-    kconfig::common::serialization::Value defaults = kconfig::common::serialization::Object();
-    kconfig::common::serialization::Value user = kconfig::common::serialization::Object();
-    kconfig::common::serialization::Value merged = kconfig::common::serialization::Object();
-    std::unordered_map<std::string, std::filesystem::path> assetLookup;
-    std::unordered_map<std::string, std::pair<int, std::size_t>> labelIndex;
-    std::filesystem::path userConfigPath;
-    std::optional<double> saveIntervalSeconds{};
-    std::optional<double> mergeIntervalSeconds{};
-    std::chrono::steady_clock::time_point lastSaveTime = std::chrono::steady_clock::now();
-    std::chrono::steady_clock::time_point lastMergeTime = std::chrono::steady_clock::now();
-    uint64_t lastSavedRevision = 0;
-    bool pendingSave = false;
-    bool mergedDirty = false;
-    std::map<std::string, kconfig::common::config::ConfigLayer> namedConfigs;
+    std::map<std::string, kconfig::store::ConfigLayer> namedConfigs;
     std::map<std::string, NamedConfigView> namedViews;
     std::map<std::string, std::filesystem::path> namedBackingFiles;
     std::map<std::string, std::filesystem::path> namedAssetRoots;
 };
 
 ConfigStoreState g_state;
+constexpr std::string_view kDerivedMergedName = "__legacy.merged";
+constexpr std::string_view kDerivedAssetsName = "__legacy.assets";
 constexpr std::string_view kLegacyDefaultsName = "__legacy.defaults";
 constexpr std::string_view kLegacyUserName = "__legacy.user";
-constexpr std::string_view kLegacyMergedName = "__legacy.merged";
 
-bool isLegacyNamedId(std::string_view name) {
-    return name == kLegacyDefaultsName || name == kLegacyUserName || name == kLegacyMergedName;
+bool isReservedNamedId(std::string_view name) {
+    return name == kDerivedMergedName
+        || name == kDerivedAssetsName
+        || name == kLegacyDefaultsName
+        || name == kLegacyUserName;
 }
 
 bool isRootPath(std::string_view path) {
@@ -69,15 +57,15 @@ std::filesystem::path canonicalizeFullPath(std::filesystem::path path) {
     if (path.is_relative()) {
         path = std::filesystem::absolute(path);
     }
-    return kconfig::common::data::path_utils::Canonicalize(path);
+    return kconfig::data::path_utils::Canonicalize(path);
 }
 
-const kconfig::common::serialization::Value *resolvePath(const kconfig::common::serialization::Value &root, std::string_view path) {
+const kconfig::json::Value *resolvePath(const kconfig::json::Value &root, std::string_view path) {
     if (path.empty()) {
         return &root;
     }
 
-    const kconfig::common::serialization::Value *current = &root;
+    const kconfig::json::Value *current = &root;
     std::size_t position = 0;
 
     while (position < path.size()) {
@@ -178,7 +166,7 @@ bool parsePathSegments(std::string_view path,
     return !out.empty();
 }
 
-void roundFloatValues(kconfig::common::serialization::Value &node) {
+void roundFloatValues(kconfig::json::Value &node) {
     if (node.is_object()) {
         for (auto it = node.begin(); it != node.end(); ++it) {
             roundFloatValues(it.value());
@@ -198,30 +186,11 @@ void roundFloatValues(kconfig::common::serialization::Value &node) {
     }
 }
 
-std::optional<double> readIntervalSeconds(const kconfig::common::serialization::Value &root, std::string_view path) {
-    const auto *value = resolvePath(root, path);
-    if (!value) {
-        return std::nullopt;
-    }
-    if (!value->is_number()) {
-        throw std::runtime_error(std::string("Invalid required numeric config: ")
-                                 + std::string(path)
-                                 + " (must be numeric)");
-    }
-    const double seconds = value->get<double>();
-    if (seconds < 0.0) {
-        throw std::runtime_error(std::string("Invalid required numeric config: ")
-                                 + std::string(path)
-                                 + " (must be >= 0)");
-    }
-    return std::optional<double>(seconds);
-}
-
 std::unordered_map<std::string, std::filesystem::path> buildAssetLookup(
-    const std::vector<kconfig::common::config::ConfigLayer> &layers) {
+    const std::vector<kconfig::store::ConfigLayer> &layers) {
     std::map<std::string, std::filesystem::path> flattened;
 
-    using kconfig::common::data::path_utils::CollectAssetEntries;
+    using kconfig::data::path_utils::CollectAssetEntries;
     std::unordered_map<std::string, std::filesystem::path> lookup;
     for (const auto &layer : layers) {
         if (!layer.json.is_object()) {
@@ -244,38 +213,11 @@ std::unordered_map<std::string, std::filesystem::path> buildAssetLookup(
     return lookup;
 }
 
-std::vector<kconfig::common::config::ConfigLayer> loadLayers(const std::vector<kconfig::common::config::ConfigFileSpec> &specs) {
-    std::vector<kconfig::common::config::ConfigLayer> layers;
-    layers.reserve(specs.size());
-    for (const auto &spec : specs) {
-        std::filesystem::path path = spec.path;
-        if (spec.resolveRelativeToDataRoot && path.is_relative()) {
-            path = kconfig::common::data::Resolve(path);
-        }
-        path = kconfig::common::data::path_utils::Canonicalize(path);
-        const std::string label = spec.label.empty() ? path.string() : spec.label;
-        KTRACE("config", "loading config file '{}' (label: {})", path.string(), label);
-        auto jsonOpt = kconfig::common::data::LoadJsonFile(path, label, spec.missingLevel);
-        if (!jsonOpt) {
-            if (spec.required) {
-                spdlog::error("config_store: Required config missing: {}", path.string());
-            }
-            continue;
-        }
-        if (!jsonOpt->is_object()) {
-            spdlog::warn("config_store: Config {} is not a JSON object, skipping", path.string());
-            continue;
-        }
-        layers.push_back({std::move(*jsonOpt), path.parent_path(), label});
-    }
-    return layers;
 }
 
-}
+namespace kconfig::store {
 
-namespace kconfig::common::config {
-
-const kconfig::common::serialization::Value *ConfigStore::findNamedValueLocked(std::string_view name) {
+const kconfig::json::Value *findNamedValueLocked(std::string_view name) {
     const std::string key(name);
     const auto configIt = g_state.namedConfigs.find(key);
     if (configIt != g_state.namedConfigs.end()) {
@@ -288,8 +230,8 @@ const kconfig::common::serialization::Value *ConfigStore::findNamedValueLocked(s
     return nullptr;
 }
 
-kconfig::common::serialization::Value *ConfigStore::findMutableNamedValueLocked(std::string_view name) {
-    if (isLegacyNamedId(name)) {
+kconfig::json::Value *findMutableNamedValueLocked(std::string_view name) {
+    if (isReservedNamedId(name)) {
         return nullptr;
     }
     const std::string key(name);
@@ -304,43 +246,8 @@ kconfig::common::serialization::Value *ConfigStore::findMutableNamedValueLocked(
     return nullptr;
 }
 
-void ConfigStore::syncLegacyNamedStateLocked() {
-    const std::string defaultsName(kLegacyDefaultsName);
-    const std::string userName(kLegacyUserName);
-    const std::string mergedName(kLegacyMergedName);
-
-    g_state.namedConfigs[defaultsName] = ConfigLayer{
-        g_state.defaults,
-        {},
-        defaultsName,
-        false
-    };
-    g_state.namedConfigs[userName] = ConfigLayer{
-        g_state.user,
-        g_state.userConfigPath.empty() ? std::filesystem::path{} : g_state.userConfigPath.parent_path(),
-        userName,
-        true
-    };
-    g_state.namedViews[mergedName] = NamedConfigView{
-        g_state.merged,
-        {defaultsName, userName},
-        g_state.userConfigPath.empty() ? std::filesystem::path{} : g_state.userConfigPath.parent_path(),
-        false
-    };
-
-    if (!g_state.userConfigPath.empty()) {
-        g_state.namedBackingFiles[userName] = g_state.userConfigPath;
-    } else {
-        g_state.namedBackingFiles.erase(userName);
-    }
-
-    g_state.namedAssetRoots.erase(defaultsName);
-    g_state.namedAssetRoots.erase(userName);
-    g_state.namedAssetRoots.erase(mergedName);
-}
-
-bool ConfigStore::writeJsonFileUnlocked(const std::filesystem::path &path,
-                                        const kconfig::common::serialization::Value &json,
+bool writeJsonFileUnlocked(const std::filesystem::path &path,
+                                        const kconfig::json::Value &json,
                                         std::string *error) {
     if (path.empty()) {
         if (error) {
@@ -349,10 +256,10 @@ bool ConfigStore::writeJsonFileUnlocked(const std::filesystem::path &path,
         return false;
     }
 
-    kconfig::common::serialization::Value rounded = json;
+    kconfig::json::Value rounded = json;
     roundFloatValues(rounded);
     KTRACE("config", "writing config '{}'", path.string());
-    if (!kconfig::common::data::path_utils::WriteJsonFile(path, rounded, error)) {
+    if (!kconfig::data::path_utils::WriteJsonFile(path, rounded, error)) {
         if (error && error->empty()) {
             *error = "Failed to write config file.";
         }
@@ -361,10 +268,10 @@ bool ConfigStore::writeJsonFileUnlocked(const std::filesystem::path &path,
     return true;
 }
 
-bool ConfigStore::Add(std::string_view name,
-                      const kconfig::common::serialization::Value &json,
-                      bool isMutable) {
-    if (name.empty() || isLegacyNamedId(name)) {
+static bool AddWithMutability(std::string_view name,
+                              const kconfig::json::Value &json,
+                              bool isMutable) {
+    if (name.empty() || isReservedNamedId(name)) {
         return false;
     }
     if (!json.is_object()) {
@@ -393,25 +300,30 @@ bool ConfigStore::Add(std::string_view name,
     return true;
 }
 
-bool ConfigStore::Load(std::string_view name,
-                       const ConfigFileSpec &spec,
-                       bool isMutable) {
-    if (name.empty() || isLegacyNamedId(name)) {
+bool AddMutable(std::string_view name, const kconfig::json::Value &json) {
+    return AddWithMutability(name, json, true);
+}
+
+bool AddReadOnly(std::string_view name, const kconfig::json::Value &json) {
+    return AddWithMutability(name, json, false);
+}
+
+static bool LoadWithMutability(std::string_view name,
+                               const std::filesystem::path &filename,
+                               bool isMutable) {
+    if (name.empty() || isReservedNamedId(name)) {
         return false;
     }
 
-    std::filesystem::path path = spec.path;
-    if (spec.resolveRelativeToDataRoot && path.is_relative()) {
-        path = kconfig::common::data::Resolve(path);
+    std::filesystem::path path = filename;
+    if (path.is_relative()) {
+        path = kconfig::data::path_resolver::Resolve(path);
     }
     path = canonicalizeFullPath(path);
 
-    const std::string label = spec.label.empty() ? std::string(name) : spec.label;
-    auto jsonOpt = kconfig::common::data::LoadJsonFile(path, label, spec.missingLevel);
+    const std::string label(name);
+    auto jsonOpt = kconfig::data::path_resolver::LoadJsonFile(path, label, spdlog::level::warn);
     if (!jsonOpt) {
-        if (spec.required) {
-            spdlog::error("config_store: Required named config '{}' missing: {}", name, path.string());
-        }
         return false;
     }
     if (!jsonOpt->is_object()) {
@@ -437,21 +349,29 @@ bool ConfigStore::Load(std::string_view name,
     return true;
 }
 
-bool ConfigStore::Merge(std::string_view targetName,
+bool LoadMutable(std::string_view name, const std::filesystem::path &filename) {
+    return LoadWithMutability(name, filename, true);
+}
+
+bool LoadReadOnly(std::string_view name, const std::filesystem::path &filename) {
+    return LoadWithMutability(name, filename, false);
+}
+
+bool Merge(std::string_view targetName,
                         const std::vector<std::string> &sourceNames) {
-    if (targetName.empty() || isLegacyNamedId(targetName) || sourceNames.empty()) {
+    if (targetName.empty() || isReservedNamedId(targetName) || sourceNames.empty()) {
         return false;
     }
 
     std::lock_guard<std::mutex> lock(g_state.mutex);
-    kconfig::common::serialization::Value merged = kconfig::common::serialization::Object();
+    kconfig::json::Value merged = kconfig::json::Object();
     for (const auto &sourceName : sourceNames) {
         const auto *sourceJson = findNamedValueLocked(sourceName);
         if (!sourceJson) {
             spdlog::warn("config_store: Merge('{}') missing source '{}'", targetName, sourceName);
             return false;
         }
-        kconfig::common::data::path_utils::MergeJsonObjects(merged, *sourceJson);
+        kconfig::data::path_utils::MergeJsonObjects(merged, *sourceJson);
     }
 
     const std::string key(targetName);
@@ -481,13 +401,7 @@ bool ConfigStore::Merge(std::string_view targetName,
     return true;
 }
 
-bool ConfigStore::Remove(std::string_view name) {
-    if (name.empty() || isLegacyNamedId(name)) {
-        return false;
-    }
-
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    const std::string key(name);
+static bool unregisterNamedConfigLocked(const std::string &key) {
     const bool removedConfig = (g_state.namedConfigs.erase(key) > 0);
     const bool removedView = (g_state.namedViews.erase(key) > 0);
     const bool removedBacking = (g_state.namedBackingFiles.erase(key) > 0);
@@ -502,7 +416,55 @@ bool ConfigStore::Remove(std::string_view name) {
     return true;
 }
 
-std::optional<kconfig::common::serialization::Value> ConfigStore::Get(std::string_view name,
+bool Unregister(std::string_view name) {
+    if (name.empty() || isReservedNamedId(name)) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(g_state.mutex);
+    return unregisterNamedConfigLocked(std::string(name));
+}
+
+bool Delete(std::string_view name) {
+    if (name.empty() || isReservedNamedId(name)) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(g_state.mutex);
+    const std::string key(name);
+    if (const auto backingIt = g_state.namedBackingFiles.find(key); backingIt != g_state.namedBackingFiles.end()) {
+        const auto &backingPath = backingIt->second;
+        std::error_code removeEc;
+        const bool removedFile = std::filesystem::remove(backingPath, removeEc);
+        if (removeEc) {
+            spdlog::error("config_store: Delete('{}') failed to remove backing file '{}': {}",
+                          name,
+                          backingPath.string(),
+                          removeEc.message());
+            return false;
+        }
+        if (!removedFile) {
+            std::error_code existsEc;
+            const bool stillExists = std::filesystem::exists(backingPath, existsEc);
+            if (existsEc) {
+                spdlog::error("config_store: Delete('{}') failed to verify backing file '{}': {}",
+                              name,
+                              backingPath.string(),
+                              existsEc.message());
+                return false;
+            }
+            if (stillExists) {
+                spdlog::error("config_store: Delete('{}') could not remove backing file '{}'",
+                              name,
+                              backingPath.string());
+                return false;
+            }
+        }
+    }
+    return unregisterNamedConfigLocked(key);
+}
+
+std::optional<kconfig::json::Value> Get(std::string_view name,
                                                                      std::string_view path) {
     std::lock_guard<std::mutex> lock(g_state.mutex);
     const auto *root = findNamedValueLocked(name);
@@ -510,18 +472,18 @@ std::optional<kconfig::common::serialization::Value> ConfigStore::Get(std::strin
         return std::nullopt;
     }
     if (isRootPath(path)) {
-        return std::optional<kconfig::common::serialization::Value>(std::in_place, *root);
+        return std::optional<kconfig::json::Value>(std::in_place, *root);
     }
     if (const auto *resolved = resolvePath(*root, path)) {
-        return std::optional<kconfig::common::serialization::Value>(std::in_place, *resolved);
+        return std::optional<kconfig::json::Value>(std::in_place, *resolved);
     }
     return std::nullopt;
 }
 
-bool ConfigStore::Set(std::string_view name,
+bool Set(std::string_view name,
                       std::string_view path,
-                      kconfig::common::serialization::Value value) {
-    if (name.empty() || isLegacyNamedId(name)) {
+                      kconfig::json::Value value) {
+    if (name.empty() || isReservedNamedId(name)) {
         return false;
     }
     std::lock_guard<std::mutex> lock(g_state.mutex);
@@ -541,9 +503,9 @@ bool ConfigStore::Set(std::string_view name,
     return true;
 }
 
-bool ConfigStore::Erase(std::string_view name,
+bool Erase(std::string_view name,
                         std::string_view path) {
-    if (name.empty() || isLegacyNamedId(name)) {
+    if (name.empty() || isReservedNamedId(name)) {
         return false;
     }
     std::lock_guard<std::mutex> lock(g_state.mutex);
@@ -553,7 +515,7 @@ bool ConfigStore::Erase(std::string_view name,
     }
 
     const bool changed = isRootPath(path)
-        ? ((*target = kconfig::common::serialization::Object()), true)
+        ? ((*target = kconfig::json::Object()), true)
         : eraseValueAtPath(*target, path);
     if (!changed) {
         return false;
@@ -564,9 +526,9 @@ bool ConfigStore::Erase(std::string_view name,
     return true;
 }
 
-bool ConfigStore::SetAssetRoot(std::string_view name,
+bool SetAssetRoot(std::string_view name,
                                const std::filesystem::path &fullFilesystemPath) {
-    if (name.empty()) {
+    if (name.empty() || isReservedNamedId(name)) {
         return false;
     }
     const std::filesystem::path canonical = canonicalizeFullPath(fullFilesystemPath);
@@ -591,9 +553,9 @@ bool ConfigStore::SetAssetRoot(std::string_view name,
     return true;
 }
 
-bool ConfigStore::SetBackingFile(std::string_view name,
+bool SetBackingFile(std::string_view name,
                                  const std::filesystem::path &fullFilesystemPath) {
-    if (name.empty()) {
+    if (name.empty() || isReservedNamedId(name)) {
         return false;
     }
     const std::filesystem::path canonical = canonicalizeFullPath(fullFilesystemPath);
@@ -621,8 +583,8 @@ bool ConfigStore::SetBackingFile(std::string_view name,
     return true;
 }
 
-bool ConfigStore::RemoveBackingFile(std::string_view name) {
-    if (name.empty()) {
+bool DetachBackingFile(std::string_view name) {
+    if (name.empty() || isReservedNamedId(name)) {
         return false;
     }
 
@@ -644,7 +606,7 @@ bool ConfigStore::RemoveBackingFile(std::string_view name) {
     return true;
 }
 
-const std::filesystem::path *ConfigStore::Path(std::string_view name) {
+const std::filesystem::path *BackingFilePath(std::string_view name) {
     std::lock_guard<std::mutex> lock(g_state.mutex);
     const auto it = g_state.namedBackingFiles.find(std::string(name));
     if (it == g_state.namedBackingFiles.end()) {
@@ -653,7 +615,7 @@ const std::filesystem::path *ConfigStore::Path(std::string_view name) {
     return &it->second;
 }
 
-bool ConfigStore::Save(std::string_view name, std::string *error) {
+bool WriteBackingFile(std::string_view name, std::string *error) {
     std::lock_guard<std::mutex> lock(g_state.mutex);
     const auto *value = findNamedValueLocked(name);
     if (!value) {
@@ -672,381 +634,81 @@ bool ConfigStore::Save(std::string_view name, std::string *error) {
     return writeJsonFileUnlocked(it->second, *value, error);
 }
 
-void ConfigStore::Initialize(const std::vector<ConfigFileSpec> &defaultSpecs,
-                             const std::optional<std::filesystem::path> &userConfigPath,
-                             const std::vector<ConfigFileSpec> &runtimeSpecs) {
-    std::vector<ConfigFileSpec> combinedDefaults = defaultSpecs;
+bool ReloadBackingFile(std::string_view name, std::string *error) {
+    std::lock_guard<std::mutex> lock(g_state.mutex);
+    const std::string key(name);
+    const auto backingIt = g_state.namedBackingFiles.find(key);
+    if (backingIt == g_state.namedBackingFiles.end()) {
+        if (error) {
+            *error = "No backing file configured.";
+        }
+        return false;
+    }
 
-    std::vector<ConfigLayer> defaults = loadLayers(combinedDefaults);
-    std::vector<ConfigLayer> runtime = loadLayers(runtimeSpecs);
-
-    std::filesystem::path resolvedUserPath{};
-    kconfig::common::serialization::Value userJson = kconfig::common::serialization::Object();
-    if (userConfigPath.has_value() && !userConfigPath->empty()) {
-        resolvedUserPath = kconfig::common::data::path_utils::Canonicalize(*userConfigPath);
-        KTRACE("config", "loading user config '{}'", resolvedUserPath.string());
-        if (auto userOpt = kconfig::common::data::LoadJsonFile(resolvedUserPath, "user config", spdlog::level::debug)) {
-            if (userOpt->is_object()) {
-                userJson = std::move(*userOpt);
-            } else {
-                spdlog::warn("config_store: User config {} is not a JSON object", resolvedUserPath.string());
+    const std::filesystem::path path = backingIt->second;
+    const auto readResult = kconfig::data::path_utils::ReadJsonFile(path);
+    if (!readResult.json.has_value()) {
+        if (error) {
+            switch (readResult.error) {
+            case kconfig::data::path_utils::JsonReadError::NotFound:
+                *error = "Backing file not found: " + path.string();
+                break;
+            case kconfig::data::path_utils::JsonReadError::OpenFailed:
+                *error = "Failed to open backing file: " + path.string();
+                break;
+            case kconfig::data::path_utils::JsonReadError::ParseFailed:
+                *error = "Failed to parse backing file: " + readResult.message;
+                break;
+            case kconfig::data::path_utils::JsonReadError::None:
+                *error = "Failed to read backing file.";
+                break;
             }
         }
+        return false;
     }
 
-    kconfig::common::serialization::Value defaultsMerged = kconfig::common::serialization::Object();
-    for (const auto &layer : defaults) {
-        kconfig::common::data::path_utils::MergeJsonObjects(defaultsMerged, layer.json);
+    if (!readResult.json->is_object()) {
+        if (error) {
+            *error = "Backing file must contain a JSON object.";
+        }
+        return false;
     }
 
-    std::optional<ConfigLayer> userLayer;
-    if (!resolvedUserPath.empty() && userJson.is_object()) {
-        userLayer = ConfigLayer{userJson, resolvedUserPath.parent_path(), "user config"};
-    }
-
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    g_state.defaultLayers = std::move(defaults);
-    g_state.runtimeLayers = std::move(runtime);
-    g_state.userLayer = std::move(userLayer);
-    g_state.namedConfigs.clear();
-    g_state.namedViews.clear();
-    g_state.namedBackingFiles.clear();
-    g_state.namedAssetRoots.clear();
-    g_state.defaults = std::move(defaultsMerged);
-    g_state.user = userJson;
-    g_state.userConfigPath = resolvedUserPath;
-    if (!resolvedUserPath.empty()) {
-        g_state.saveIntervalSeconds = readIntervalSeconds(g_state.defaults, "client.config.SaveIntervalSeconds");
-        g_state.mergeIntervalSeconds = readIntervalSeconds(g_state.defaults, "client.config.MergeIntervalSeconds");
+    kconfig::json::Value loaded = std::move(*readResult.json);
+    if (auto configIt = g_state.namedConfigs.find(key); configIt != g_state.namedConfigs.end()) {
+        configIt->second.json = std::move(loaded);
+    } else if (auto viewIt = g_state.namedViews.find(key); viewIt != g_state.namedViews.end()) {
+        viewIt->second.json = std::move(loaded);
     } else {
-        // Persistence disabled (e.g., server mode): no user-config save/merge intervals apply.
-        g_state.saveIntervalSeconds.reset();
-        g_state.mergeIntervalSeconds.reset();
-    }
-    g_state.lastSaveTime = std::chrono::steady_clock::now();
-    g_state.lastMergeTime = g_state.lastSaveTime;
-    g_state.lastSavedRevision = 0;
-    g_state.pendingSave = false;
-    g_state.mergedDirty = false;
-    rebuildMergedLocked();
-    g_state.revision++;
-    g_state.lastSavedRevision = g_state.revision;
-    g_state.initialized = true;
-}
-
-bool ConfigStore::Initialized() {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    return g_state.initialized;
-}
-
-uint64_t ConfigStore::Revision() {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    return g_state.revision;
-}
-
-const kconfig::common::serialization::Value &ConfigStore::Defaults() {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    return g_state.defaults;
-}
-
-const kconfig::common::serialization::Value &ConfigStore::User() {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    return g_state.user;
-}
-
-const kconfig::common::serialization::Value &ConfigStore::Merged() {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    return g_state.merged;
-}
-
-const kconfig::common::serialization::Value *ConfigStore::Get(std::string_view path) {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    if (!g_state.initialized) {
-        return nullptr;
-    }
-    if (g_state.mergedDirty) {
-        const auto now = std::chrono::steady_clock::now();
-        if (!g_state.mergeIntervalSeconds.has_value() ||
-            *g_state.mergeIntervalSeconds <= 0.0 ||
-            std::chrono::duration<double>(now - g_state.lastMergeTime).count() >= *g_state.mergeIntervalSeconds) {
-            rebuildMergedLocked();
-        }
-    }
-    if (g_state.pendingSave) {
-        const auto now = std::chrono::steady_clock::now();
-        if (!g_state.saveIntervalSeconds.has_value() ||
-            *g_state.saveIntervalSeconds <= 0.0 ||
-            std::chrono::duration<double>(now - g_state.lastSaveTime).count() >= *g_state.saveIntervalSeconds) {
-            saveUserUnlocked(nullptr, true);
-        }
-    }
-    KTRACE("config.requests", "request for key '{}'", path);
-    return resolvePath(g_state.merged, path);
-}
-
-std::optional<kconfig::common::serialization::Value> ConfigStore::GetCopy(std::string_view path) {
-    if (const auto *value = Get(path)) {
-        return std::optional<kconfig::common::serialization::Value>(std::in_place, *value);
-    }
-    return std::nullopt;
-}
-
-bool ConfigStore::Set(std::string_view path, kconfig::common::serialization::Value value) {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    if (!g_state.initialized) {
-        return false;
-    }
-    KTRACE("config", "writing key '{}'", path);
-    if (!setValueAtPath(g_state.user, path, std::move(value))) {
-        return false;
-    }
-    g_state.userLayer = ConfigLayer{g_state.user, g_state.userConfigPath.parent_path(), "user config"};
-    g_state.revision++;
-    g_state.mergedDirty = true;
-    if (!g_state.mergeIntervalSeconds.has_value() || *g_state.mergeIntervalSeconds <= 0.0) {
-        rebuildMergedLocked();
-    }
-    if (g_state.userConfigPath.empty()) {
-        return true;
-    }
-    g_state.pendingSave = true;
-    if (!g_state.saveIntervalSeconds.has_value() || *g_state.saveIntervalSeconds <= 0.0) {
-        return saveUserUnlocked(nullptr, true);
-    }
-    return true;
-}
-
-bool ConfigStore::Erase(std::string_view path) {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    if (!g_state.initialized) {
-        return false;
-    }
-    KTRACE("config", "erasing key '{}'", path);
-    if (!eraseValueAtPath(g_state.user, path)) {
-        return false;
-    }
-    g_state.userLayer = ConfigLayer{g_state.user, g_state.userConfigPath.parent_path(), "user config"};
-    g_state.revision++;
-    g_state.mergedDirty = true;
-    if (!g_state.mergeIntervalSeconds.has_value() || *g_state.mergeIntervalSeconds <= 0.0) {
-        rebuildMergedLocked();
-    }
-    if (g_state.userConfigPath.empty()) {
-        return true;
-    }
-    g_state.pendingSave = true;
-    if (!g_state.saveIntervalSeconds.has_value() || *g_state.saveIntervalSeconds <= 0.0) {
-        return saveUserUnlocked(nullptr, true);
-    }
-    return true;
-}
-
-bool ConfigStore::ReplaceUserConfig(kconfig::common::serialization::Value userConfig, std::string *error) {
-    if (!userConfig.is_object()) {
-        userConfig = kconfig::common::serialization::Object();
-    }
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    if (!g_state.initialized) {
-        return false;
-    }
-    KTRACE("config", "replacing entire user config");
-    g_state.user = std::move(userConfig);
-    g_state.userLayer = ConfigLayer{g_state.user, g_state.userConfigPath.parent_path(), "user config"};
-    g_state.revision++;
-    g_state.mergedDirty = true;
-    if (!g_state.mergeIntervalSeconds.has_value() || *g_state.mergeIntervalSeconds <= 0.0) {
-        rebuildMergedLocked();
-    }
-    if (g_state.userConfigPath.empty()) {
-        return true;
-    }
-    g_state.pendingSave = true;
-    if (!g_state.saveIntervalSeconds.has_value() || *g_state.saveIntervalSeconds <= 0.0) {
-        return saveUserUnlocked(error, true);
-    }
-    return true;
-}
-
-bool ConfigStore::SaveUser(std::string *error) {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    if (!g_state.initialized) {
         if (error) {
-            *error = "Config store not initialized.";
+            *error = "Named config not found.";
         }
         return false;
     }
-    if (g_state.userConfigPath.empty()) {
-        if (error) {
-            *error = "User config persistence is disabled.";
-        }
-        return false;
-    }
-    return saveUserUnlocked(error, true);
-}
 
-void ConfigStore::Tick() {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    if (!g_state.initialized) {
-        return;
-    }
-    if (!g_state.pendingSave) {
-        return;
-    }
-    const auto now = std::chrono::steady_clock::now();
-    if (g_state.saveIntervalSeconds.has_value() &&
-        *g_state.saveIntervalSeconds > 0.0 &&
-        std::chrono::duration<double>(now - g_state.lastSaveTime).count() < *g_state.saveIntervalSeconds) {
-        return;
-    }
-    saveUserUnlocked(nullptr, true);
-}
-
-bool ConfigStore::saveUserUnlocked(std::string *error, bool ignoreInterval) {
-    if (g_state.userConfigPath.empty()) {
-        if (error) {
-            *error = "User config persistence is disabled.";
-        }
-        g_state.pendingSave = false;
-        return false;
-    }
-    const auto now = std::chrono::steady_clock::now();
-    if (g_state.revision <= g_state.lastSavedRevision) {
-        g_state.pendingSave = false;
-        return true;
-    }
-    if (!ignoreInterval &&
-        g_state.saveIntervalSeconds.has_value() &&
-        *g_state.saveIntervalSeconds > 0.0 &&
-        std::chrono::duration<double>(now - g_state.lastSaveTime).count() < *g_state.saveIntervalSeconds) {
-        g_state.pendingSave = true;
-        return true;
-    }
-
-    const std::filesystem::path path = g_state.userConfigPath;
-    if (!writeJsonFileUnlocked(path, g_state.user, error)) {
-        return false;
-    }
-    g_state.lastSaveTime = now;
-    g_state.lastSavedRevision = g_state.revision;
-    g_state.pendingSave = false;
-    return true;
-}
-
-const std::filesystem::path &ConfigStore::UserConfigPath() {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    return g_state.userConfigPath;
-}
-
-bool ConfigStore::AddRuntimeLayer(const std::string &label,
-                                  const kconfig::common::serialization::Value &layerJson,
-                                  const std::filesystem::path &baseDir) {
-    if (!layerJson.is_object()) {
-        spdlog::warn("config_store: Runtime layer '{}' ignored because it is not a JSON object", label);
-        return false;
-    }
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    if (!g_state.initialized) {
-        return false;
-    }
-    const std::string resolvedLabel = label.empty() ? baseDir.string() : label;
-    for (auto &layer : g_state.runtimeLayers) {
-        if (layer.label == resolvedLabel) {
-            layer.json = layerJson;
-            layer.baseDir = baseDir;
-            g_state.revision++;
-            rebuildMergedLocked();
-            return true;
-        }
-    }
-    g_state.runtimeLayers.push_back({layerJson, baseDir, resolvedLabel});
     g_state.revision++;
     rebuildMergedLocked();
     return true;
 }
 
-bool ConfigStore::RemoveRuntimeLayer(const std::string &label) {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    if (!g_state.initialized) {
-        return false;
-    }
-    const auto before = g_state.runtimeLayers.size();
-    g_state.runtimeLayers.erase(
-        std::remove_if(g_state.runtimeLayers.begin(), g_state.runtimeLayers.end(),
-                       [&](const ConfigLayer &layer) { return layer.label == label; }),
-        g_state.runtimeLayers.end());
-    if (g_state.runtimeLayers.size() == before) {
-        return false;
-    }
-    g_state.revision++;
-    rebuildMergedLocked();
-    return true;
-}
+void rebuildMergedLocked() {
+    g_state.namedConfigs.erase(std::string(kDerivedMergedName));
+    g_state.namedConfigs.erase(std::string(kDerivedAssetsName));
+    g_state.namedConfigs.erase(std::string(kLegacyDefaultsName));
+    g_state.namedConfigs.erase(std::string(kLegacyUserName));
 
-const kconfig::common::serialization::Value *ConfigStore::LayerByLabel(const std::string &label) {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    auto it = g_state.labelIndex.find(label);
-    if (it == g_state.labelIndex.end()) {
-        return nullptr;
-    }
-    const auto [kind, index] = it->second;
-    if (kind == 0) {
-        return index < g_state.defaultLayers.size() ? &g_state.defaultLayers[index].json : nullptr;
-    }
-    if (kind == 1) {
-        return g_state.userLayer ? &g_state.userLayer->json : nullptr;
-    }
-    return index < g_state.runtimeLayers.size() ? &g_state.runtimeLayers[index].json : nullptr;
-}
-
-std::filesystem::path ConfigStore::ResolveAssetPath(const std::string &assetKey,
-                                                    const std::filesystem::path &defaultPath) {
-    std::lock_guard<std::mutex> lock(g_state.mutex);
-    const auto it = g_state.assetLookup.find(assetKey);
-    if (it != g_state.assetLookup.end()) {
-        KTRACE("config", "config_store: resolved asset key '{}' -> '{}'",
-                    assetKey,
-                    it->second.string());
-        return it->second;
-    }
-    if (defaultPath.empty()) {
-        KTRACE("config", "config_store: missing asset key '{}' (no default path)",
-                    assetKey);
-    } else {
-        KTRACE("config", "config_store: missing asset key '{}', using default '{}'",
-                    assetKey,
-                    defaultPath.string());
-    }
-    return defaultPath;
-}
-
-void ConfigStore::rebuildMergedLocked() {
-    g_state.mergedDirty = false;
-    g_state.lastMergeTime = std::chrono::steady_clock::now();
-    g_state.merged = g_state.defaults;
-    if (g_state.userLayer) {
-        kconfig::common::data::path_utils::MergeJsonObjects(g_state.merged, g_state.userLayer->json);
-    }
-    for (const auto &layer : g_state.runtimeLayers) {
-        kconfig::common::data::path_utils::MergeJsonObjects(g_state.merged, layer.json);
-    }
-
-    syncLegacyNamedStateLocked();
-
+    kconfig::json::Value merged = kconfig::json::Object();
     std::vector<ConfigLayer> allLayers;
-    allLayers.reserve(g_state.defaultLayers.size() + g_state.runtimeLayers.size() + 1);
-    for (const auto &layer : g_state.defaultLayers) {
-        allLayers.push_back(layer);
-    }
-    if (g_state.userLayer) {
-        allLayers.push_back(*g_state.userLayer);
-    }
-    for (const auto &layer : g_state.runtimeLayers) {
-        allLayers.push_back(layer);
-    }
+    allLayers.reserve(g_state.namedConfigs.size() + g_state.namedViews.size());
     for (const auto &[name, layer] : g_state.namedConfigs) {
-        if (isLegacyNamedId(name)) {
+        if (isReservedNamedId(name)) {
             continue;
         }
+
+        if (layer.json.is_object()) {
+            kconfig::data::path_utils::MergeJsonObjects(merged, layer.json);
+        }
+
         ConfigLayer resolved = layer;
         if (const auto rootIt = g_state.namedAssetRoots.find(name); rootIt != g_state.namedAssetRoots.end()) {
             resolved.baseDir = rootIt->second;
@@ -1056,9 +718,14 @@ void ConfigStore::rebuildMergedLocked() {
         allLayers.push_back(std::move(resolved));
     }
     for (const auto &[name, view] : g_state.namedViews) {
-        if (isLegacyNamedId(name)) {
+        if (isReservedNamedId(name)) {
             continue;
         }
+
+        if (view.json.is_object()) {
+            kconfig::data::path_utils::MergeJsonObjects(merged, view.json);
+        }
+
         std::filesystem::path resolvedBase = view.baseDir;
         if (const auto rootIt = g_state.namedAssetRoots.find(name); rootIt != g_state.namedAssetRoots.end()) {
             resolvedBase = rootIt->second;
@@ -1072,49 +739,67 @@ void ConfigStore::rebuildMergedLocked() {
             view.isMutable
         });
     }
-    g_state.assetLookup = buildAssetLookup(allLayers);
 
-    g_state.labelIndex.clear();
-    for (std::size_t i = 0; i < g_state.defaultLayers.size(); ++i) {
-        g_state.labelIndex[g_state.defaultLayers[i].label] = {0, i};
+    kconfig::json::Value assetIndex = kconfig::json::Object();
+    const auto assetLookup = buildAssetLookup(allLayers);
+    for (const auto &[key, resolvedPath] : assetLookup) {
+        // Keys are already dot-separated paths (e.g. "assets.foo.bar"), so reuse setValueAtPath.
+        (void)setValueAtPath(assetIndex, key, resolvedPath.string());
     }
-    if (g_state.userLayer) {
-        g_state.labelIndex[g_state.userLayer->label] = {1, 0};
-    }
-    for (std::size_t i = 0; i < g_state.runtimeLayers.size(); ++i) {
-        g_state.labelIndex[g_state.runtimeLayers[i].label] = {2, i};
-    }
+
+    const std::string mergedName(kDerivedMergedName);
+    g_state.namedViews[mergedName] = NamedConfigView{
+        std::move(merged),
+        {},
+        {},
+        false
+    };
+
+    const std::string assetsName(kDerivedAssetsName);
+    g_state.namedViews[assetsName] = NamedConfigView{
+        std::move(assetIndex),
+        {},
+        {},
+        false
+    };
+
+    g_state.namedBackingFiles.erase(mergedName);
+    g_state.namedBackingFiles.erase(assetsName);
+    g_state.namedAssetRoots.erase(mergedName);
+    g_state.namedAssetRoots.erase(assetsName);
+    g_state.namedAssetRoots.erase(std::string(kLegacyDefaultsName));
+    g_state.namedAssetRoots.erase(std::string(kLegacyUserName));
 }
 
-bool ConfigStore::setValueAtPath(kconfig::common::serialization::Value &root, std::string_view path, kconfig::common::serialization::Value value) {
+bool setValueAtPath(kconfig::json::Value &root, std::string_view path, kconfig::json::Value value) {
     std::vector<std::pair<std::string, std::optional<std::size_t>>> segments;
     if (!parsePathSegments(path, segments)) {
         return false;
     }
     if (!root.is_object()) {
-        root = kconfig::common::serialization::Object();
+        root = kconfig::json::Object();
     }
-    kconfig::common::serialization::Value *current = &root;
+    kconfig::json::Value *current = &root;
     for (std::size_t i = 0; i < segments.size(); ++i) {
         const auto &[key, index] = segments[i];
         const bool last = (i == segments.size() - 1);
         if (!key.empty()) {
             if (!current->is_object()) {
-                *current = kconfig::common::serialization::Object();
+                *current = kconfig::json::Object();
             }
             if (last && !index.has_value()) {
                 (*current)[key] = std::move(value);
                 return true;
             }
             if (!current->contains(key)) {
-                (*current)[key] = index.has_value() ? kconfig::common::serialization::Array() : kconfig::common::serialization::Object();
+                (*current)[key] = index.has_value() ? kconfig::json::Array() : kconfig::json::Object();
             }
             current = &(*current)[key];
         }
 
         if (index.has_value()) {
             if (!current->is_array()) {
-                *current = kconfig::common::serialization::Array();
+                *current = kconfig::json::Array();
             }
             while (current->size() <= *index) {
                 current->push_back(nullptr);
@@ -1129,12 +814,12 @@ bool ConfigStore::setValueAtPath(kconfig::common::serialization::Value &root, st
     return false;
 }
 
-bool ConfigStore::eraseValueAtPath(kconfig::common::serialization::Value &root, std::string_view path) {
+bool eraseValueAtPath(kconfig::json::Value &root, std::string_view path) {
     std::vector<std::pair<std::string, std::optional<std::size_t>>> segments;
     if (!parsePathSegments(path, segments)) {
         return false;
     }
-    kconfig::common::serialization::Value *current = &root;
+    kconfig::json::Value *current = &root;
     for (std::size_t i = 0; i < segments.size(); ++i) {
         const auto &[key, index] = segments[i];
         const bool last = (i == segments.size() - 1);
@@ -1166,4 +851,4 @@ bool ConfigStore::eraseValueAtPath(kconfig::common::serialization::Value &root, 
     return false;
 }
 
-} // namespace kconfig::common::config
+} // namespace kconfig::store

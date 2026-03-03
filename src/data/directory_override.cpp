@@ -1,4 +1,4 @@
-#include "data/directory_override.hpp"
+#include <kconfig/data/directory_override.hpp>
 
 #include "data/path_utils.hpp"
 #include "data/path_resolver.hpp"
@@ -22,22 +22,22 @@ struct DataDirFromConfigResult {
 
 std::filesystem::path EnsureConfigFileAtPath(const std::filesystem::path &path, const std::filesystem::path &defaultRelative) {
     const auto target = path.empty()
-        ? kconfig::common::data::UserConfigDirectory() / defaultRelative
+        ? kconfig::data::path_resolver::UserConfigDirectory() / defaultRelative
         : path;
 
     std::string error;
-    if (!kconfig::common::data::path_utils::EnsureJsonObjectFile(target, &error)) {
+    if (!kconfig::data::path_utils::EnsureJsonObjectFile(target, &error)) {
         throw std::runtime_error("Failed to prepare user config file " + target.string() + ": " + error);
     }
 
-    return kconfig::common::data::path_utils::Canonicalize(target);
+    return kconfig::data::path_utils::Canonicalize(target);
 }
 
 DataDirFromConfigResult ExtractDataDirFromConfig(const std::filesystem::path &configPath) {
-    const auto readResult = kconfig::common::data::path_utils::ReadJsonFile(configPath);
+    const auto readResult = kconfig::data::path_utils::ReadJsonFile(configPath);
     if (!readResult.json.has_value()) {
         // If the file cannot be opened/read, fall back to other mechanisms.
-        if (readResult.error == kconfig::common::data::path_utils::JsonReadError::ParseFailed) {
+        if (readResult.error == kconfig::data::path_utils::JsonReadError::ParseFailed) {
             throw std::runtime_error("Failed to parse user config at " + configPath.string()
                                      + ": "
                                      + (readResult.message.empty() ? std::string("invalid JSON") : readResult.message));
@@ -68,7 +68,7 @@ DataDirFromConfigResult ExtractDataDirFromConfig(const std::filesystem::path &co
         if (dataDirPath.is_relative()) {
             dataDirPath = configPath.parent_path() / dataDirPath;
         }
-        return {kconfig::common::data::path_utils::Canonicalize(dataDirPath), "DataDir resolved from config"};
+        return {kconfig::data::path_utils::Canonicalize(dataDirPath), "DataDir resolved from config"};
     } catch (const std::exception &ex) {
         throw std::runtime_error("Failed to parse user config at " + configPath.string() + ": " + ex.what());
     }
@@ -93,7 +93,7 @@ void ValidateDataDirOrExit(const std::filesystem::path &path, const std::string 
     }
 
     std::error_code ec;
-    const auto spec = kconfig::common::data::GetDataPathSpec();
+    const auto spec = kconfig::data::path_resolver::GetDataPathSpec();
     if (!spec.requiredDataMarker.empty()) {
         const auto markerPath = path / spec.requiredDataMarker;
         if (!std::filesystem::exists(markerPath, ec) || !std::filesystem::is_regular_file(markerPath, ec)) {
@@ -113,7 +113,7 @@ void ValidateDataDirOrExit(const std::filesystem::path &path, const std::string 
 
 } // namespace
 
-namespace kconfig::common::data {
+namespace kconfig::data::directory_override {
 
 DataDirectoryOverrideResult ApplyDataDirectoryOverride(
     const std::optional<std::filesystem::path>& cli_user_config_path,
@@ -140,7 +140,7 @@ DataDirectoryOverrideResult ApplyDataDirectoryOverride(
             KTRACE("cli", "resolved writable user config path '{}'", configPath.string());
             const auto configRoot = configPath.parent_path();
             if (!configRoot.empty()) {
-                kconfig::common::data::SetUserConfigRootOverride(configRoot);
+                kconfig::data::path_resolver::SetUserConfigRootOverride(configRoot);
                 KTRACE("cli", "user config root override '{}'", configRoot.string());
             }
             if (cli_data_dir) {
@@ -159,7 +159,7 @@ DataDirectoryOverrideResult ApplyDataDirectoryOverride(
             std::cerr << "The --user-config option is not supported for this executable.\n";
             std::exit(1);
         } else if (allowDataDirFromUserConfigWhenUserConfigDisabled) {
-            const auto readOnlyConfigPath = kconfig::common::data::path_utils::Canonicalize(kconfig::common::data::UserConfigDirectory() / defaultConfigRelative);
+            const auto readOnlyConfigPath = kconfig::data::path_utils::Canonicalize(kconfig::data::path_resolver::UserConfigDirectory() / defaultConfigRelative);
             configPath = readOnlyConfigPath;
             KTRACE("cli", "using read-only user config probe path '{}'",
                         readOnlyConfigPath.string());
@@ -179,7 +179,7 @@ DataDirectoryOverrideResult ApplyDataDirectoryOverride(
         if (cli_data_dir) {
             KTRACE("cli", "selecting --data source '{}'", cli_data_dir->string());
             ValidateDataDirOrExit(*cli_data_dir, std::string("--data ") + cli_data_dir->string());
-            kconfig::common::data::SetDataRootOverride(*cli_data_dir);
+            kconfig::data::path_resolver::SetDataRootOverride(*cli_data_dir);
             KTRACE("cli", "accepted --data source '{}'", cli_data_dir->string());
             KTRACE("config", "Using data directory from CLI override: {}", cli_data_dir->string());
             return {configPath, *cli_data_dir};
@@ -188,13 +188,13 @@ DataDirectoryOverrideResult ApplyDataDirectoryOverride(
         if (configDataDir) {
             KTRACE("cli", "selecting config DataDir source '{}'", configDataDir->string());
             ValidateDataDirOrExit(*configDataDir, std::string("user config"), configPath);
-            kconfig::common::data::SetDataRootOverride(*configDataDir);
+            kconfig::data::path_resolver::SetDataRootOverride(*configDataDir);
             KTRACE("cli", "accepted config DataDir source '{}'", configDataDir->string());
             KTRACE("config", "Using data directory from user config: {}", configDataDir->string());
             return {configPath, *configDataDir};
         }
 
-        const auto spec = kconfig::common::data::GetDataPathSpec();
+        const auto spec = kconfig::data::path_resolver::GetDataPathSpec();
         const char *envDataDir = std::getenv(spec.dataDirEnvVar.c_str());
 
         // Fall back to env var if present; otherwise fail with a friendly message.
@@ -204,7 +204,7 @@ DataDirectoryOverrideResult ApplyDataDirectoryOverride(
                         spec.dataDirEnvVar,
                         envPath.string());
             ValidateDataDirOrExit(envPath, std::string(spec.dataDirEnvVar) + ": " + envDataDir);
-            kconfig::common::data::SetDataRootOverride(envPath);
+            kconfig::data::path_resolver::SetDataRootOverride(envPath);
             KTRACE("cli", "accepted env source {}='{}'", spec.dataDirEnvVar, envPath.string());
             KTRACE("config", "Using data directory from {}: {}", spec.dataDirEnvVar, envPath.string());
             return {configPath, envPath};
@@ -247,4 +247,4 @@ DataDirectoryOverrideResult ApplyDataDirectoryOverride(
     }
 }
 
-} // namespace kconfig::common::data
+} // namespace kconfig::data::directory_override

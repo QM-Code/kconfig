@@ -4,9 +4,11 @@
 #include <optional>
 #include <string>
 
-namespace kconfig::common::data {
-
+namespace kconfig::data::path_resolver {
 struct DataPathSpec;
+}
+
+namespace kconfig::data::root_policy {
 
 struct RootPathPolicy {
     std::optional<std::filesystem::path> cli_root{};
@@ -17,7 +19,7 @@ struct RootPathPolicy {
 
 std::optional<std::filesystem::path> ResolveRootPathPolicy(const RootPathPolicy& policy);
 
-void ConfigureDataRootPolicy(const DataPathSpec& spec,
+void ConfigureDataRootPolicy(const path_resolver::DataPathSpec& spec,
                              const std::optional<std::filesystem::path>& cli_root = std::nullopt);
 
-} // namespace kconfig::common::data
+} // namespace kconfig::data::root_policy
