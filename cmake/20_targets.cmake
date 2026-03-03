@@ -1,7 +1,7 @@
 set(KCONFIG_SOURCES
     ${PROJECT_SOURCE_DIR}/src/init.cpp
     ${PROJECT_SOURCE_DIR}/src/json.cpp
-    ${PROJECT_SOURCE_DIR}/src/helpers.cpp
+    ${PROJECT_SOURCE_DIR}/src/store/read.cpp
     ${PROJECT_SOURCE_DIR}/src/store.cpp
     ${PROJECT_SOURCE_DIR}/src/data/directory_override.cpp
     ${PROJECT_SOURCE_DIR}/src/data/path_resolver.cpp
