@@ -1,7 +1,7 @@
-#include <kconfig/init.hpp>
+#include <kconfig.hpp>
 
 #include <kconfig/store.hpp>
-#include <ktrace/trace.hpp>
+#include <ktrace.hpp>
 #include <spdlog/spdlog.h>
 
 #include <cctype>
@@ -328,13 +328,17 @@ void processCliArgs(int& argc, char** argv, std::string_view config_root) {
                 applyAssignmentOrThrow(root, argv[++i]);
             } catch (const std::exception& ex) {
                 spdlog::error("\nConfig option error: {}", ex.what());
-                printConfigExamples(root);
+                printConfigHelp(root);
             }
             continue;
         }
 
+        if (startsWith(arg, root + "-")) {
+            throw std::invalid_argument("unknown config option '" + arg + "'");
+        }
+
         consumed[static_cast<std::size_t>(i)] = true;
-        KTRACE("cli", "consumed unknown config option '{}'", arg);
+        KTRACE("cli", "consumed unknown config argument '{}'", arg);
     }
 
     int write_index = 1;
@@ -359,7 +363,7 @@ void ParseConfigCLI(int& argc, char** argv, std::string_view config_root) {
         } catch (...) {
         }
         spdlog::error("\nConfig option error: {}", ex.what());
-        printConfigExamples(root);
+        printConfigHelp(root);
     }
 }
 
@@ -375,7 +379,7 @@ std::once_flag g_trace_init_once;
 
 } // namespace
 
-namespace kconfig::init {
+namespace kconfig {
 
 void Initialize() {
     std::call_once(g_trace_init_once, RegisterKConfigChannels);
@@ -385,4 +389,4 @@ void ParseCLI(int& argc, char** argv, std::string_view config_root) {
     ParseConfigCLI(argc, argv, config_root);
 }
 
-} // namespace kconfig::init
+} // namespace kconfig

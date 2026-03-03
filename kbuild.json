@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "cmake_package_name": "KConfigSDK",
+  "requires_vcpkg": true,
+  "sdk-dependencies": [
+    {
+      "cmake_package_name": "KTraceSDK",
+      "sdk_prefix": "../m-ktrace/build/{version}/sdk",
+      "version_fallbacks": [
+        "0.1"
+      ]
+    }
+  ],
+  "build-demos": [
+    "compile"
+  ]
+}

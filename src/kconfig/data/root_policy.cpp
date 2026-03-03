@@ -1,5 +1,5 @@
 #include <kconfig/data/root_policy.hpp>
-#include "data/path_utils.hpp"
+#include "path_utils.hpp"
 #include <kconfig/data/path_resolver.hpp>
 
 #include <cstdlib>

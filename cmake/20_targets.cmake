@@ -1,13 +1,13 @@
 set(KCONFIG_SOURCES
-    ${PROJECT_SOURCE_DIR}/src/init.cpp
-    ${PROJECT_SOURCE_DIR}/src/json.cpp
-    ${PROJECT_SOURCE_DIR}/src/store/read.cpp
-    ${PROJECT_SOURCE_DIR}/src/store.cpp
-    ${PROJECT_SOURCE_DIR}/src/data/directory_override.cpp
-    ${PROJECT_SOURCE_DIR}/src/data/path_resolver.cpp
-    ${PROJECT_SOURCE_DIR}/src/data/path_utils.cpp
-    ${PROJECT_SOURCE_DIR}/src/data/root_policy.cpp
-    ${PROJECT_SOURCE_DIR}/src/i18n.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/json.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/store/read.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/store.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/data/directory_override.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/data/path_resolver.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/data/path_utils.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/data/root_policy.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/i18n.cpp
 )
 
 if(KCONFIG_BUILD_SHARED)

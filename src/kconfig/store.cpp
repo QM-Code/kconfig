@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <system_error>
 #include <unordered_map>
-#include <ktrace/trace.hpp>
+#include <ktrace.hpp>
 #include <spdlog/spdlog.h>
 
 namespace {

@@ -1,9 +1,9 @@
 #include <kconfig/data/directory_override.hpp>
 
-#include "data/path_utils.hpp"
-#include "data/path_resolver.hpp"
+#include "path_utils.hpp"
+#include "path_resolver.hpp"
 #include <kconfig/json.hpp>
-#include <ktrace/trace.hpp>
+#include <ktrace.hpp>
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>

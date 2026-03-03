@@ -1,6 +1,4 @@
-#include <kconfig/json.hpp>
-
-#include <nlohmann/json.hpp>
+#include "json.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -10,8 +8,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace kconfig::json {
-namespace {
+namespace kconfig::json::detail {
 
 Value FromNlohmann(const nlohmann::json &json) {
     if (json.is_null()) {
@@ -87,7 +84,9 @@ nlohmann::json ToNlohmann(const Value &value) {
     throw std::runtime_error("Unsupported JSON value type");
 }
 
-} // namespace
+} // namespace kconfig::json::detail
+
+namespace kconfig::json {
 
 Value::Iterator::Iterator() = default;
 
@@ -430,7 +429,7 @@ Value &Value::operator=(std::string value) {
 
 Value Value::parse(std::string_view text) {
     const auto parsed = nlohmann::json::parse(text.begin(), text.end());
-    return FromNlohmann(parsed);
+    return detail::FromNlohmann(parsed);
 }
 
 Value Value::object() {
@@ -663,7 +662,7 @@ Value::ConstItemsView Value::items() const {
 }
 
 std::string Value::dump(int indent) const {
-    return ToNlohmann(*this).dump(indent);
+    return detail::ToNlohmann(*this).dump(indent);
 }
 
 template <>
@@ -791,7 +790,7 @@ std::string Dump(const Value &value, int indent) {
 std::istream &operator>>(std::istream &input, Value &value) {
     nlohmann::json json;
     input >> json;
-    value = FromNlohmann(json);
+    value = detail::FromNlohmann(json);
     return input;
 }
 

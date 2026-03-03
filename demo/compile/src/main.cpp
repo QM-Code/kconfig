@@ -1,8 +1,8 @@
+#include <kconfig.hpp>
 #include <kconfig/data/path_resolver.hpp>
 #include <kconfig/i18n.hpp>
-#include <kconfig/init.hpp>
 #include <kconfig/store.hpp>
-#include <ktrace/trace.hpp>
+#include <ktrace.hpp>
 
 #include <exception>
 #include <filesystem>
@@ -11,9 +11,9 @@
 #include <vector>
 
 int main(int argc, char** argv) {
-    kconfig::init::Initialize();
+    kconfig::Initialize();
     ktrace::ProcessCLI(argc, argv, "--trace");
-    kconfig::init::ParseCLI(argc, argv, "--config");
+    kconfig::ParseCLI(argc, argv, "--config");
 
     const std::filesystem::path repoRoot = std::filesystem::current_path();
     const std::filesystem::path runtimeRoot = repoRoot / "demo" / "compile" / "runtime";

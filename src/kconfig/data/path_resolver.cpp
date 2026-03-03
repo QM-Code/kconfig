@@ -1,5 +1,5 @@
-#include "data/path_resolver.hpp"
-#include "data/path_utils.hpp"
+#include "path_resolver.hpp"
+#include "path_utils.hpp"
 
 #include <algorithm>
 #include <array>
@@ -19,7 +19,7 @@
 
 #include <kconfig/store.hpp>
 #include <kconfig/json.hpp>
-#include <ktrace/trace.hpp>
+#include <ktrace.hpp>
 #include <spdlog/spdlog.h>
 
 #if defined(_WIN32)
