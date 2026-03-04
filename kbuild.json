@@ -1,17 +1,29 @@
 {
-  "schema_version": 1,
-  "cmake_package_name": "KConfigSDK",
-  "requires_vcpkg": true,
-  "sdk-dependencies": [
-    {
-      "cmake_package_name": "KTraceSDK",
-      "sdk_prefix": "../ktrace/build/{version}/sdk",
-      "version_fallbacks": [
-        "0.1"
-      ]
-    }
-  ],
-  "build-demos": [
-    "compile"
-  ]
-}
+	"project_title": "Karma JSON Config Storage SDK",
+	"project_id": "kconfig",
+	"git": {
+		"url": "https://github.com/QM-Code/kconfig",
+		"auth": "git@github.com:QM-Code/kconfig.git"
+	},
+	"cmake" : {
+		"minimum_version": "3.20",
+		"sdk": {
+			"package_name": "KConfigSDK"
+		}
+	},
+	"vcpkg": {
+		"dependencies": [
+			"spdlog",
+			"nlohmann-json" 
+		]
+	},
+	"build-demos": [
+		"compile"
+	],
+	"sdk-dependencies": [
+		{
+			"cmake_package_name": "KTraceSDK",
+			"sdk_prefix": "../ktrace/build/{version}/sdk"
+		}
+	]
+}	

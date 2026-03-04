@@ -1,6 +1,6 @@
-# Karma Config Storage
+# Karma JSON Config Storage SDK
 
-Standalone configuration/data/i18n/serialization SDK extracted from `m-karma`.
+Standalone JSON configuration/data/i18n/serialization SDK.
 
 ## Build SDK
 
