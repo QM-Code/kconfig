@@ -1,33 +1,36 @@
-# m-kconfig
+# Karma Config Storage
 
 Standalone configuration/data/i18n/serialization SDK extracted from `m-karma`.
 
-Public headers are installed under:
-
-- `include/kconfig`
-- `include/kconfig/data`
-
-Trace setup API for consumers:
-
-- `#include <kconfig/trace.hpp>`
-- `kconfig::InitializeTraceLogging()`
-
-When built via `abuild.py`, these public headers are installed to:
-
-- `<build-dir>/sdk/include/kconfig/...`
-
-The CMake package exports target:
-
-- `kconfig::sdk` via `find_package(KConfigSDK CONFIG REQUIRED)`
-
-## Build
+## Build SDK
 
 ```bash
-./abuild.py -a <name> -d build/test
+./kbuild.py
 ```
+SDK output:
+- `build/latest/sdk/include`
+- `build/latest/sdk/lib`
+- `build/latest/sdk/lib/cmake/KConfigSDK`
 
-Default SDK install output:
+## Build and Test Demos
 
-- `build/test/sdk/include`
-- `build/test/sdk/lib`
-- `build/test/sdk/lib/cmake/KConfigSDK`
+```bash
+# Uses kbuild.json "build-demos" order.
+./kbuild.py --build-demos
+
+./demo/executable/build/latest/test
+```
+Demos:
+- Executable: `demo/compile/`
+
+Demo builds are orchestrated by the root `kbuild.py`
+
+Demo libraries demonstrate how other libraries can implement and expose ktrace.
+
+## Coding Agents
+
+If you are using a coding agent, paste the following prompt:
+
+```bash
+Follow the instructions in agent/BOOTSTRAP.md
+```

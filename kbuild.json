@@ -5,7 +5,7 @@
   "sdk-dependencies": [
     {
       "cmake_package_name": "KTraceSDK",
-      "sdk_prefix": "../m-ktrace/build/{version}/sdk",
+      "sdk_prefix": "../ktrace/build/{version}/sdk",
       "version_fallbacks": [
         "0.1"
       ]
