@@ -11,36 +11,92 @@ set(KCONFIG_SOURCES
     ${PROJECT_SOURCE_DIR}/src/kconfig/i18n.cpp
 )
 
-if(KCONFIG_BUILD_SHARED)
-    set(_kconfig_library_type SHARED)
-else()
-    set(_kconfig_library_type STATIC)
+if(NOT KCONFIG_BUILD_STATIC AND NOT KCONFIG_BUILD_SHARED)
+    message(FATAL_ERROR "kconfig requires at least one of KCONFIG_BUILD_STATIC or KCONFIG_BUILD_SHARED to be ON.")
 endif()
 
-add_library(kconfig_sdk ${_kconfig_library_type} ${KCONFIG_SOURCES})
-add_library(kconfig::sdk ALIAS kconfig_sdk)
+set(_kconfig_kcli_static_dep kcli::sdk_static)
+if(NOT TARGET kcli::sdk_static)
+    set(_kconfig_kcli_static_dep kcli::sdk)
+endif()
 
-target_include_directories(kconfig_sdk
-    PUBLIC
-        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    PRIVATE
-        ${PROJECT_SOURCE_DIR}/src
-)
+set(_kconfig_ktrace_static_dep ktrace::sdk_static)
+if(NOT TARGET ktrace::sdk_static)
+    set(_kconfig_ktrace_static_dep ktrace::sdk)
+endif()
 
-target_link_libraries(kconfig_sdk
-    PUBLIC
-        kcli::sdk
-        ktrace::sdk
-        spdlog::spdlog
-)
+set(_kconfig_kcli_shared_dep kcli::sdk_shared)
+if(NOT TARGET kcli::sdk_shared)
+    set(_kconfig_kcli_shared_dep kcli::sdk)
+endif()
 
-target_compile_definitions(kconfig_sdk
-    PRIVATE
-        KTRACE_NAMESPACE="kconfig"
-)
+set(_kconfig_ktrace_shared_dep ktrace::sdk_shared)
+if(NOT TARGET ktrace::sdk_shared)
+    set(_kconfig_ktrace_shared_dep ktrace::sdk)
+endif()
 
-set_target_properties(kconfig_sdk PROPERTIES
-    OUTPUT_NAME kconfig
-    EXPORT_NAME sdk
-)
+if(KCONFIG_BUILD_STATIC)
+    add_library(kconfig_sdk_static STATIC ${KCONFIG_SOURCES})
+    add_library(kconfig::sdk_static ALIAS kconfig_sdk_static)
+
+    target_include_directories(kconfig_sdk_static
+        PUBLIC
+            $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>
+        PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
+    )
+
+    target_link_libraries(kconfig_sdk_static
+        PUBLIC
+            ${_kconfig_kcli_static_dep}
+            ${_kconfig_ktrace_static_dep}
+            spdlog::spdlog
+    )
+
+    target_compile_definitions(kconfig_sdk_static
+        PRIVATE
+            KTRACE_NAMESPACE="kconfig"
+    )
+
+    set_target_properties(kconfig_sdk_static PROPERTIES
+        OUTPUT_NAME kconfig
+        EXPORT_NAME sdk_static
+    )
+endif()
+
+if(KCONFIG_BUILD_SHARED)
+    add_library(kconfig_sdk_shared SHARED ${KCONFIG_SOURCES})
+    add_library(kconfig::sdk_shared ALIAS kconfig_sdk_shared)
+
+    target_include_directories(kconfig_sdk_shared
+        PUBLIC
+            $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>
+        PRIVATE
+            ${PROJECT_SOURCE_DIR}/src
+    )
+
+    target_link_libraries(kconfig_sdk_shared
+        PUBLIC
+            ${_kconfig_kcli_shared_dep}
+            ${_kconfig_ktrace_shared_dep}
+            spdlog::spdlog
+    )
+
+    target_compile_definitions(kconfig_sdk_shared
+        PRIVATE
+            KTRACE_NAMESPACE="kconfig"
+    )
+
+    set_target_properties(kconfig_sdk_shared PROPERTIES
+        OUTPUT_NAME kconfig
+        EXPORT_NAME sdk_shared
+    )
+endif()
+
+if(TARGET kconfig_sdk_shared)
+    add_library(kconfig::sdk ALIAS kconfig_sdk_shared)
+elseif(TARGET kconfig_sdk_static)
+    add_library(kconfig::sdk ALIAS kconfig_sdk_static)
+endif()

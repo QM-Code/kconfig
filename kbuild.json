@@ -32,6 +32,8 @@
     ]
   },
   "build": {
+    "jobs": 4,
+    "type": "shared",
     "demos": [
       "bootstrap",
       "libraries/alpha",

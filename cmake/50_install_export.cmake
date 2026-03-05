@@ -2,7 +2,15 @@ include(CMakePackageConfigHelpers)
 
 set(KTOOLS_INSTALL_CMAKEDIR "lib/cmake/KConfigSDK")
 
-install(TARGETS kconfig_sdk
+set(_kconfig_install_targets)
+if(TARGET kconfig_sdk_static)
+    list(APPEND _kconfig_install_targets kconfig_sdk_static)
+endif()
+if(TARGET kconfig_sdk_shared)
+    list(APPEND _kconfig_install_targets kconfig_sdk_shared)
+endif()
+
+install(TARGETS ${_kconfig_install_targets}
     EXPORT KConfigSDKTargets
     ARCHIVE DESTINATION lib COMPONENT KConfigSDK
     LIBRARY DESTINATION lib COMPONENT KConfigSDK
