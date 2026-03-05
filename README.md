@@ -7,6 +7,7 @@ Standalone JSON configuration/data/i18n/serialization SDK.
 ```bash
 ./kbuild.py
 ```
+
 SDK output:
 - `build/latest/sdk/include`
 - `build/latest/sdk/lib`
@@ -21,14 +22,17 @@ SDK output:
 # Explicit demo-only run (uses build.demos when no args are provided).
 ./kbuild.py --build-demos
 
-./demo/compile/build/latest/test
+./demo/executable/build/latest/test
 ```
+
 Demos:
-- Executable: `demo/compile/`
+- Bootstrap compile/link check: `demo/bootstrap/`
+- Libraries: `demo/libraries/{alpha,beta,gamma}`
+- Executable: `demo/executable/`
 
-Demo builds are orchestrated by the root `kbuild.py`
+Demo builds are orchestrated by the root `kbuild.py`.
 
-Demo executable validates KConfigSDK compile/link/load behavior.
+Demo executable validates KConfigSDK compile/link/load behavior while consuming demo libraries.
 
 ## Coding Agents
 

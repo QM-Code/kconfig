@@ -33,11 +33,19 @@
   },
   "build": {
     "demos": [
-      "compile"
+      "bootstrap",
+      "libraries/alpha",
+      "libraries/beta",
+      "libraries/gamma",
+      "executable"
     ],
     "defaults": {
       "demos": [
-        "compile"
+        "bootstrap",
+        "libraries/alpha",
+        "libraries/beta",
+        "libraries/gamma",
+        "executable"
       ]
     }
   }

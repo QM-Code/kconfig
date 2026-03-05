@@ -1,9 +1,13 @@
+#include <alpha/sdk.hpp>
+#include <beta/sdk.hpp>
+#include <gamma/sdk.hpp>
 #include <kconfig.hpp>
 #include <kconfig/data/path_resolver.hpp>
 #include <kconfig/i18n.hpp>
 #include <kconfig/store.hpp>
 #include <ktrace.hpp>
 
+#include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <iostream>
@@ -16,7 +20,7 @@ int main(int argc, char** argv) {
     kconfig::ParseCLI(argc, argv, "config");
 
     const std::filesystem::path repoRoot = std::filesystem::current_path();
-    const std::filesystem::path runtimeRoot = repoRoot / "demo" / "compile" / "runtime";
+    const std::filesystem::path runtimeRoot = repoRoot / "demo" / "executable" / "runtime";
     const std::filesystem::path defaultsPath = runtimeRoot / "defaults.json";
     const std::filesystem::path userPath = runtimeRoot / "user.json";
 
@@ -63,7 +67,7 @@ int main(int argc, char** argv) {
     }
 
     kconfig::data::path_resolver::SetDataRootOverride(repoRoot);
-    const auto probePath = kconfig::data::path_resolver::Resolve("demo/compile");
+    const auto probePath = kconfig::data::path_resolver::Resolve("demo/executable");
     (void)probePath;
     const std::string preview = kconfig::i18n::Get().formatText(
         "KConfig {state}",
@@ -71,6 +75,10 @@ int main(int argc, char** argv) {
     );
     (void)preview;
 
-    std::cout << "KConfig SDK compile/link/load check passed\n";
+    kconfig::demo::alpha::EmitDemoOutput();
+    kconfig::demo::beta::EmitDemoOutput();
+    kconfig::demo::gamma::EmitDemoOutput();
+
+    std::cout << "KConfig demo executable compile/link/integration check passed\n";
     return 0;
 }
