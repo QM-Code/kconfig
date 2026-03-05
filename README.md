@@ -15,17 +15,20 @@ SDK output:
 ## Build and Test Demos
 
 ```bash
-# Uses kbuild.json "build-demos" order.
+# Builds SDK plus kbuild.json "build.defaults.demos".
+./kbuild.py
+
+# Explicit demo-only run (uses build.demos when no args are provided).
 ./kbuild.py --build-demos
 
-./demo/executable/build/latest/test
+./demo/compile/build/latest/test
 ```
 Demos:
 - Executable: `demo/compile/`
 
 Demo builds are orchestrated by the root `kbuild.py`
 
-Demo libraries demonstrate how other libraries can implement and expose ktrace.
+Demo executable validates KConfigSDK compile/link/load behavior.
 
 ## Coding Agents
 

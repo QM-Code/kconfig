@@ -5,24 +5,22 @@ Compile/link/load baseline for `KConfigSDK` consumers.
 ## Build
 
 ```bash
-cd m-kconfig/demo/compile
-./abuild.py -a <agent> -d build/<slot>/ \
-  --kconfig-sdk ../../build/<slot>/sdk/ \
-  --ktrace-sdk ../../../m-ktrace/build/<slot>/sdk/
+# Run from the kconfig repo root
+./kbuild.py --build-demos compile
 ```
 
 ## Run
 
 ```bash
-./build/<slot>/test
+./demo/compile/build/latest/test
 ```
 
-## Full Test Script
-
-From `m-kconfig` root:
+## Build Specific Slot
 
 ```bash
-./tests/full-test.sh --version <slot> --agent <agent>
+./kbuild.py --version <slot>
+./kbuild.py --version <slot> --build-demos compile
+./demo/compile/build/<slot>/test
 ```
 
 Expected output:

@@ -1,6 +1,6 @@
 include(CMakePackageConfigHelpers)
 
-set(KCONFIG_INSTALL_CMAKEDIR "lib/cmake/KConfigSDK")
+set(KTOOLS_INSTALL_CMAKEDIR "lib/cmake/KConfigSDK")
 
 install(TARGETS kconfig_sdk
     EXPORT KConfigSDKTargets
@@ -19,14 +19,14 @@ install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
 install(EXPORT KConfigSDKTargets
     FILE KConfigSDKTargets.cmake
     NAMESPACE kconfig::
-    DESTINATION ${KCONFIG_INSTALL_CMAKEDIR}
+    DESTINATION ${KTOOLS_INSTALL_CMAKEDIR}
     COMPONENT KConfigSDK
 )
 
 configure_package_config_file(
     ${PROJECT_SOURCE_DIR}/cmake/KConfigSDKConfig.cmake.in
     ${PROJECT_BINARY_DIR}/KConfigSDKConfig.cmake
-    INSTALL_DESTINATION ${KCONFIG_INSTALL_CMAKEDIR}
+    INSTALL_DESTINATION ${KTOOLS_INSTALL_CMAKEDIR}
 )
 
 write_basic_package_version_file(
@@ -38,6 +38,6 @@ write_basic_package_version_file(
 install(FILES
     ${PROJECT_BINARY_DIR}/KConfigSDKConfig.cmake
     ${PROJECT_BINARY_DIR}/KConfigSDKConfigVersion.cmake
-    DESTINATION ${KCONFIG_INSTALL_CMAKEDIR}
+    DESTINATION ${KTOOLS_INSTALL_CMAKEDIR}
     COMPONENT KConfigSDK
 )

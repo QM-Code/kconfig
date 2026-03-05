@@ -37,7 +37,7 @@ target_link_libraries(kconfig_sdk
 
 target_compile_definitions(kconfig_sdk
     PRIVATE
-        KTRACE_NAMESPACE=\"kconfig\"
+        KTRACE_NAMESPACE="kconfig"
 )
 
 set_target_properties(kconfig_sdk PROPERTIES
