@@ -12,8 +12,8 @@
 
 int main(int argc, char** argv) {
     kconfig::Initialize();
-    ktrace::ProcessCLI(argc, argv, "--trace");
-    kconfig::ParseCLI(argc, argv, "--config");
+    ktrace::ProcessCLI(argc, argv, "trace");
+    kconfig::ParseCLI(argc, argv, "config");
 
     const std::filesystem::path repoRoot = std::filesystem::current_path();
     const std::filesystem::path runtimeRoot = repoRoot / "demo" / "compile" / "runtime";

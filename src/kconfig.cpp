@@ -282,11 +282,7 @@ void Initialize() {
 }
 
 void ParseCLI(int& argc, char** argv, std::string_view config_root) {
-    try {
-        processCliArgs(argc, argv, config_root);
-    } catch (const std::exception& ex) {
-        spdlog::error("\nConfig option error: {}", ex.what());
-    }
+    processCliArgs(argc, argv, config_root);
 }
 
 } // namespace kconfig
