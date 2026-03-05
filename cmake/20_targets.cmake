@@ -1,5 +1,6 @@
 set(KCONFIG_SOURCES
     ${PROJECT_SOURCE_DIR}/src/kconfig.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/cli.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/json.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/read.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store.cpp
