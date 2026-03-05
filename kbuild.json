@@ -14,6 +14,9 @@
 			"package_name": "KConfigSDK"
 		},
 		"dependencies": {
+			"KcliSDK": {
+				"prefix": "../kcli/build/{version}/sdk"
+			},
 			"KTraceSDK": {
 				"prefix": "../ktrace/build/{version}/sdk"
 			}

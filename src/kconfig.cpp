@@ -1,17 +1,16 @@
 #include <kconfig.hpp>
 
+#include <kcli.hpp>
 #include <kconfig/store.hpp>
 #include <ktrace.hpp>
 #include <spdlog/spdlog.h>
 
 #include <cctype>
-#include <cstddef>
 #include <iostream>
 #include <mutex>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace {
 
@@ -21,10 +20,6 @@ struct ParsedAssignment {
     kconfig::json::Value value;
 };
 
-bool startsWith(const std::string_view value, const std::string_view prefix) {
-    return value.size() >= prefix.size() && value.substr(0, prefix.size()) == prefix;
-}
-
 std::string trimWhitespace(std::string_view value) {
     while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front())) != 0) {
         value.remove_prefix(1);
@@ -33,21 +28,6 @@ std::string trimWhitespace(std::string_view value) {
         value.remove_suffix(1);
     }
     return std::string(value);
-}
-
-bool hasUsableValueToken(const int index, const int argc, char** argv) {
-    if (index + 1 >= argc || argv == nullptr) {
-        return false;
-    }
-    const char* raw = argv[index + 1];
-    if (raw == nullptr) {
-        return false;
-    }
-    const std::string_view value(raw);
-    if (value.empty()) {
-        return false;
-    }
-    return value.front() != '-';
 }
 
 bool isQuoted(std::string_view value) {
@@ -117,23 +97,6 @@ std::size_t findUnquotedChar(std::string_view value, const char target) {
     }
 
     return std::string_view::npos;
-}
-
-std::string NormalizeConfigRoot(std::string_view config_root) {
-    std::string root = trimWhitespace(config_root);
-    if (root.empty()) {
-        throw std::invalid_argument("config root must not be empty");
-    }
-    if (startsWith(root, "--")) {
-        if (root.size() == 2) {
-            throw std::invalid_argument("config root '--' is invalid");
-        }
-        return root;
-    }
-    if (!root.empty() && root.front() == '-') {
-        throw std::invalid_argument("config root '" + root + "' must begin with '--' or no dashes");
-    }
-    return std::string("--") + root;
 }
 
 std::string normalizePath(std::string_view raw_path) {
@@ -259,14 +222,6 @@ void applyAssignmentOrThrow(const std::string_view option, std::string_view raw_
            assignment.path);
 }
 
-void printConfigHelp(const std::string& root) {
-    std::cout
-        << "\nKConfig options:\n"
-        << "  " << root << " <assignment>      Set one value (for example app.\"theme\"=\"dark\")\n"
-        << "  " << root << "-help              Show this help\n"
-        << "  " << root << "-examples          Show assignment examples\n\n";
-}
-
 void printConfigExamples(const std::string& root) {
     std::cout
         << "\nKConfig examples:\n"
@@ -281,90 +236,31 @@ void processCliArgs(int& argc, char** argv, std::string_view config_root) {
         return;
     }
 
-    const std::string root = NormalizeConfigRoot(config_root);
-    const std::string root_help = root + "-help";
+    kcli::Parser cli;
+    cli.Initialize(argc, argv, config_root);
+    const std::string root = std::string("--") + cli.GetRoot();
     const std::string root_examples = root + "-examples";
-    std::vector<bool> consumed(static_cast<std::size_t>(argc), false);
 
     KTRACE("cli",
            "processing CLI options (enable kconfig.cli for details): {} arg(s), root '{}'",
            argc,
            root);
 
-    for (int i = 1; i < argc; ++i) {
-        if (argv[i] == nullptr) {
-            continue;
-        }
+    cli.SetRootValueHandler(
+        [&](const kcli::HandlerContext&, std::string_view value) {
+            applyAssignmentOrThrow(root, value);
+        },
+        "<assignment>",
+        "Set one value (for example client.\"Language\"=\"en\").");
 
-        const std::string arg = trimWhitespace(std::string(argv[i]));
-        if (arg.empty() || !startsWith(arg, root)) {
-            continue;
-        }
+    cli.Implement("examples",
+                  [&](const kcli::HandlerContext&) {
+                      printConfigExamples(root);
+                      KTRACE("cli", "handled '{}'", root_examples);
+                  },
+                  "Show assignment examples.");
 
-        if (arg == root_help) {
-            consumed[static_cast<std::size_t>(i)] = true;
-            printConfigHelp(root);
-            KTRACE("cli", "handled '{}'", root_help);
-            continue;
-        }
-
-        if (arg == root_examples) {
-            consumed[static_cast<std::size_t>(i)] = true;
-            printConfigExamples(root);
-            KTRACE("cli", "handled '{}'", root_examples);
-            continue;
-        }
-
-        if (arg == root) {
-            consumed[static_cast<std::size_t>(i)] = true;
-            if (!hasUsableValueToken(i, argc, argv)) {
-                printConfigHelp(root);
-                KTRACE("cli", "'{}' had no value, showed help", root);
-                continue;
-            }
-
-            consumed[static_cast<std::size_t>(i + 1)] = true;
-            try {
-                applyAssignmentOrThrow(root, argv[++i]);
-            } catch (const std::exception& ex) {
-                spdlog::error("\nConfig option error: {}", ex.what());
-                printConfigHelp(root);
-            }
-            continue;
-        }
-
-        if (startsWith(arg, root + "-")) {
-            throw std::invalid_argument("unknown config option '" + arg + "'");
-        }
-
-        consumed[static_cast<std::size_t>(i)] = true;
-        KTRACE("cli", "consumed unknown config argument '{}'", arg);
-    }
-
-    int write_index = 1;
-    for (int read_index = 1; read_index < argc; ++read_index) {
-        if (!consumed[static_cast<std::size_t>(read_index)]) {
-            argv[write_index++] = argv[read_index];
-        }
-    }
-    if (write_index < argc) {
-        argv[write_index] = nullptr;
-    }
-    argc = write_index;
-}
-
-void ParseConfigCLI(int& argc, char** argv, std::string_view config_root) {
-    try {
-        processCliArgs(argc, argv, config_root);
-    } catch (const std::exception& ex) {
-        std::string root = "--config";
-        try {
-            root = NormalizeConfigRoot(config_root);
-        } catch (...) {
-        }
-        spdlog::error("\nConfig option error: {}", ex.what());
-        printConfigHelp(root);
-    }
+    (void)cli.Process();
 }
 
 void RegisterKConfigChannels() {
@@ -386,7 +282,11 @@ void Initialize() {
 }
 
 void ParseCLI(int& argc, char** argv, std::string_view config_root) {
-    ParseConfigCLI(argc, argv, config_root);
+    try {
+        processCliArgs(argc, argv, config_root);
+    } catch (const std::exception& ex) {
+        spdlog::error("\nConfig option error: {}", ex.what());
+    }
 }
 
 } // namespace kconfig

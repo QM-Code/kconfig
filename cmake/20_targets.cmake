@@ -29,6 +29,7 @@ target_include_directories(kconfig_sdk
 
 target_link_libraries(kconfig_sdk
     PUBLIC
+        kcli::sdk
         ktrace::sdk
         spdlog::spdlog
 )
