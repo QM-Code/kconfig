@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -15,10 +16,12 @@ struct ConfigLayer {
     std::filesystem::path baseDir;
     std::string label;
     bool isMutable = true;
+    uint64_t revision = 0;
 };
 
 // Private helpers for store.cpp.
-void rebuildMergedLocked();
+bool isRootPath(std::string_view path);
+const kconfig::json::Value* resolvePath(const kconfig::json::Value& root, std::string_view path);
 const kconfig::json::Value* findNamedValueLocked(std::string_view name);
 kconfig::json::Value* findMutableNamedValueLocked(std::string_view name);
 bool writeJsonFileUnlocked(const std::filesystem::path& path,

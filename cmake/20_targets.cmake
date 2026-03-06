@@ -3,6 +3,8 @@ set(KCONFIG_SOURCES
     ${PROJECT_SOURCE_DIR}/src/kconfig/cli.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/json.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/read.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/store/json_path.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/store/persistence.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/data/directory_override.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/data/path_resolver.cpp

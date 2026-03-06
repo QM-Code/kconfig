@@ -17,7 +17,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include <kconfig/store.hpp>
 #include <kconfig/json.hpp>
 #include <ktrace.hpp>
 #include <spdlog/spdlog.h>
@@ -644,17 +643,6 @@ std::unordered_map<std::string, std::filesystem::path> BuildAssetLookupFromLayer
 std::filesystem::path ResolveConfiguredAsset(const std::string &assetKey,
                                              const std::filesystem::path &defaultRelativePath) {
     const auto defaultPath = defaultRelativePath.empty() ? std::filesystem::path{} : Resolve(defaultRelativePath);
-
-    constexpr std::string_view kDerivedAssetsNamespace = "__legacy.assets";
-    if (const auto resolved = kconfig::store::Get(kDerivedAssetsNamespace, assetKey); resolved.has_value()) {
-        if (!resolved->is_string()) {
-            spdlog::warn("data_path_resolver: Asset '{}' exists in '{}' but is not a string path",
-                         assetKey,
-                         std::string(kDerivedAssetsNamespace));
-            return defaultPath;
-        }
-        return kconfig::data::path_utils::Canonicalize(resolved->get<std::string>());
-    }
 
     DataPathSpec spec;
     {

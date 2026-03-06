@@ -8,7 +8,8 @@ namespace {
 
 void RegisterKConfigChannels() {
     ktrace::RegisterChannel("config", ktrace::Color("DeepSkyBlue1"));
-    ktrace::RegisterChannel("config.requests", ktrace::Color("LightGoldenrod2"));
+    ktrace::RegisterChannel("store", ktrace::Color("LightGoldenrod2"));
+    ktrace::RegisterChannel("store.requests");
     ktrace::RegisterChannel("data", ktrace::Color("MediumSpringGreen"));
     ktrace::RegisterChannel("cli", ktrace::Color("Orange3"));
     ktrace::RegisterChannel("content", ktrace::Color("MediumOrchid1"));

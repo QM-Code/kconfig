@@ -3,8 +3,8 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cctype>
+#include <cmath>
 #include <limits>
 #include <optional>
 #include <stdexcept>
@@ -16,10 +16,69 @@ namespace kconfig::store {
 
 namespace {
 
-constexpr std::string_view kLegacyMergedNamespace = "__legacy.merged";
+struct NamespacedPath {
+    std::string name;
+    std::string path;
+};
 
-std::optional<kconfig::json::Value> GetMergedValue(std::string_view path) {
-    return kconfig::store::Get(kLegacyMergedNamespace, path);
+bool ParseNamespacedPath(std::string_view qualifiedPath,
+                         NamespacedPath& parsed,
+                         std::string* error = nullptr) {
+    if (qualifiedPath.empty()) {
+        if (error) {
+            *error = "path must not be empty";
+        }
+        return false;
+    }
+
+    const std::size_t dot = qualifiedPath.find('.');
+    if (dot == std::string_view::npos || dot == 0) {
+        if (error) {
+            *error = "expected '<namespace>.<json-path>'";
+        }
+        return false;
+    }
+
+    parsed.name = std::string(qualifiedPath.substr(0, dot));
+    for (const char ch : parsed.name) {
+        if (std::isspace(static_cast<unsigned char>(ch)) != 0) {
+            if (error) {
+                *error = "namespace must not contain whitespace";
+            }
+            return false;
+        }
+    }
+
+    const auto suffix = qualifiedPath.substr(dot + 1);
+    parsed.path = suffix.empty() ? std::string(".") : std::string(suffix);
+    return true;
+}
+
+std::optional<kconfig::json::Value> GetNamespacedValue(std::string_view qualifiedPath,
+                                                        bool warnOnInvalidPath = true) {
+    NamespacedPath parsed;
+    std::string parseError;
+    if (!ParseNamespacedPath(qualifiedPath, parsed, &parseError)) {
+        if (warnOnInvalidPath) {
+            spdlog::warn("Config path '{}' is invalid: {}", qualifiedPath, parseError);
+        }
+        return std::nullopt;
+    }
+
+    return kconfig::store::Get(parsed.name, parsed.path);
+}
+
+NamespacedPath ParseRequiredNamespacedPath(std::string_view qualifiedPath) {
+    NamespacedPath parsed;
+    std::string parseError;
+    if (!ParseNamespacedPath(qualifiedPath, parsed, &parseError)) {
+        throw std::runtime_error(std::string("Invalid required config path: ")
+                                 + std::string(qualifiedPath)
+                                 + " ("
+                                 + parseError
+                                 + ")");
+    }
+    return parsed;
 }
 
 std::string ToLower(std::string value) {
@@ -163,7 +222,7 @@ bool ReadBool(std::initializer_list<const char*> paths, bool defaultValue) {
         if (path == nullptr || *path == '\0') {
             continue;
         }
-        if (const auto value = GetMergedValue(path); value) {
+        if (const auto value = GetNamespacedValue(path); value) {
             if (const auto parsed = TryParseBoolValue(*value)) {
                 return *parsed;
             }
@@ -174,7 +233,11 @@ bool ReadBool(std::initializer_list<const char*> paths, bool defaultValue) {
 }
 
 bool ReadRequiredBool(const char* path) {
-    if (const auto value = GetMergedValue(path); value) {
+    if (path == nullptr || *path == '\0') {
+        throw std::runtime_error("Missing required boolean config path");
+    }
+    const auto parsedPath = ParseRequiredNamespacedPath(path);
+    if (const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path); value) {
         if (const auto parsed = TryParseBoolValue(*value)) {
             return *parsed;
         }
@@ -188,7 +251,7 @@ uint16_t ReadUInt16(std::initializer_list<const char*> paths, uint16_t defaultVa
         if (path == nullptr || *path == '\0') {
             continue;
         }
-        if (const auto value = GetMergedValue(path); value) {
+        if (const auto value = GetNamespacedValue(path); value) {
             if (const auto parsed = TryParseUInt16Value(*value)) {
                 return *parsed;
             }
@@ -199,7 +262,11 @@ uint16_t ReadUInt16(std::initializer_list<const char*> paths, uint16_t defaultVa
 }
 
 uint16_t ReadRequiredUInt16(const char* path) {
-    if (const auto value = GetMergedValue(path); value) {
+    if (path == nullptr || *path == '\0') {
+        throw std::runtime_error("Missing required uint16 config path");
+    }
+    const auto parsedPath = ParseRequiredNamespacedPath(path);
+    if (const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path); value) {
         if (const auto parsed = TryParseUInt16Value(*value)) {
             return *parsed;
         }
@@ -231,7 +298,7 @@ uint32_t ReadUInt32(std::initializer_list<const char*> paths, uint32_t defaultVa
         if (path == nullptr || *path == '\0') {
             continue;
         }
-        if (const auto value = GetMergedValue(path); value) {
+        if (const auto value = GetNamespacedValue(path); value) {
             if (const auto parsed = TryParseUInt32Value(*value)) {
                 return *parsed;
             }
@@ -242,7 +309,11 @@ uint32_t ReadUInt32(std::initializer_list<const char*> paths, uint32_t defaultVa
 }
 
 uint32_t ReadRequiredUInt32(const char* path) {
-    if (const auto value = GetMergedValue(path); value) {
+    if (path == nullptr || *path == '\0') {
+        throw std::runtime_error("Missing required uint32 config path");
+    }
+    const auto parsedPath = ParseRequiredNamespacedPath(path);
+    if (const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path); value) {
         if (const auto parsed = TryParseUInt32Value(*value)) {
             return *parsed;
         }
@@ -256,7 +327,7 @@ float ReadFloat(std::initializer_list<const char*> paths, float defaultValue) {
         if (path == nullptr || *path == '\0') {
             continue;
         }
-        if (const auto value = GetMergedValue(path); value) {
+        if (const auto value = GetNamespacedValue(path); value) {
             if (const auto parsed = TryParseFloatValue(*value)) {
                 return *parsed;
             }
@@ -267,7 +338,11 @@ float ReadFloat(std::initializer_list<const char*> paths, float defaultValue) {
 }
 
 float ReadRequiredFloat(const char* path) {
-    if (const auto value = GetMergedValue(path); value) {
+    if (path == nullptr || *path == '\0') {
+        throw std::runtime_error("Missing required float config path");
+    }
+    const auto parsedPath = ParseRequiredNamespacedPath(path);
+    if (const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path); value) {
         if (const auto parsed = TryParseFloatValue(*value)) {
             return *parsed;
         }
@@ -295,7 +370,10 @@ float ReadRequiredPositiveFiniteFloat(const char* path) {
 }
 
 std::string ReadString(const char* path, const std::string& defaultValue) {
-    if (const auto value = GetMergedValue(path); value) {
+    if (path == nullptr || *path == '\0') {
+        return defaultValue;
+    }
+    if (const auto value = GetNamespacedValue(path); value) {
         if (value->is_string()) {
             return value->get<std::string>();
         }
@@ -305,7 +383,11 @@ std::string ReadString(const char* path, const std::string& defaultValue) {
 }
 
 std::string ReadRequiredString(const char* path) {
-    if (const auto value = GetMergedValue(path); value) {
+    if (path == nullptr || *path == '\0') {
+        throw std::runtime_error("Missing required string config path");
+    }
+    const auto parsedPath = ParseRequiredNamespacedPath(path);
+    if (const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path); value) {
         if (value->is_string()) {
             return value->get<std::string>();
         }
@@ -333,7 +415,7 @@ std::string ReadRequiredNonEmptyString(const char* path) {
 }
 
 std::vector<float> ReadFloatArray(std::string_view path, std::vector<float> defaultValue) {
-    const auto value = GetMergedValue(path);
+    const auto value = GetNamespacedValue(path);
     if (!value) {
         return defaultValue;
     }
@@ -345,7 +427,8 @@ std::vector<float> ReadFloatArray(std::string_view path, std::vector<float> defa
 }
 
 std::vector<float> ReadRequiredFloatArray(std::string_view path) {
-    const auto value = GetMergedValue(path);
+    const auto parsedPath = ParseRequiredNamespacedPath(path);
+    const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path);
     if (!value) {
         throw std::runtime_error(std::string("Missing required float array config: ") + std::string(path));
     }
@@ -356,7 +439,7 @@ std::vector<float> ReadRequiredFloatArray(std::string_view path) {
 }
 
 std::vector<std::string> ReadStringArray(std::string_view path, std::vector<std::string> defaultValue) {
-    const auto value = GetMergedValue(path);
+    const auto value = GetNamespacedValue(path);
     if (!value) {
         return defaultValue;
     }
@@ -368,7 +451,8 @@ std::vector<std::string> ReadStringArray(std::string_view path, std::vector<std:
 }
 
 std::vector<std::string> ReadRequiredStringArray(std::string_view path) {
-    const auto value = GetMergedValue(path);
+    const auto parsedPath = ParseRequiredNamespacedPath(path);
+    const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path);
     if (!value) {
         throw std::runtime_error(std::string("Missing required string array config: ") + std::string(path));
     }
@@ -379,7 +463,7 @@ std::vector<std::string> ReadRequiredStringArray(std::string_view path) {
 }
 
 kconfig::json::Value ReadObject(std::string_view path, kconfig::json::Value defaultValue) {
-    const auto value = GetMergedValue(path);
+    const auto value = GetNamespacedValue(path);
     if (!value) {
         return defaultValue;
     }
@@ -391,7 +475,8 @@ kconfig::json::Value ReadObject(std::string_view path, kconfig::json::Value defa
 }
 
 kconfig::json::Value ReadRequiredObject(std::string_view path) {
-    const auto value = GetMergedValue(path);
+    const auto parsedPath = ParseRequiredNamespacedPath(path);
+    const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path);
     if (!value) {
         throw std::runtime_error(std::string("Missing required object config: ") + std::string(path));
     }

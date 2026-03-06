@@ -76,7 +76,9 @@ std::unordered_map<std::string, std::string> loadLanguageStrings(const std::stri
 } // namespace
 
 void I18n::loadFromConfig(RuntimeRole role) {
-    const char *const config_key = role == RuntimeRole::Client ? "client.Language" : "server.Language";
+    const char *const config_key = role == RuntimeRole::Client
+        ? "merged.client.Language"
+        : "merged.server.Language";
     std::string language = kconfig::store::ReadRequiredNonEmptyString(config_key);
     language = normalizeLanguage(language);
     if (language.empty()) {
