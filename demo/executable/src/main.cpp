@@ -180,24 +180,24 @@ int main(int argc, char** argv) {
     }
 
     try {
-        KTRACE("store.requests", "ReadRequiredBool('merged.feature.enabled')");
-        const bool enabled = kconfig::store::ReadRequiredBool("merged.feature.enabled");
-        KTRACE("store.requests", "ReadRequiredUInt16('merged.network.port')");
-        const uint16_t port = kconfig::store::ReadRequiredUInt16("merged.network.port");
-        KTRACE("store.requests", "ReadRequiredPositiveUInt16('merged.positive.u16')");
-        const uint16_t retries = kconfig::store::ReadRequiredPositiveUInt16("merged.positive.u16");
-        KTRACE("store.requests", "ReadRequiredUInt32('merged.numbers.u32')");
-        const uint32_t maxSessions = kconfig::store::ReadRequiredUInt32("merged.numbers.u32");
-        KTRACE("store.requests", "ReadRequiredFloat('merged.limits.timeout')");
-        const float timeout = kconfig::store::ReadRequiredFloat("merged.limits.timeout");
-        KTRACE("store.requests", "ReadRequiredPositiveFiniteFloat('merged.positive.float')");
-        const float positiveScale = kconfig::store::ReadRequiredPositiveFiniteFloat("merged.positive.float");
-        KTRACE("store.requests", "ReadRequiredNonEmptyString('merged.client.Language')");
-        const std::string language = kconfig::store::ReadRequiredNonEmptyString("merged.client.Language");
-        KTRACE("store.requests", "ReadRequiredString('merged.text.name')");
-        const std::string name = kconfig::store::ReadRequiredString("merged.text.name");
-        KTRACE("store.requests", "ReadRequiredFloatArray('merged.values.weights')");
-        const std::vector<float> weights = kconfig::store::ReadRequiredFloatArray("merged.values.weights");
+        KTRACE("store.requests", "read::RequiredBool('merged.feature.enabled')");
+        const bool enabled = kconfig::store::read::RequiredBool("merged.feature.enabled");
+        KTRACE("store.requests", "read::RequiredUint16('merged.network.port')");
+        const uint16_t port = kconfig::store::read::RequiredUint16("merged.network.port");
+        KTRACE("store.requests", "read::RequiredPositiveUint16('merged.positive.u16')");
+        const uint16_t retries = kconfig::store::read::RequiredPositiveUint16("merged.positive.u16");
+        KTRACE("store.requests", "read::RequiredUint32('merged.numbers.u32')");
+        const uint32_t maxSessions = kconfig::store::read::RequiredUint32("merged.numbers.u32");
+        KTRACE("store.requests", "read::RequiredFloat('merged.limits.timeout')");
+        const float timeout = kconfig::store::read::RequiredFloat("merged.limits.timeout");
+        KTRACE("store.requests", "read::RequiredPositiveFiniteFloat('merged.positive.float')");
+        const float positiveScale = kconfig::store::read::RequiredPositiveFiniteFloat("merged.positive.float");
+        KTRACE("store.requests", "read::RequiredNonEmptyString('merged.client.Language')");
+        const std::string language = kconfig::store::read::RequiredNonEmptyString("merged.client.Language");
+        KTRACE("store.requests", "read::RequiredString('merged.text.name')");
+        const std::string name = kconfig::store::read::RequiredString("merged.text.name");
+        KTRACE("store.requests", "read::RequiredFloatArray('merged.values.weights')");
+        const std::vector<float> weights = kconfig::store::read::RequiredFloatArray("merged.values.weights");
 
         std::cout << std::boolalpha
                   << "ReadRequired demo: enabled=" << enabled

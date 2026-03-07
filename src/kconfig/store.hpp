@@ -19,7 +19,7 @@ struct ConfigLayer {
     uint64_t revision = 0;
 };
 
-// Private helpers for store.cpp.
+// Private helpers for store implementation files.
 bool isRootPath(std::string_view path);
 const kconfig::json::Value* resolvePath(const kconfig::json::Value& root, std::string_view path);
 const kconfig::json::Value* findNamedValueLocked(std::string_view name);

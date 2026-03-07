@@ -1,6 +1,7 @@
 #include "internal.hpp"
 
 #include "../data/path_utils.hpp"
+#include "api_impl.hpp"
 #include <kconfig/data/path_resolver.hpp>
 #include <kconfig/store.hpp>
 
@@ -100,7 +101,7 @@ std::filesystem::path CurrentUserConfigFilePath() {
 
 namespace kconfig::store {
 
-bool SetUserConfigFilePath(const std::filesystem::path& fullFilesystemPath) {
+bool api::SetUserConfigFilePath(const std::filesystem::path& fullFilesystemPath) {
     KTRACE("store",
            "SetUserConfigFilePath requested: path='{}' (enable store.requests for details)",
            fullFilesystemPath.string());
@@ -148,7 +149,7 @@ bool writeJsonFileUnlocked(const std::filesystem::path& path,
     return true;
 }
 
-bool WriteBackingFile(std::string_view name, std::string* error) {
+bool api::WriteBackingFile(std::string_view name, std::string* error) {
     KTRACE("store",
            "WriteBackingFile requested: namespace='{}' (enable store.requests for details)",
            std::string(name));
@@ -212,7 +213,7 @@ bool WriteBackingFile(std::string_view name, std::string* error) {
     return true;
 }
 
-bool ReloadBackingFile(std::string_view name, std::string* error) {
+bool api::ReloadBackingFile(std::string_view name, std::string* error) {
     KTRACE("store",
            "ReloadBackingFile requested: namespace='{}' (enable store.requests for details)",
            std::string(name));
@@ -285,7 +286,7 @@ bool ReloadBackingFile(std::string_view name, std::string* error) {
     return true;
 }
 
-bool SetUserConfigDirname(std::string_view dirname) {
+bool api::SetUserConfigDirname(std::string_view dirname) {
     KTRACE("store",
            "SetUserConfigDirname requested: dirname='{}' (enable store.requests for details)",
            std::string(dirname));
@@ -312,7 +313,7 @@ bool SetUserConfigDirname(std::string_view dirname) {
     return true;
 }
 
-bool HasUserConfigFile() {
+bool api::HasUserConfigFile() {
     const std::filesystem::path filePath = CurrentUserConfigFilePath();
     KTRACE("store.requests",
            "HasUserConfigFile path='{}'",
@@ -321,7 +322,7 @@ bool HasUserConfigFile() {
     return std::filesystem::exists(filePath, ec) && !ec && std::filesystem::is_regular_file(filePath, ec) && !ec;
 }
 
-bool InitializeUserConfigFile(const kconfig::json::Value& json, std::string* error) {
+bool api::InitializeUserConfigFile(const kconfig::json::Value& json, std::string* error) {
     const std::filesystem::path filePath = CurrentUserConfigFilePath();
     KTRACE("store",
            "InitializeUserConfigFile requested: path='{}' (enable store.requests for details)",
@@ -339,9 +340,9 @@ bool InitializeUserConfigFile(const kconfig::json::Value& json, std::string* err
     return kconfig::data::path_utils::WriteJsonFile(filePath, json, error);
 }
 
-bool LoadUserConfigFile(std::string_view name,
-                        const LoadUserConfigFileOptions& options,
-                        std::string* error) {
+bool api::LoadUserConfigFile(std::string_view name,
+                             const LoadUserConfigFileOptions& options,
+                             std::string* error) {
     const std::filesystem::path filePath = CurrentUserConfigFilePath();
     KTRACE("store",
            "LoadUserConfigFile requested: namespace='{}' mode='{}' path='{}' (enable store.requests for details)",
@@ -369,15 +370,15 @@ bool LoadUserConfigFile(std::string_view name,
     }
 
     const bool ok = (options.mode == UserConfigLoadMode::Mutable)
-        ? LoadMutable(name, filePath)
-        : LoadReadOnly(name, filePath);
+        ? api::LoadMutable(name, filePath)
+        : api::LoadReadOnly(name, filePath);
     if (!ok && error) {
         *error = "Failed to load user config file: " + filePath.string();
     }
     return ok;
 }
 
-bool SetSaveIntervalSeconds(std::string_view name, std::optional<double> seconds) {
+bool api::SetSaveIntervalSeconds(std::string_view name, std::optional<double> seconds) {
     KTRACE("store.requests",
            "SetSaveIntervalSeconds namespace='{}' interval='{}'",
            std::string(name),
@@ -402,7 +403,7 @@ bool SetSaveIntervalSeconds(std::string_view name, std::optional<double> seconds
     return true;
 }
 
-std::optional<double> SaveIntervalSeconds(std::string_view name) {
+std::optional<double> api::SaveIntervalSeconds(std::string_view name) {
     KTRACE("store.requests",
            "SaveIntervalSeconds namespace='{}'",
            std::string(name));
@@ -424,7 +425,7 @@ std::optional<double> SaveIntervalSeconds(std::string_view name) {
     return saveIt->second.saveIntervalSeconds;
 }
 
-bool FlushWrites(std::string* error) {
+bool api::FlushWrites(std::string* error) {
     KTRACE("store",
            "FlushWrites requested (enable store.requests for details)");
     KTRACE("store.requests",

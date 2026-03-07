@@ -1,4 +1,5 @@
 #include <kconfig/store.hpp>
+#include <kconfig/store/read.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -12,7 +13,7 @@
 #include <string_view>
 #include <vector>
 
-namespace kconfig::store {
+namespace kconfig::store::read {
 
 namespace {
 
@@ -217,7 +218,7 @@ std::optional<std::vector<std::string>> TryParseStringArrayValue(const kconfig::
 
 } // namespace
 
-bool ReadBool(std::initializer_list<const char*> paths, bool defaultValue) {
+bool Bool(std::initializer_list<const char*> paths, bool defaultValue) {
     for (const char* path : paths) {
         if (path == nullptr || *path == '\0') {
             continue;
@@ -232,7 +233,7 @@ bool ReadBool(std::initializer_list<const char*> paths, bool defaultValue) {
     return defaultValue;
 }
 
-bool ReadRequiredBool(const char* path) {
+bool RequiredBool(const char* path) {
     if (path == nullptr || *path == '\0') {
         throw std::runtime_error("Missing required boolean config path");
     }
@@ -246,7 +247,7 @@ bool ReadRequiredBool(const char* path) {
     throw std::runtime_error(std::string("Missing required boolean config: ") + path);
 }
 
-uint16_t ReadUInt16(std::initializer_list<const char*> paths, uint16_t defaultValue) {
+uint16_t Uint16(std::initializer_list<const char*> paths, uint16_t defaultValue) {
     for (const char* path : paths) {
         if (path == nullptr || *path == '\0') {
             continue;
@@ -261,7 +262,7 @@ uint16_t ReadUInt16(std::initializer_list<const char*> paths, uint16_t defaultVa
     return defaultValue;
 }
 
-uint16_t ReadRequiredUInt16(const char* path) {
+uint16_t RequiredUint16(const char* path) {
     if (path == nullptr || *path == '\0') {
         throw std::runtime_error("Missing required uint16 config path");
     }
@@ -275,16 +276,16 @@ uint16_t ReadRequiredUInt16(const char* path) {
     throw std::runtime_error(std::string("Missing required uint16 config: ") + path);
 }
 
-uint16_t ReadPositiveUInt16(std::initializer_list<const char*> paths, uint16_t defaultValue) {
-    const uint16_t value = ReadUInt16(paths, defaultValue);
+uint16_t PositiveUint16(std::initializer_list<const char*> paths, uint16_t defaultValue) {
+    const uint16_t value = Uint16(paths, defaultValue);
     if (value == 0) {
         return defaultValue;
     }
     return value;
 }
 
-uint16_t ReadRequiredPositiveUInt16(const char* path) {
-    const uint16_t value = ReadRequiredUInt16(path);
+uint16_t RequiredPositiveUint16(const char* path) {
+    const uint16_t value = RequiredUint16(path);
     if (value == 0) {
         throw std::runtime_error(std::string("Invalid required uint16 config: ")
                                  + path
@@ -293,7 +294,7 @@ uint16_t ReadRequiredPositiveUInt16(const char* path) {
     return value;
 }
 
-uint32_t ReadUInt32(std::initializer_list<const char*> paths, uint32_t defaultValue) {
+uint32_t Uint32(std::initializer_list<const char*> paths, uint32_t defaultValue) {
     for (const char* path : paths) {
         if (path == nullptr || *path == '\0') {
             continue;
@@ -308,7 +309,7 @@ uint32_t ReadUInt32(std::initializer_list<const char*> paths, uint32_t defaultVa
     return defaultValue;
 }
 
-uint32_t ReadRequiredUInt32(const char* path) {
+uint32_t RequiredUint32(const char* path) {
     if (path == nullptr || *path == '\0') {
         throw std::runtime_error("Missing required uint32 config path");
     }
@@ -322,7 +323,7 @@ uint32_t ReadRequiredUInt32(const char* path) {
     throw std::runtime_error(std::string("Missing required uint32 config: ") + path);
 }
 
-float ReadFloat(std::initializer_list<const char*> paths, float defaultValue) {
+float Float(std::initializer_list<const char*> paths, float defaultValue) {
     for (const char* path : paths) {
         if (path == nullptr || *path == '\0') {
             continue;
@@ -337,7 +338,7 @@ float ReadFloat(std::initializer_list<const char*> paths, float defaultValue) {
     return defaultValue;
 }
 
-float ReadRequiredFloat(const char* path) {
+float RequiredFloat(const char* path) {
     if (path == nullptr || *path == '\0') {
         throw std::runtime_error("Missing required float config path");
     }
@@ -351,16 +352,16 @@ float ReadRequiredFloat(const char* path) {
     throw std::runtime_error(std::string("Missing required float config: ") + path);
 }
 
-float ReadPositiveFiniteFloat(std::initializer_list<const char*> paths, float defaultValue) {
-    const float value = ReadFloat(paths, defaultValue);
+float PositiveFiniteFloat(std::initializer_list<const char*> paths, float defaultValue) {
+    const float value = Float(paths, defaultValue);
     if (!std::isfinite(value) || value <= 0.0f) {
         return defaultValue;
     }
     return value;
 }
 
-float ReadRequiredPositiveFiniteFloat(const char* path) {
-    const float value = ReadRequiredFloat(path);
+float RequiredPositiveFiniteFloat(const char* path) {
+    const float value = RequiredFloat(path);
     if (!std::isfinite(value) || value <= 0.0f) {
         throw std::runtime_error(std::string("Invalid required float config: ")
                                  + path
@@ -369,7 +370,7 @@ float ReadRequiredPositiveFiniteFloat(const char* path) {
     return value;
 }
 
-std::string ReadString(const char* path, const std::string& defaultValue) {
+std::string String(const char* path, const std::string& defaultValue) {
     if (path == nullptr || *path == '\0') {
         return defaultValue;
     }
@@ -382,7 +383,7 @@ std::string ReadString(const char* path, const std::string& defaultValue) {
     return defaultValue;
 }
 
-std::string ReadRequiredString(const char* path) {
+std::string RequiredString(const char* path) {
     if (path == nullptr || *path == '\0') {
         throw std::runtime_error("Missing required string config path");
     }
@@ -396,16 +397,16 @@ std::string ReadRequiredString(const char* path) {
     throw std::runtime_error(std::string("Missing required string config: ") + path);
 }
 
-std::string ReadNonEmptyString(const char* path, const std::string& defaultValue) {
-    const std::string value = ReadString(path, defaultValue);
+std::string NonEmptyString(const char* path, const std::string& defaultValue) {
+    const std::string value = String(path, defaultValue);
     if (value.empty()) {
         return defaultValue;
     }
     return value;
 }
 
-std::string ReadRequiredNonEmptyString(const char* path) {
-    const std::string value = ReadRequiredString(path);
+std::string RequiredNonEmptyString(const char* path) {
+    const std::string value = RequiredString(path);
     if (value.empty()) {
         throw std::runtime_error(std::string("Invalid required string config: ")
                                  + path
@@ -414,7 +415,7 @@ std::string ReadRequiredNonEmptyString(const char* path) {
     return value;
 }
 
-std::vector<float> ReadFloatArray(std::string_view path, std::vector<float> defaultValue) {
+std::vector<float> FloatArray(std::string_view path, std::vector<float> defaultValue) {
     const auto value = GetNamespacedValue(path);
     if (!value) {
         return defaultValue;
@@ -426,7 +427,7 @@ std::vector<float> ReadFloatArray(std::string_view path, std::vector<float> defa
     return defaultValue;
 }
 
-std::vector<float> ReadRequiredFloatArray(std::string_view path) {
+std::vector<float> RequiredFloatArray(std::string_view path) {
     const auto parsedPath = ParseRequiredNamespacedPath(path);
     const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path);
     if (!value) {
@@ -438,7 +439,7 @@ std::vector<float> ReadRequiredFloatArray(std::string_view path) {
     throw std::runtime_error(std::string("Invalid required float array config: ") + std::string(path));
 }
 
-std::vector<std::string> ReadStringArray(std::string_view path, std::vector<std::string> defaultValue) {
+std::vector<std::string> StringArray(std::string_view path, std::vector<std::string> defaultValue) {
     const auto value = GetNamespacedValue(path);
     if (!value) {
         return defaultValue;
@@ -450,7 +451,7 @@ std::vector<std::string> ReadStringArray(std::string_view path, std::vector<std:
     return defaultValue;
 }
 
-std::vector<std::string> ReadRequiredStringArray(std::string_view path) {
+std::vector<std::string> RequiredStringArray(std::string_view path) {
     const auto parsedPath = ParseRequiredNamespacedPath(path);
     const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path);
     if (!value) {
@@ -462,7 +463,7 @@ std::vector<std::string> ReadRequiredStringArray(std::string_view path) {
     throw std::runtime_error(std::string("Invalid required string array config: ") + std::string(path));
 }
 
-kconfig::json::Value ReadObject(std::string_view path, kconfig::json::Value defaultValue) {
+kconfig::json::Value Object(std::string_view path, kconfig::json::Value defaultValue) {
     const auto value = GetNamespacedValue(path);
     if (!value) {
         return defaultValue;
@@ -474,7 +475,7 @@ kconfig::json::Value ReadObject(std::string_view path, kconfig::json::Value defa
     return *value;
 }
 
-kconfig::json::Value ReadRequiredObject(std::string_view path) {
+kconfig::json::Value RequiredObject(std::string_view path) {
     const auto parsedPath = ParseRequiredNamespacedPath(path);
     const auto value = kconfig::store::Get(parsedPath.name, parsedPath.path);
     if (!value) {
@@ -486,4 +487,4 @@ kconfig::json::Value ReadRequiredObject(std::string_view path) {
     return *value;
 }
 
-} // namespace kconfig::store
+} // namespace kconfig::store::read

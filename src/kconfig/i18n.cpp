@@ -79,7 +79,7 @@ void I18n::loadFromConfig(RuntimeRole role) {
     const char *const config_key = role == RuntimeRole::Client
         ? "merged.client.Language"
         : "merged.server.Language";
-    std::string language = kconfig::store::ReadRequiredNonEmptyString(config_key);
+    std::string language = kconfig::store::read::RequiredNonEmptyString(config_key);
     language = normalizeLanguage(language);
     if (language.empty()) {
         language = "en";

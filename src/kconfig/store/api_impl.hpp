@@ -2,18 +2,16 @@
 
 #include <cstdint>
 #include <filesystem>
-#include <initializer_list>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <kconfig/json.hpp>
-#include <kconfig/store/read.hpp>
+#include <kconfig/store.hpp>
 
-namespace kconfig::store {
+namespace kconfig::store::api {
 
-// Named config API (used by external tests/tools).
 bool AddMutable(std::string_view name, const kconfig::json::Value& json);
 bool AddReadOnly(std::string_view name, const kconfig::json::Value& json);
 bool LoadMutable(std::string_view name, const std::filesystem::path& filename);
@@ -32,13 +30,6 @@ const std::filesystem::path* BackingFilePath(std::string_view name);
 bool SetUserConfigFilePath(const std::filesystem::path& fullFilesystemPath);
 bool WriteBackingFile(std::string_view name, std::string* error = nullptr);
 bool ReloadBackingFile(std::string_view name, std::string* error = nullptr);
-enum class UserConfigLoadMode {
-    ReadOnly,
-    Mutable
-};
-struct LoadUserConfigFileOptions {
-    UserConfigLoadMode mode = UserConfigLoadMode::Mutable;
-};
 bool SetUserConfigDirname(std::string_view dirname);
 bool HasUserConfigFile();
 bool InitializeUserConfigFile(const kconfig::json::Value& json, std::string* error = nullptr);
@@ -49,4 +40,4 @@ bool SetSaveIntervalSeconds(std::string_view name, std::optional<double> seconds
 std::optional<double> SaveIntervalSeconds(std::string_view name);
 bool FlushWrites(std::string* error = nullptr);
 
-} // namespace kconfig::store
+} // namespace kconfig::store::api
