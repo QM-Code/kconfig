@@ -233,8 +233,8 @@ bool Bool(std::initializer_list<const char*> paths, bool defaultValue) {
     return defaultValue;
 }
 
-bool RequiredBool(const char* path) {
-    if (path == nullptr || *path == '\0') {
+bool RequiredBool(std::string_view path) {
+    if (path.empty()) {
         throw std::runtime_error("Missing required boolean config path");
     }
     const auto parsedPath = ParseRequiredNamespacedPath(path);
@@ -242,9 +242,9 @@ bool RequiredBool(const char* path) {
         if (const auto parsed = TryParseBoolValue(*value)) {
             return *parsed;
         }
-        throw std::runtime_error(std::string("Invalid required boolean config: ") + path);
+        throw std::runtime_error(std::string("Invalid required boolean config: ") + std::string(path));
     }
-    throw std::runtime_error(std::string("Missing required boolean config: ") + path);
+    throw std::runtime_error(std::string("Missing required boolean config: ") + std::string(path));
 }
 
 uint16_t Uint16(std::initializer_list<const char*> paths, uint16_t defaultValue) {
@@ -262,8 +262,8 @@ uint16_t Uint16(std::initializer_list<const char*> paths, uint16_t defaultValue)
     return defaultValue;
 }
 
-uint16_t RequiredUint16(const char* path) {
-    if (path == nullptr || *path == '\0') {
+uint16_t RequiredUint16(std::string_view path) {
+    if (path.empty()) {
         throw std::runtime_error("Missing required uint16 config path");
     }
     const auto parsedPath = ParseRequiredNamespacedPath(path);
@@ -271,9 +271,9 @@ uint16_t RequiredUint16(const char* path) {
         if (const auto parsed = TryParseUInt16Value(*value)) {
             return *parsed;
         }
-        throw std::runtime_error(std::string("Invalid required uint16 config: ") + path);
+        throw std::runtime_error(std::string("Invalid required uint16 config: ") + std::string(path));
     }
-    throw std::runtime_error(std::string("Missing required uint16 config: ") + path);
+    throw std::runtime_error(std::string("Missing required uint16 config: ") + std::string(path));
 }
 
 uint16_t PositiveUint16(std::initializer_list<const char*> paths, uint16_t defaultValue) {
@@ -284,11 +284,11 @@ uint16_t PositiveUint16(std::initializer_list<const char*> paths, uint16_t defau
     return value;
 }
 
-uint16_t RequiredPositiveUint16(const char* path) {
+uint16_t RequiredPositiveUint16(std::string_view path) {
     const uint16_t value = RequiredUint16(path);
     if (value == 0) {
         throw std::runtime_error(std::string("Invalid required uint16 config: ")
-                                 + path
+                                 + std::string(path)
                                  + " (must be > 0)");
     }
     return value;
@@ -309,8 +309,8 @@ uint32_t Uint32(std::initializer_list<const char*> paths, uint32_t defaultValue)
     return defaultValue;
 }
 
-uint32_t RequiredUint32(const char* path) {
-    if (path == nullptr || *path == '\0') {
+uint32_t RequiredUint32(std::string_view path) {
+    if (path.empty()) {
         throw std::runtime_error("Missing required uint32 config path");
     }
     const auto parsedPath = ParseRequiredNamespacedPath(path);
@@ -318,9 +318,9 @@ uint32_t RequiredUint32(const char* path) {
         if (const auto parsed = TryParseUInt32Value(*value)) {
             return *parsed;
         }
-        throw std::runtime_error(std::string("Invalid required uint32 config: ") + path);
+        throw std::runtime_error(std::string("Invalid required uint32 config: ") + std::string(path));
     }
-    throw std::runtime_error(std::string("Missing required uint32 config: ") + path);
+    throw std::runtime_error(std::string("Missing required uint32 config: ") + std::string(path));
 }
 
 float Float(std::initializer_list<const char*> paths, float defaultValue) {
@@ -338,8 +338,8 @@ float Float(std::initializer_list<const char*> paths, float defaultValue) {
     return defaultValue;
 }
 
-float RequiredFloat(const char* path) {
-    if (path == nullptr || *path == '\0') {
+float RequiredFloat(std::string_view path) {
+    if (path.empty()) {
         throw std::runtime_error("Missing required float config path");
     }
     const auto parsedPath = ParseRequiredNamespacedPath(path);
@@ -347,9 +347,9 @@ float RequiredFloat(const char* path) {
         if (const auto parsed = TryParseFloatValue(*value)) {
             return *parsed;
         }
-        throw std::runtime_error(std::string("Invalid required float config: ") + path);
+        throw std::runtime_error(std::string("Invalid required float config: ") + std::string(path));
     }
-    throw std::runtime_error(std::string("Missing required float config: ") + path);
+    throw std::runtime_error(std::string("Missing required float config: ") + std::string(path));
 }
 
 float PositiveFiniteFloat(std::initializer_list<const char*> paths, float defaultValue) {
@@ -360,18 +360,18 @@ float PositiveFiniteFloat(std::initializer_list<const char*> paths, float defaul
     return value;
 }
 
-float RequiredPositiveFiniteFloat(const char* path) {
+float RequiredPositiveFiniteFloat(std::string_view path) {
     const float value = RequiredFloat(path);
     if (!std::isfinite(value) || value <= 0.0f) {
         throw std::runtime_error(std::string("Invalid required float config: ")
-                                 + path
+                                 + std::string(path)
                                  + " (must be finite and > 0)");
     }
     return value;
 }
 
-std::string String(const char* path, const std::string& defaultValue) {
-    if (path == nullptr || *path == '\0') {
+std::string String(std::string_view path, const std::string& defaultValue) {
+    if (path.empty()) {
         return defaultValue;
     }
     if (const auto value = GetNamespacedValue(path); value) {
@@ -383,8 +383,8 @@ std::string String(const char* path, const std::string& defaultValue) {
     return defaultValue;
 }
 
-std::string RequiredString(const char* path) {
-    if (path == nullptr || *path == '\0') {
+std::string RequiredString(std::string_view path) {
+    if (path.empty()) {
         throw std::runtime_error("Missing required string config path");
     }
     const auto parsedPath = ParseRequiredNamespacedPath(path);
@@ -392,12 +392,12 @@ std::string RequiredString(const char* path) {
         if (value->is_string()) {
             return value->get<std::string>();
         }
-        throw std::runtime_error(std::string("Invalid required string config: ") + path);
+        throw std::runtime_error(std::string("Invalid required string config: ") + std::string(path));
     }
-    throw std::runtime_error(std::string("Missing required string config: ") + path);
+    throw std::runtime_error(std::string("Missing required string config: ") + std::string(path));
 }
 
-std::string NonEmptyString(const char* path, const std::string& defaultValue) {
+std::string NonEmptyString(std::string_view path, const std::string& defaultValue) {
     const std::string value = String(path, defaultValue);
     if (value.empty()) {
         return defaultValue;
@@ -405,11 +405,11 @@ std::string NonEmptyString(const char* path, const std::string& defaultValue) {
     return value;
 }
 
-std::string RequiredNonEmptyString(const char* path) {
+std::string RequiredNonEmptyString(std::string_view path) {
     const std::string value = RequiredString(path);
     if (value.empty()) {
         throw std::runtime_error(std::string("Invalid required string config: ")
-                                 + path
+                                 + std::string(path)
                                  + " (must be non-empty)");
     }
     return value;

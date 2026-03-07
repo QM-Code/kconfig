@@ -101,6 +101,8 @@ case "$test_case" in
         require_contains "$output" "retries=11"
         require_contains "$output" "language=fr"
         require_contains "$output" "name=runtime-session"
+        require_contains "$output" "banner=runtime-banner"
+        require_contains "$output" "preview=KConfig pret"
         require_contains "$output" "weights=[9, 8, 7, 6]"
         require_contains "$output" "KConfig demo executable compile/link/integration check passed"
         ;;
@@ -117,6 +119,8 @@ case "$test_case" in
         require_contains "$output" "retries=11"
         require_contains "$output" "language=fr"
         require_contains "$output" "name=runtime-session"
+        require_contains "$output" "banner=runtime-banner"
+        require_contains "$output" "preview=KConfig pret"
         require_contains "$output" "weights=[9, 8, 7, 6]"
         require_contains "$output" "KConfig demo executable compile/link/integration check passed"
         ;;
@@ -135,6 +139,7 @@ case "$test_case" in
     config_user_override_success)
         tmp_dir="$(mktemp -d)"
         override_path="${tmp_dir}/override-config.json"
+        xdg_config_home="${tmp_dir}/xdg-config"
         cat >"$override_path" <<'JSON'
 {
   "feature": {
@@ -151,7 +156,13 @@ case "$test_case" in
   }
 }
 JSON
-        run_and_split_with_env "KCONFIG_DEMO_USER_CONFIG_DIRNAME" "demo-app" --config-user "$override_path"
+        mkdir -p "$xdg_config_home"
+        binary_dir="$(cd "$(dirname "$binary")" && pwd)"
+        repo_root="$(cd "$binary_dir/../../../.." && pwd)"
+        set +e
+        output="$(cd "$repo_root" && env XDG_CONFIG_HOME="$xdg_config_home" KCONFIG_DEMO_USER_CONFIG_DIRNAME="demo-app" "$binary" --config-user "$override_path" 2>&1)"
+        status=$?
+        set -e
         rm -rf "$tmp_dir"
         if [[ "$status" -ne 0 ]]; then
             echo "Expected zero exit status for config-user override run" >&2
@@ -164,6 +175,8 @@ JSON
         require_contains "$output" "maxSessions=42"
         require_contains "$output" "timeout=4.5"
         require_contains "$output" "scale=2.5"
+        require_contains "$output" "banner=runtime-banner"
+        require_contains "$output" "preview=KConfig pret"
         require_contains "$output" "KConfig demo executable compile/link/integration check passed"
         ;;
     cli_config_override_success)
@@ -184,6 +197,8 @@ JSON
         require_contains "$output" "maxSessions=99"
         require_contains "$output" "timeout=7.75"
         require_contains "$output" "name=cli-override"
+        require_contains "$output" "banner=runtime-banner"
+        require_contains "$output" "preview=KConfig pret"
         require_contains "$output" "KConfig demo executable compile/link/integration check passed"
         ;;
     *)

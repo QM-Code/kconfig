@@ -1,14 +1,17 @@
 #include "internal.hpp"
 
-#include "../data/path_utils.hpp"
+#include "../io.hpp"
 #include "api_impl.hpp"
-#include <kconfig/data/path_resolver.hpp>
-#include <kconfig/store.hpp>
+
+#include <kconfig/store/fs.hpp>
+#include <kconfig/store/user.hpp>
 
 #include <ktrace.hpp>
 
 #include <chrono>
+#include <cctype>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <optional>
 #include <sstream>
@@ -75,53 +78,88 @@ void roundFloatValues(kconfig::json::Value& node) {
     }
 }
 
-constexpr std::string_view kUserConfigFilename = "config.json";
+bool IsValidNamespaceName(std::string_view name) {
+    if (name.empty()) {
+        return false;
+    }
+    for (const char ch : name) {
+        if (std::isspace(static_cast<unsigned char>(ch)) != 0 || ch == '.') {
+            return false;
+        }
+    }
+    return true;
+}
 
-const char* UserConfigLoadModeName(kconfig::store::UserConfigLoadMode mode) {
+constexpr std::string_view kUserConfigFilename = "config.json";
+constexpr std::string_view kDefaultUserConfigDirname = "app";
+
+const char* UserLoadModeName(kconfig::store::user::LoadMode mode) {
     switch (mode) {
-    case kconfig::store::UserConfigLoadMode::ReadOnly:
+    case kconfig::store::user::LoadMode::ReadOnly:
         return "readonly";
-    case kconfig::store::UserConfigLoadMode::Mutable:
+    case kconfig::store::user::LoadMode::Mutable:
         return "mutable";
     }
     return "unknown";
 }
 
+std::filesystem::path DetectDefaultUserConfigDirectory() {
+    std::filesystem::path base;
+
+#if defined(_WIN32)
+    if (const char* appData = std::getenv("APPDATA"); appData && *appData) {
+        base = appData;
+    } else if (const char* userProfile = std::getenv("USERPROFILE"); userProfile && *userProfile) {
+        base = std::filesystem::path(userProfile) / "AppData" / "Roaming";
+    }
+#elif defined(__APPLE__)
+    if (const char* home = std::getenv("HOME"); home && *home) {
+        base = std::filesystem::path(home) / "Library" / "Application Support";
+    }
+#else
+    if (const char* xdg = std::getenv("XDG_CONFIG_HOME"); xdg && *xdg) {
+        base = xdg;
+    } else if (const char* home = std::getenv("HOME"); home && *home) {
+        base = std::filesystem::path(home) / ".config";
+    }
+#endif
+
+    if (base.empty()) {
+        throw std::runtime_error("Unable to determine user configuration directory: no home path detected");
+    }
+
+    return kconfig::io::Canonicalize(base / std::string(kDefaultUserConfigDirname));
+}
+
+std::filesystem::path DefaultUserConfigDirectory() {
+    static const std::filesystem::path defaultDir = DetectDefaultUserConfigDirectory();
+    return defaultDir;
+}
+
+std::filesystem::path DefaultUserConfigFilePath() {
+    return DefaultUserConfigDirectory() / std::string(kUserConfigFilename);
+}
+
 std::filesystem::path CurrentUserConfigFilePath() {
+    std::optional<std::filesystem::path> fileOverride;
+    std::optional<std::filesystem::path> dirOverride;
     {
         std::lock_guard<std::mutex> lock(kconfig::store::internal::g_state.mutex);
-        if (kconfig::store::internal::g_state.userConfigFilePathOverride.has_value()) {
-            return *kconfig::store::internal::g_state.userConfigFilePathOverride;
-        }
+        fileOverride = kconfig::store::internal::g_state.userConfigFilePathOverride;
+        dirOverride = kconfig::store::internal::g_state.userConfigDirOverride;
     }
-    return kconfig::data::path_resolver::UserConfigDirectory() / std::string(kUserConfigFilename);
+    if (fileOverride.has_value()) {
+        return *fileOverride;
+    }
+    if (dirOverride.has_value()) {
+        return *dirOverride / std::string(kUserConfigFilename);
+    }
+    return DefaultUserConfigFilePath();
 }
 
 } // namespace
 
 namespace kconfig::store {
-
-bool api::SetUserConfigFilePath(const std::filesystem::path& fullFilesystemPath) {
-    KTRACE("store",
-           "SetUserConfigFilePath requested: path='{}' (enable store.requests for details)",
-           fullFilesystemPath.string());
-    KTRACE("store.requests",
-           "SetUserConfigFilePath path='{}'",
-           fullFilesystemPath.string());
-
-    if (fullFilesystemPath.empty()
-        || !fullFilesystemPath.has_filename()
-        || fullFilesystemPath.filename() == "."
-        || fullFilesystemPath.filename() == "..") {
-        return false;
-    }
-
-    const std::filesystem::path canonical = kconfig::data::path_utils::Canonicalize(fullFilesystemPath);
-
-    std::lock_guard<std::mutex> lock(internal::g_state.mutex);
-    internal::g_state.userConfigFilePathOverride = canonical;
-    return true;
-}
 
 bool writeJsonFileUnlocked(const std::filesystem::path& path,
                            const kconfig::json::Value& json,
@@ -140,7 +178,7 @@ bool writeJsonFileUnlocked(const std::filesystem::path& path,
     kconfig::json::Value rounded = json;
     roundFloatValues(rounded);
     KTRACE("config", "writing config '{}'", path.string());
-    if (!kconfig::data::path_utils::WriteJsonFile(path, rounded, error)) {
+    if (!kconfig::io::WriteJsonFile(path, rounded, error)) {
         if (error && error->empty()) {
             *error = "Failed to write config file.";
         }
@@ -149,13 +187,24 @@ bool writeJsonFileUnlocked(const std::filesystem::path& path,
     return true;
 }
 
-bool api::WriteBackingFile(std::string_view name, std::string* error) {
+} // namespace kconfig::store
+
+namespace kconfig::store::fs::api {
+
+bool WriteBackingFile(std::string_view name, std::string* error) {
     KTRACE("store",
            "WriteBackingFile requested: namespace='{}' (enable store.requests for details)",
            std::string(name));
     KTRACE("store.requests",
            "WriteBackingFile namespace='{}'",
            std::string(name));
+    if (!IsValidNamespaceName(name)) {
+        if (error) {
+            *error = "namespace is invalid";
+        }
+        return false;
+    }
+
     std::string key;
     std::filesystem::path path;
     kconfig::json::Value value;
@@ -168,7 +217,7 @@ bool api::WriteBackingFile(std::string_view name, std::string* error) {
         const auto configIt = internal::g_state.namedConfigs.find(key);
         if (configIt == internal::g_state.namedConfigs.end()) {
             if (error) {
-                *error = "Named config not found.";
+                *error = "named config not found";
             }
             return false;
         }
@@ -176,7 +225,7 @@ bool api::WriteBackingFile(std::string_view name, std::string* error) {
         const auto backing = internal::g_state.namedBackingFiles.find(key);
         if (backing == internal::g_state.namedBackingFiles.end()) {
             if (error) {
-                *error = "No backing file configured.";
+                *error = "no backing file configured";
             }
             return false;
         }
@@ -213,51 +262,56 @@ bool api::WriteBackingFile(std::string_view name, std::string* error) {
     return true;
 }
 
-bool api::ReloadBackingFile(std::string_view name, std::string* error) {
+bool ReloadBackingFile(std::string_view name, std::string* error) {
     KTRACE("store",
            "ReloadBackingFile requested: namespace='{}' (enable store.requests for details)",
            std::string(name));
     KTRACE("store.requests",
            "ReloadBackingFile namespace='{}'",
            std::string(name));
-    std::filesystem::path path;
+    if (!IsValidNamespaceName(name)) {
+        if (error) {
+            *error = "namespace is invalid";
+        }
+        return false;
+    }
 
+    std::filesystem::path path;
     {
         std::lock_guard<std::mutex> lock(internal::g_state.mutex);
         const auto backingIt = internal::g_state.namedBackingFiles.find(std::string(name));
         if (backingIt == internal::g_state.namedBackingFiles.end()) {
             if (error) {
-                *error = "No backing file configured.";
+                *error = "no backing file configured";
             }
             return false;
         }
         path = backingIt->second;
     }
 
-    const auto readResult = kconfig::data::path_utils::ReadJsonFile(path);
+    const auto readResult = kconfig::io::ReadJsonFile(path);
     if (!readResult.json.has_value()) {
         if (error) {
             switch (readResult.error) {
-            case kconfig::data::path_utils::JsonReadError::NotFound:
-                *error = "Backing file not found: " + path.string();
+            case kconfig::io::JsonReadError::NotFound:
+                *error = "backing file not found: " + path.string();
                 break;
-            case kconfig::data::path_utils::JsonReadError::OpenFailed:
-                *error = "Failed to open backing file: " + path.string();
+            case kconfig::io::JsonReadError::OpenFailed:
+                *error = "failed to open backing file: " + path.string();
                 break;
-            case kconfig::data::path_utils::JsonReadError::ParseFailed:
-                *error = "Failed to parse backing file: " + readResult.message;
+            case kconfig::io::JsonReadError::ParseFailed:
+                *error = "failed to parse backing file: " + readResult.message;
                 break;
-            case kconfig::data::path_utils::JsonReadError::None:
-                *error = "Failed to read backing file.";
+            case kconfig::io::JsonReadError::None:
+                *error = "failed to read backing file";
                 break;
             }
         }
         return false;
     }
-
     if (!readResult.json->is_object()) {
         if (error) {
-            *error = "Backing file must contain a JSON object.";
+            *error = "backing file must contain a JSON object";
         }
         return false;
     }
@@ -267,7 +321,7 @@ bool api::ReloadBackingFile(std::string_view name, std::string* error) {
     auto it = internal::g_state.namedConfigs.find(key);
     if (it == internal::g_state.namedConfigs.end()) {
         if (error) {
-            *error = "Named config not found.";
+            *error = "named config not found";
         }
         return false;
     }
@@ -286,104 +340,12 @@ bool api::ReloadBackingFile(std::string_view name, std::string* error) {
     return true;
 }
 
-bool api::SetUserConfigDirname(std::string_view dirname) {
-    KTRACE("store",
-           "SetUserConfigDirname requested: dirname='{}' (enable store.requests for details)",
-           std::string(dirname));
-    KTRACE("store.requests",
-           "SetUserConfigDirname dirname='{}'",
-           std::string(dirname));
-    std::filesystem::path dirnamePath(dirname);
-    if (dirnamePath.empty()
-        || dirnamePath.is_absolute()
-        || dirnamePath.has_parent_path()
-        || dirnamePath == "."
-        || dirnamePath == "..") {
-        return false;
-    }
-
-    const std::filesystem::path currentDir = kconfig::data::path_resolver::UserConfigDirectory();
-    const std::filesystem::path baseDir = currentDir.parent_path();
-    if (baseDir.empty()) {
-        return false;
-    }
-
-    const std::filesystem::path target = kconfig::data::path_utils::Canonicalize(baseDir / dirnamePath);
-    kconfig::data::path_resolver::SetUserConfigRootOverride(target);
-    return true;
-}
-
-bool api::HasUserConfigFile() {
-    const std::filesystem::path filePath = CurrentUserConfigFilePath();
-    KTRACE("store.requests",
-           "HasUserConfigFile path='{}'",
-           filePath.string());
-    std::error_code ec;
-    return std::filesystem::exists(filePath, ec) && !ec && std::filesystem::is_regular_file(filePath, ec) && !ec;
-}
-
-bool api::InitializeUserConfigFile(const kconfig::json::Value& json, std::string* error) {
-    const std::filesystem::path filePath = CurrentUserConfigFilePath();
-    KTRACE("store",
-           "InitializeUserConfigFile requested: path='{}' (enable store.requests for details)",
-           filePath.string());
-    KTRACE("store.requests",
-           "InitializeUserConfigFile path='{}' json_type='{}'",
-           filePath.string(),
-           DescribeJsonType(json));
-    if (!json.is_object()) {
-        if (error) {
-            *error = "User config root must be a JSON object.";
-        }
-        return false;
-    }
-    return kconfig::data::path_utils::WriteJsonFile(filePath, json, error);
-}
-
-bool api::LoadUserConfigFile(std::string_view name,
-                             const LoadUserConfigFileOptions& options,
-                             std::string* error) {
-    const std::filesystem::path filePath = CurrentUserConfigFilePath();
-    KTRACE("store",
-           "LoadUserConfigFile requested: namespace='{}' mode='{}' path='{}' (enable store.requests for details)",
-           std::string(name),
-           UserConfigLoadModeName(options.mode),
-           filePath.string());
-    KTRACE("store.requests",
-           "LoadUserConfigFile namespace='{}' mode='{}' path='{}'",
-           std::string(name),
-           UserConfigLoadModeName(options.mode),
-           filePath.string());
-    if (name.empty()) {
-        if (error) {
-            *error = "Namespace must not be empty.";
-        }
-        return false;
-    }
-
-    std::error_code ec;
-    if (!std::filesystem::exists(filePath, ec) || ec || !std::filesystem::is_regular_file(filePath, ec) || ec) {
-        if (error) {
-            *error = "User config file not found: " + filePath.string();
-        }
-        return false;
-    }
-
-    const bool ok = (options.mode == UserConfigLoadMode::Mutable)
-        ? api::LoadMutable(name, filePath)
-        : api::LoadReadOnly(name, filePath);
-    if (!ok && error) {
-        *error = "Failed to load user config file: " + filePath.string();
-    }
-    return ok;
-}
-
-bool api::SetSaveIntervalSeconds(std::string_view name, std::optional<double> seconds) {
+bool SetSaveIntervalSeconds(std::string_view name, std::optional<double> seconds) {
     KTRACE("store.requests",
            "SetSaveIntervalSeconds namespace='{}' interval='{}'",
            std::string(name),
            DescribeSaveInterval(seconds));
-    if (name.empty()) {
+    if (!IsValidNamespaceName(name)) {
         return false;
     }
     if (seconds.has_value() && (!std::isfinite(*seconds) || *seconds < 0.0)) {
@@ -403,11 +365,11 @@ bool api::SetSaveIntervalSeconds(std::string_view name, std::optional<double> se
     return true;
 }
 
-std::optional<double> api::SaveIntervalSeconds(std::string_view name) {
+std::optional<double> SaveIntervalSeconds(std::string_view name) {
     KTRACE("store.requests",
            "SaveIntervalSeconds namespace='{}'",
            std::string(name));
-    if (name.empty()) {
+    if (!IsValidNamespaceName(name)) {
         return std::nullopt;
     }
 
@@ -425,11 +387,11 @@ std::optional<double> api::SaveIntervalSeconds(std::string_view name) {
     return saveIt->second.saveIntervalSeconds;
 }
 
-bool api::FlushWrites(std::string* error) {
+bool FlushPendingWrites(std::string* error) {
     KTRACE("store",
-           "FlushWrites requested (enable store.requests for details)");
+           "FlushPendingWrites requested (enable store.requests for details)");
     KTRACE("store.requests",
-           "FlushWrites begin");
+           "FlushPendingWrites begin");
 
     struct PendingWrite {
         std::string name;
@@ -462,7 +424,7 @@ bool api::FlushWrites(std::string* error) {
             const auto backingIt = internal::g_state.namedBackingFiles.find(name);
             if (backingIt == internal::g_state.namedBackingFiles.end()) {
                 KTRACE("store.requests",
-                       "FlushWrites namespace='{}' pending=true backing='none' interval='{}' -> skip",
+                       "FlushPendingWrites namespace='{}' pending=true backing='none' interval='{}' -> skip",
                        name,
                        DescribeSaveInterval(saveState.saveIntervalSeconds));
                 continue;
@@ -473,7 +435,7 @@ bool api::FlushWrites(std::string* error) {
                 || *saveState.saveIntervalSeconds <= 0.0
                 || elapsedSeconds >= *saveState.saveIntervalSeconds;
             KTRACE("store.requests",
-                   "FlushWrites namespace='{}' pending=true revision={} last_saved_revision={} interval='{}' elapsed={:.3f}s due={}",
+                   "FlushPendingWrites namespace='{}' pending=true revision={} last_saved_revision={} interval='{}' elapsed={:.3f}s due={}",
                    name,
                    config.revision,
                    saveState.lastSavedRevision,
@@ -494,22 +456,22 @@ bool api::FlushWrites(std::string* error) {
     }
 
     KTRACE("store.requests",
-           "FlushWrites pending_writes={}",
+           "FlushPendingWrites pending_writes={}",
            pendingWrites.size());
     bool allWritesSucceeded = true;
     for (const auto& pending : pendingWrites) {
         std::string writeError;
         KTRACE("store.requests",
-               "FlushWrites namespace='{}' -> WriteJsonFile",
+               "FlushPendingWrites namespace='{}' -> WriteJsonFile",
                pending.name);
         if (!writeJsonFileUnlocked(pending.path, pending.value, &writeError)) {
             allWritesSucceeded = false;
             KTRACE("store.requests",
-                   "FlushWrites namespace='{}' -> write failed: {}",
+                   "FlushPendingWrites namespace='{}' -> write failed: {}",
                    pending.name,
                    writeError);
             if (error && error->empty()) {
-                *error = "FlushWrites failed for '" + pending.name + "': " + writeError;
+                *error = "FlushPendingWrites failed for '" + pending.name + "': " + writeError;
             }
             continue;
         }
@@ -521,27 +483,152 @@ bool api::FlushWrites(std::string* error) {
         const auto backingIt = internal::g_state.namedBackingFiles.find(pending.name);
         if (configIt == internal::g_state.namedConfigs.end()
             || saveIt == internal::g_state.namedSaveStates.end()
-            || backingIt == internal::g_state.namedBackingFiles.end()
-            || !configIt->second.isMutable) {
+            || backingIt == internal::g_state.namedBackingFiles.end()) {
             continue;
         }
 
         auto& saveState = saveIt->second;
         saveState.lastSaveTime = writeTime;
         saveState.lastSavedRevision = pending.revision;
-        saveState.pendingSave =
-            (configIt->second.revision != pending.revision) || (backingIt->second != pending.path);
+        saveState.pendingSave = (configIt->second.revision != pending.revision) || (backingIt->second != pending.path);
         KTRACE("store.requests",
-               "FlushWrites namespace='{}' -> saved revision={} pending_after={}",
+               "FlushPendingWrites namespace='{}' -> saved revision={} pending_after={}",
                pending.name,
                pending.revision,
                saveState.pendingSave);
     }
 
     if (!allWritesSucceeded && error && error->empty()) {
-        *error = "FlushWrites failed.";
+        *error = "FlushPendingWrites failed.";
     }
     return allWritesSucceeded;
 }
 
-} // namespace kconfig::store
+} // namespace kconfig::store::fs::api
+
+namespace kconfig::store::user::api {
+
+bool SetDirname(std::string_view dirname) {
+    KTRACE("store",
+           "SetDirname requested: dirname='{}' (enable store.requests for details)",
+           std::string(dirname));
+    KTRACE("store.requests",
+           "SetDirname dirname='{}'",
+           std::string(dirname));
+    std::filesystem::path dirnamePath(dirname);
+    if (dirnamePath.empty()
+        || dirnamePath.is_absolute()
+        || dirnamePath.has_parent_path()
+        || dirnamePath == "."
+        || dirnamePath == "..") {
+        return false;
+    }
+
+    const std::filesystem::path baseDir = DefaultUserConfigDirectory().parent_path();
+    if (baseDir.empty()) {
+        return false;
+    }
+
+    const std::filesystem::path target = kconfig::io::Canonicalize(baseDir / dirnamePath);
+    std::lock_guard<std::mutex> lock(internal::g_state.mutex);
+    internal::g_state.userConfigDirOverride = target;
+    return true;
+}
+
+bool OverrideConfigFilePath(const std::filesystem::path& fullFilesystemPath) {
+    KTRACE("store",
+           "OverrideConfigFilePath requested: path='{}' (enable store.requests for details)",
+           fullFilesystemPath.string());
+    KTRACE("store.requests",
+           "OverrideConfigFilePath path='{}'",
+           fullFilesystemPath.string());
+
+    if (fullFilesystemPath.empty()
+        || !fullFilesystemPath.has_filename()
+        || fullFilesystemPath.filename() == "."
+        || fullFilesystemPath.filename() == "..") {
+        return false;
+    }
+
+    const std::filesystem::path canonical = kconfig::io::Canonicalize(fullFilesystemPath);
+
+    std::lock_guard<std::mutex> lock(internal::g_state.mutex);
+    internal::g_state.userConfigFilePathOverride = canonical;
+    return true;
+}
+
+void ResetConfigLocationOverrides() {
+    KTRACE("store.requests", "ResetConfigLocationOverrides");
+    std::lock_guard<std::mutex> lock(internal::g_state.mutex);
+    internal::g_state.userConfigFilePathOverride.reset();
+    internal::g_state.userConfigDirOverride.reset();
+}
+
+std::filesystem::path ConfigFilePath() {
+    const auto filePath = CurrentUserConfigFilePath();
+    KTRACE("store.requests", "ConfigFilePath -> '{}'", filePath.string());
+    return filePath;
+}
+
+bool HasConfigFile() {
+    const std::filesystem::path filePath = CurrentUserConfigFilePath();
+    KTRACE("store.requests",
+           "HasConfigFile path='{}'",
+           filePath.string());
+    std::error_code ec;
+    return std::filesystem::exists(filePath, ec) && !ec && std::filesystem::is_regular_file(filePath, ec) && !ec;
+}
+
+bool InitializeConfigFile(const kconfig::json::Value& json, std::string* error) {
+    const std::filesystem::path filePath = CurrentUserConfigFilePath();
+    KTRACE("store",
+           "InitializeConfigFile requested: path='{}' (enable store.requests for details)",
+           filePath.string());
+    KTRACE("store.requests",
+           "InitializeConfigFile path='{}' json_type='{}'",
+           filePath.string(),
+           DescribeJsonType(json));
+    if (!json.is_object()) {
+        if (error) {
+            *error = "user config root must be a JSON object";
+        }
+        return false;
+    }
+    return kconfig::io::WriteJsonFile(filePath, json, error);
+}
+
+bool LoadConfigFile(std::string_view name,
+                    const kconfig::store::user::LoadOptions& options,
+                    std::string* error) {
+    const std::filesystem::path filePath = CurrentUserConfigFilePath();
+    KTRACE("store",
+           "LoadConfigFile requested: namespace='{}' mode='{}' path='{}' (enable store.requests for details)",
+           std::string(name),
+           UserLoadModeName(options.mode),
+           filePath.string());
+    KTRACE("store.requests",
+           "LoadConfigFile namespace='{}' mode='{}' path='{}'",
+           std::string(name),
+           UserLoadModeName(options.mode),
+           filePath.string());
+    if (!IsValidNamespaceName(name)) {
+        if (error) {
+            *error = "namespace is invalid";
+        }
+        return false;
+    }
+
+    std::error_code ec;
+    if (!std::filesystem::exists(filePath, ec) || ec || !std::filesystem::is_regular_file(filePath, ec) || ec) {
+        if (error) {
+            *error = "user config file not found: " + filePath.string();
+        }
+        return false;
+    }
+
+    return (options.mode == kconfig::store::user::LoadMode::Mutable)
+        ? kconfig::store::fs::api::LoadMutable(name, filePath, error)
+        : kconfig::store::fs::api::LoadReadOnly(name, filePath, error);
+}
+
+} // namespace kconfig::store::user::api

@@ -32,15 +32,31 @@ endfunction()
 if(NOT TARGET kconfig::sdk_shared)
     find_package(KConfigSDK CONFIG REQUIRED)
 endif()
-if(NOT TARGET alpha::sdk_shared)
-    find_package(AlphaSDK CONFIG REQUIRED)
-endif()
-if(NOT TARGET beta::sdk_shared)
-    find_package(BetaSDK CONFIG REQUIRED)
-endif()
-if(NOT TARGET gamma::sdk_shared)
-    find_package(GammaSDK CONFIG REQUIRED)
-endif()
+
+function(ktools_load_demo_sdk package_name target_name relative_source_dir)
+    if(TARGET "${target_name}")
+        return()
+    endif()
+
+    find_package(${package_name} CONFIG QUIET)
+    if(TARGET "${target_name}")
+        return()
+    endif()
+
+    if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${relative_source_dir}/CMakeLists.txt")
+        add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/${relative_source_dir}"
+                         "${CMAKE_CURRENT_BINARY_DIR}/${package_name}")
+        return()
+    endif()
+
+    message(FATAL_ERROR
+        "Unable to resolve ${package_name}: package not found and local source "
+        "directory '${relative_source_dir}' does not exist.")
+endfunction()
+
+ktools_load_demo_sdk(AlphaSDK alpha::sdk_shared ../libraries/alpha)
+ktools_load_demo_sdk(BetaSDK beta::sdk_shared ../libraries/beta)
+ktools_load_demo_sdk(GammaSDK gamma::sdk_shared ../libraries/gamma)
 
 set(_kconfig_demo_shared_sdk_dep kconfig::sdk_shared)
 if(NOT TARGET kconfig::sdk_shared)

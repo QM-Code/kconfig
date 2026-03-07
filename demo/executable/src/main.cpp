@@ -2,7 +2,6 @@
 #include <beta/sdk.hpp>
 #include <gamma/sdk.hpp>
 #include <kconfig.hpp>
-#include <kconfig/data/path_resolver.hpp>
 #include <kconfig/i18n.hpp>
 #include <kconfig/store.hpp>
 #include <ktrace.hpp>
@@ -23,69 +22,85 @@
 int main(int argc, char** argv) {
     kconfig::Initialize();
     ktrace::ProcessCLI(argc, argv, "trace");
-    kconfig::ParseCLI(argc, argv, "config");
+    kconfig::cli::ParseArgs(argc, argv, "config");
 
     const std::filesystem::path repoRoot = std::filesystem::current_path();
     const std::filesystem::path runtimeRoot = repoRoot / "demo" / "executable" / "runtime";
     const std::filesystem::path defaultsPath = runtimeRoot / "defaults.json";
     const std::filesystem::path userPath = runtimeRoot / "user.json";
     const std::filesystem::path sessionPath = runtimeRoot / "session.json";
+    const std::filesystem::path i18nPath = runtimeRoot / "i18n.json";
 
     KTRACE("store.requests",
-           "demo executable preparing config load defaults='{}' user='{}' session='{}'",
+           "demo executable preparing config load defaults='{}' user='{}' session='{}' i18n='{}'",
            defaultsPath.string(),
            userPath.string(),
-           sessionPath.string());
+           sessionPath.string(),
+           i18nPath.string());
 
-    KTRACE("store.requests", "LoadReadOnly('defaults', '{}')", defaultsPath.string());
-    if (!kconfig::store::LoadReadOnly("defaults", defaultsPath)) {
-        std::cerr << "Failed to load defaults config: " << defaultsPath << "\n";
+    std::string ioError;
+
+    KTRACE("store.requests", "store::fs::LoadReadOnly('defaults', '{}')", defaultsPath.string());
+    if (!kconfig::store::fs::LoadReadOnly("defaults", defaultsPath, &ioError)) {
+        std::cerr << "Failed to load defaults config: " << ioError << "\n";
         return 1;
     }
+
     if (const char* userConfigDirname = std::getenv("KCONFIG_DEMO_USER_CONFIG_DIRNAME");
         userConfigDirname != nullptr && *userConfigDirname != '\0') {
-        KTRACE("store.requests", "SetUserConfigDirname('{}')", userConfigDirname);
-        if (!kconfig::store::SetUserConfigDirname(userConfigDirname)) {
+        KTRACE("store.requests", "store::user::SetDirname('{}')", userConfigDirname);
+        if (!kconfig::store::user::SetDirname(userConfigDirname)) {
             std::cerr << "Failed to set user config dirname: " << userConfigDirname << "\n";
             return 1;
         }
 
-        if (!kconfig::store::HasUserConfigFile()) {
-            std::string initError;
-            KTRACE("store.requests", "InitializeUserConfigFile(object)");
-            if (!kconfig::store::InitializeUserConfigFile(kconfig::json::Object(), &initError)) {
-                std::cerr << "Failed to initialize user config file: " << initError << "\n";
+        if (!kconfig::store::user::HasConfigFile()) {
+            ioError.clear();
+            KTRACE("store.requests", "store::user::InitializeConfigFile(object)");
+            if (!kconfig::store::user::InitializeConfigFile(kconfig::json::Object(), &ioError)) {
+                std::cerr << "Failed to initialize user config file: " << ioError << "\n";
                 return 1;
             }
         }
 
-        kconfig::store::LoadUserConfigFileOptions userLoadOptions{};
-        userLoadOptions.mode = kconfig::store::UserConfigLoadMode::Mutable;
-        std::string userLoadError;
-        KTRACE("store.requests", "LoadUserConfigFile('user', mode=Mutable)");
-        if (!kconfig::store::LoadUserConfigFile("user", userLoadOptions, &userLoadError)) {
-            std::cerr << "Failed to load user config file via user-config API: " << userLoadError << "\n";
+        kconfig::store::user::LoadOptions userLoadOptions{};
+        userLoadOptions.mode = kconfig::store::user::LoadMode::Mutable;
+        ioError.clear();
+        KTRACE("store.requests", "store::user::LoadConfigFile('user', mode=Mutable)");
+        if (!kconfig::store::user::LoadConfigFile("user", userLoadOptions, &ioError)) {
+            std::cerr << "Failed to load user config file via user-config API: " << ioError << "\n";
             return 1;
         }
     } else {
-        KTRACE("store.requests", "LoadMutable('user', '{}')", userPath.string());
-        if (!kconfig::store::LoadMutable("user", userPath)) {
-            std::cerr << "Failed to load user config: " << userPath << "\n";
+        ioError.clear();
+        KTRACE("store.requests", "store::fs::LoadMutable('user', '{}')", userPath.string());
+        if (!kconfig::store::fs::LoadMutable("user", userPath, &ioError)) {
+            std::cerr << "Failed to load user config: " << ioError << "\n";
             return 1;
         }
     }
-    KTRACE("store.requests", "LoadReadOnly('session', '{}')", sessionPath.string());
-    if (!kconfig::store::LoadReadOnly("session", sessionPath)) {
-        std::cerr << "Failed to load session config: " << sessionPath << "\n";
+
+    ioError.clear();
+    KTRACE("store.requests", "store::fs::LoadReadOnly('session', '{}')", sessionPath.string());
+    if (!kconfig::store::fs::LoadReadOnly("session", sessionPath, &ioError)) {
+        std::cerr << "Failed to load session config: " << ioError << "\n";
         return 1;
     }
+
+    ioError.clear();
+    KTRACE("store.requests", "store::fs::LoadReadOnly('i18n', '{}')", i18nPath.string());
+    if (!kconfig::store::fs::LoadReadOnly("i18n", i18nPath, &ioError)) {
+        std::cerr << "Failed to load i18n config: " << ioError << "\n";
+        return 1;
+    }
+
     std::vector<std::string> mergeSources = {"defaults", "user", "session"};
-    if (kconfig::store::Get("config", ".")) {
+    if (kconfig::store::Has("config")) {
         KTRACE("store.requests",
                "demo executable detected CLI namespace 'config' -> append to merge sources");
         mergeSources.push_back("config");
     }
-    KTRACE("store.requests", "Merge('merged', dynamic-sources)");
+    KTRACE("store.requests", "store::Merge('merged', dynamic-sources)");
     if (!kconfig::store::Merge("merged", mergeSources)) {
         std::cerr << "Failed to merge config namespaces: defaults + user + session -> merged\n";
         return 1;
@@ -131,32 +146,32 @@ int main(int argc, char** argv) {
                 std::cerr << "Backing roundtrip failed: unable to restore original user config file\n";
             }
             std::string reloadError;
-            (void)kconfig::store::ReloadBackingFile("user", &reloadError);
+            (void)kconfig::store::fs::ReloadBackingFile("user", &reloadError);
             return 1;
         };
 
-        std::string ioError;
         const std::string sentinel = "backing-write-sentinel";
-        KTRACE("store.requests", "Set('user', 'text.name', '{}')", sentinel);
+        KTRACE("store.requests", "store::Set('user', 'text.name', '{}')", sentinel);
         if (!kconfig::store::Set("user", "text.name", sentinel)) {
-            return failBacking("Set('user', 'text.name', sentinel) returned false");
+            return failBacking("store::Set('user', 'text.name', sentinel) returned false");
         }
-        KTRACE("store.requests", "SetSaveIntervalSeconds('user', 0.0)");
-        if (!kconfig::store::SetSaveIntervalSeconds("user", 0.0)) {
-            return failBacking("SetSaveIntervalSeconds('user', 0.0) returned false");
-        }
-        KTRACE("store.requests", "FlushWrites()");
-        if (!kconfig::store::FlushWrites(&ioError)) {
-            return failBacking("FlushWrites() returned false: " + ioError);
-        }
-        KTRACE("store.requests", "Set('user', 'text.name', 'memory-only-temp')");
-        if (!kconfig::store::Set("user", "text.name", "memory-only-temp")) {
-            return failBacking("Set('user', 'text.name', memory-only-temp) returned false");
+        KTRACE("store.requests", "store::fs::SetSaveIntervalSeconds('user', 0.0)");
+        if (!kconfig::store::fs::SetSaveIntervalSeconds("user", 0.0)) {
+            return failBacking("store::fs::SetSaveIntervalSeconds('user', 0.0) returned false");
         }
         ioError.clear();
-        KTRACE("store.requests", "ReloadBackingFile('user')");
-        if (!kconfig::store::ReloadBackingFile("user", &ioError)) {
-            return failBacking("ReloadBackingFile('user') returned false: " + ioError);
+        KTRACE("store.requests", "store::fs::FlushPendingWrites()");
+        if (!kconfig::store::fs::FlushPendingWrites(&ioError)) {
+            return failBacking("store::fs::FlushPendingWrites() returned false: " + ioError);
+        }
+        KTRACE("store.requests", "store::Set('user', 'text.name', 'memory-only-temp')");
+        if (!kconfig::store::Set("user", "text.name", "memory-only-temp")) {
+            return failBacking("store::Set('user', 'text.name', memory-only-temp) returned false");
+        }
+        ioError.clear();
+        KTRACE("store.requests", "store::fs::ReloadBackingFile('user')");
+        if (!kconfig::store::fs::ReloadBackingFile("user", &ioError)) {
+            return failBacking("store::fs::ReloadBackingFile('user') returned false: " + ioError);
         }
 
         const auto roundTripName = kconfig::store::Get("user", "text.name");
@@ -169,9 +184,9 @@ int main(int argc, char** argv) {
             return 1;
         }
         ioError.clear();
-        KTRACE("store.requests", "ReloadBackingFile('user') after restore");
-        if (!kconfig::store::ReloadBackingFile("user", &ioError)) {
-            std::cerr << "Backing roundtrip failed: ReloadBackingFile after restore returned false: "
+        KTRACE("store.requests", "store::fs::ReloadBackingFile('user') after restore");
+        if (!kconfig::store::fs::ReloadBackingFile("user", &ioError)) {
+            std::cerr << "Backing roundtrip failed: store::fs::ReloadBackingFile after restore returned false: "
                       << ioError << "\n";
             return 1;
         }
@@ -198,6 +213,15 @@ int main(int argc, char** argv) {
         const std::string name = kconfig::store::read::RequiredString("merged.text.name");
         KTRACE("store.requests", "read::RequiredFloatArray('merged.values.weights')");
         const std::vector<float> weights = kconfig::store::read::RequiredFloatArray("merged.values.weights");
+        KTRACE("asset.requests", "asset::LoadRequiredText('defaults', 'assets.banner')");
+        std::string banner = kconfig::asset::LoadRequiredText("defaults", "assets.banner");
+        while (!banner.empty() && (banner.back() == '\n' || banner.back() == '\r')) {
+            banner.pop_back();
+        }
+
+        KTRACE("store.requests", "i18n::LoadLanguage('i18n', '{}')", language);
+        kconfig::i18n::LoadLanguage("i18n", language);
+        const std::string preview = kconfig::i18n::Get("demo.ready");
 
         std::cout << std::boolalpha
                   << "ReadRequired demo: enabled=" << enabled
@@ -208,6 +232,8 @@ int main(int argc, char** argv) {
                   << ", scale=" << positiveScale
                   << ", language=" << language
                   << ", name=" << name
+                  << ", banner=" << banner
+                  << ", preview=" << preview
                   << ", weights=[";
         for (std::size_t i = 0; i < weights.size(); ++i) {
             if (i > 0) {
@@ -220,15 +246,6 @@ int main(int argc, char** argv) {
         std::cerr << "ReadRequired demo failed: " << ex.what() << "\n";
         return 1;
     }
-
-    kconfig::data::path_resolver::SetDataRootOverride(repoRoot);
-    const auto probePath = kconfig::data::path_resolver::Resolve("demo/executable");
-    (void)probePath;
-    const std::string preview = kconfig::i18n::Get().formatText(
-        "KConfig {state}",
-        {{"state", "ready"}}
-    );
-    (void)preview;
 
     kconfig::demo::alpha::EmitDemoOutput();
     kconfig::demo::beta::EmitDemoOutput();

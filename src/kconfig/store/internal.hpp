@@ -26,6 +26,7 @@ struct ConfigStoreState {
     std::map<std::string, std::filesystem::path> namedAssetRoots;
     std::map<std::string, SaveState> namedSaveStates;
     std::optional<std::filesystem::path> userConfigFilePathOverride;
+    std::optional<std::filesystem::path> userConfigDirOverride;
 };
 
 extern ConfigStoreState g_state;

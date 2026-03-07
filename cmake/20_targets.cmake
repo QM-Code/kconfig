@@ -1,20 +1,19 @@
 set(KCONFIG_SOURCES
     ${PROJECT_SOURCE_DIR}/src/kconfig.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/cli.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/asset.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/io.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/json.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/store/fs.cpp
+    ${PROJECT_SOURCE_DIR}/src/kconfig/store/user.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/state.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/layers.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/access.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/bindings.cpp
-    ${PROJECT_SOURCE_DIR}/src/kconfig/store/cli_config.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/read.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/json_path.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/persistence.cpp
-    ${PROJECT_SOURCE_DIR}/src/kconfig/data/directory_override.cpp
-    ${PROJECT_SOURCE_DIR}/src/kconfig/data/path_resolver.cpp
-    ${PROJECT_SOURCE_DIR}/src/kconfig/data/path_utils.cpp
-    ${PROJECT_SOURCE_DIR}/src/kconfig/data/root_policy.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/i18n.cpp
 )
 

@@ -10,7 +10,9 @@ void RegisterKConfigChannels() {
     ktrace::RegisterChannel("config", ktrace::Color("DeepSkyBlue1"));
     ktrace::RegisterChannel("store", ktrace::Color("LightGoldenrod2"));
     ktrace::RegisterChannel("store.requests");
-    ktrace::RegisterChannel("data", ktrace::Color("MediumSpringGreen"));
+    ktrace::RegisterChannel("asset", ktrace::Color("SteelBlue1"));
+    ktrace::RegisterChannel("asset.requests");
+    ktrace::RegisterChannel("io", ktrace::Color("MediumSpringGreen"));
     ktrace::RegisterChannel("cli", ktrace::Color("Orange3"));
     ktrace::RegisterChannel("content", ktrace::Color("MediumOrchid1"));
 }
