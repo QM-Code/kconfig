@@ -6,8 +6,14 @@
 #include <kconfig/json.hpp>
 #include <kconfig/store.hpp>
 
+namespace ktrace {
+
+class TraceLogger;
+
+} // namespace ktrace
+
 namespace kconfig {
 
-void Initialize();
+ktrace::TraceLogger GetTraceLogger();
 
 } // namespace kconfig

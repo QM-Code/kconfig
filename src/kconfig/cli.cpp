@@ -230,6 +230,18 @@ void printConfigExamples(const std::string& root) {
         << "  " << root << " '\"audio.devices[0]\"=\"default\"'\n\n";
 }
 
+void _ROOT(const kcli::HandlerContext& context, std::string_view value) {
+    applyAssignmentOrThrow(context.option, context.root, value);
+}
+
+void _examples(const kcli::HandlerContext& context) {
+    printConfigExamples("--" + std::string(context.root));
+}
+
+void _user(const kcli::HandlerContext& context, std::string_view value) {
+    applyUserConfigPathOrThrow(context.option, value);
+}
+
 } // namespace
 
 namespace kconfig::cli {
@@ -277,49 +289,19 @@ bool StoreAssignment(std::string_view name,
     return true;
 }
 
-void ParseArgs(int& argc,
-               char** argv,
-               std::string_view configRoot) {
-    if (argc <= 0 || argv == nullptr) {
-        return;
+kcli::InlineParser GetInlineParser(std::string_view config_root) {
+    kcli::InlineParser parser("config");
+    if (!config_root.empty()) {
+        parser.setRoot(config_root);
     }
-
-    std::string rootNamespace(configRoot);
-    if (rootNamespace.rfind("--", 0) == 0) {
-        rootNamespace.erase(0, 2);
-    }
-    const std::string root = std::string("--") + rootNamespace;
-    const std::string rootExamples = root + "-examples";
-    const std::string rootUser = root + "-user";
-
-    KTRACE("cli",
-           "processing CLI options: {} arg(s), root '{}'",
-           argc,
-           root);
-
-    kcli::Initialize(argc,
-                     argv,
-                     {.root = configRoot, .failure_mode = kcli::FailureMode::Throw});
-
-    kcli::SetRootValueHandler(
-        [&](const kcli::HandlerContext&, std::string_view value) {
-            applyAssignmentOrThrow(root, rootNamespace, value);
-        });
-
-    kcli::SetHandler("-examples",
-                     [&](const kcli::HandlerContext&) {
-                         printConfigExamples(root);
-                         KTRACE("cli", "handled '{}'", rootExamples);
-                     },
-                     "Show assignment examples.");
-
-    kcli::SetHandler("-user",
-                     [&](const kcli::HandlerContext&, std::string_view value) {
-                         applyUserConfigPathOrThrow(rootUser, value);
-                     },
-                     "Override user config file path for store::user::LoadConfigFile.");
-
-    (void)kcli::Process();
+    parser.setRootValueHandler(_ROOT,
+                               "<assignment>",
+                               "Store a config assignment in the target namespace.");
+    parser.setHandler("-examples", _examples, "Show assignment examples.");
+    parser.setHandler("-user",
+                      _user,
+                      "Override user config file path for store::user::LoadConfigFile.");
+    return parser;
 }
 
 } // namespace kconfig::cli

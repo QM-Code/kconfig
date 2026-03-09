@@ -1,6 +1,7 @@
 #include <alpha/sdk.hpp>
 #include <kconfig.hpp>
 #include <kconfig/store.hpp>
+#include <kcli.hpp>
 #include <ktrace.hpp>
 
 #include <cstdint>
@@ -11,11 +12,26 @@
 #include <vector>
 
 int main(int argc, char** argv) {
-    kconfig::Initialize();
-    ktrace::RegisterChannel("store");
-    ktrace::RegisterChannel("store.requests");
-    ktrace::ProcessCLI(argc, argv, "trace");
-    kconfig::cli::ParseArgs(argc, argv, "config");
+    ktrace::Logger logger;
+
+    ktrace::TraceLogger tracer;
+    tracer.addChannel("store");
+    tracer.addChannel("store.requests");
+
+    logger.addTraceLogger(tracer);
+    logger.addTraceLogger(kconfig::GetTraceLogger());
+    logger.activate();
+
+    kcli::PrimaryParser parser;
+    parser.addInlineParser(ktrace::GetInlineParser());
+    parser.addInlineParser(kconfig::cli::GetInlineParser());
+
+    try {
+        parser.parse(argc, argv);
+    } catch (const kcli::CliError& ex) {
+        std::cerr << "CLI error: " << ex.what() << "\n";
+        return 2;
+    }
 
     const std::filesystem::path repoRoot = std::filesystem::current_path();
     const std::filesystem::path runtimeRoot = repoRoot / "demo" / "exe" / "core" / "runtime";

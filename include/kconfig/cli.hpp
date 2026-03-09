@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kcli.hpp>
+
 #include <string>
 #include <string_view>
 
@@ -9,8 +11,6 @@ bool StoreAssignment(std::string_view name,
                      std::string_view text,
                      std::string* error = nullptr);
 
-void ParseArgs(int& argc,
-               char** argv,
-               std::string_view configRoot = "config");
+kcli::InlineParser GetInlineParser(std::string_view config_root = "config");
 
 } // namespace kconfig::cli

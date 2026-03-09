@@ -52,6 +52,8 @@ if(KTOOLS_DEMO_BUILD_STATIC)
     )
     add_library(beta::sdk_static ALIAS beta_sdk_static)
 
+    target_compile_definitions(beta_sdk_static PRIVATE KTRACE_NAMESPACE="kconfig_demo_beta")
+
     target_include_directories(beta_sdk_static
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -72,6 +74,8 @@ if(KTOOLS_DEMO_BUILD_SHARED)
         src/main.cpp
     )
     add_library(beta::sdk_shared ALIAS beta_sdk_shared)
+
+    target_compile_definitions(beta_sdk_shared PRIVATE KTRACE_NAMESPACE="kconfig_demo_beta")
 
     target_include_directories(beta_sdk_shared
         PUBLIC

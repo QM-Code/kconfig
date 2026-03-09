@@ -13,6 +13,14 @@ add_test(
 )
 
 add_test(
+    NAME demo_config_help
+    COMMAND ${KCONFIG_DEMO_CASES_SCRIPT}
+            $<TARGET_FILE:kconfig_demo_core>
+            ${KCONFIG_DEMO_REPO_ROOT}
+            config_help
+)
+
+add_test(
     NAME demo_config_cli_override_success
     COMMAND ${KCONFIG_DEMO_CASES_SCRIPT}
             $<TARGET_FILE:kconfig_demo_core>

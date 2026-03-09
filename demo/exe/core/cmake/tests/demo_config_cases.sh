@@ -5,6 +5,7 @@ usage() {
     echo "Usage: $0 <demo-binary> <repo-root> <case>"
     echo "Cases:"
     echo "  baseline_success"
+    echo "  config_help"
     echo "  cli_config_override_success"
     echo "  trace_store_requests"
 }
@@ -26,7 +27,7 @@ fi
 require_contains() {
     local output="$1"
     local needle="$2"
-    if ! grep -Fq "$needle" <<<"$output"; then
+    if ! grep -Fq -- "$needle" <<<"$output"; then
         echo "Expected output to contain: $needle" >&2
         echo "--- output begin ---" >&2
         echo "$output" >&2
@@ -70,6 +71,19 @@ case "$test_case" in
         require_contains "$output" "port=7777"
         require_contains "$output" "name=runtime-session"
         require_contains "$output" "[alpha] kconfig demo sdk initialized"
+        require_contains "$output" "KConfig demo core compile/link/integration check passed"
+        ;;
+    config_help)
+        run_and_split --config
+        if [[ "$status" -ne 0 ]]; then
+            echo "Expected zero exit status for bare config root" >&2
+            echo "--- output begin ---" >&2
+            echo "$output" >&2
+            echo "--- output end ---" >&2
+            exit 1
+        fi
+        require_contains "$output" "Available --config-* options:"
+        require_contains "$output" "--config <assignment>"
         require_contains "$output" "KConfig demo core compile/link/integration check passed"
         ;;
     cli_config_override_success)

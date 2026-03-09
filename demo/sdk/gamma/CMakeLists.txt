@@ -52,6 +52,8 @@ if(KTOOLS_DEMO_BUILD_STATIC)
     )
     add_library(gamma::sdk_static ALIAS gamma_sdk_static)
 
+    target_compile_definitions(gamma_sdk_static PRIVATE KTRACE_NAMESPACE="kconfig_demo_gamma")
+
     target_include_directories(gamma_sdk_static
         PUBLIC
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -72,6 +74,8 @@ if(KTOOLS_DEMO_BUILD_SHARED)
         src/main.cpp
     )
     add_library(gamma::sdk_shared ALIAS gamma_sdk_shared)
+
+    target_compile_definitions(gamma_sdk_shared PRIVATE KTRACE_NAMESPACE="kconfig_demo_gamma")
 
     target_include_directories(gamma_sdk_shared
         PUBLIC

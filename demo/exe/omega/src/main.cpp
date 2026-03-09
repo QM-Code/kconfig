@@ -4,6 +4,7 @@
 #include <kconfig.hpp>
 #include <kconfig/i18n.hpp>
 #include <kconfig/store.hpp>
+#include <kcli.hpp>
 #include <ktrace.hpp>
 
 #include <algorithm>
@@ -20,13 +21,28 @@
 #include <vector>
 
 int main(int argc, char** argv) {
-    kconfig::Initialize();
-    ktrace::RegisterChannel("store");
-    ktrace::RegisterChannel("store.requests");
-    ktrace::RegisterChannel("asset");
-    ktrace::RegisterChannel("asset.requests");
-    ktrace::ProcessCLI(argc, argv, "trace");
-    kconfig::cli::ParseArgs(argc, argv, "config");
+    ktrace::Logger logger;
+
+    ktrace::TraceLogger tracer;
+    tracer.addChannel("store");
+    tracer.addChannel("store.requests");
+    tracer.addChannel("asset");
+    tracer.addChannel("asset.requests");
+
+    logger.addTraceLogger(tracer);
+    logger.addTraceLogger(kconfig::GetTraceLogger());
+    logger.activate();
+
+    kcli::PrimaryParser parser;
+    parser.addInlineParser(ktrace::GetInlineParser());
+    parser.addInlineParser(kconfig::cli::GetInlineParser());
+
+    try {
+        parser.parse(argc, argv);
+    } catch (const kcli::CliError& ex) {
+        std::cerr << "CLI error: " << ex.what() << "\n";
+        return 2;
+    }
 
     const std::filesystem::path repoRoot = std::filesystem::current_path();
     const std::filesystem::path runtimeRoot = repoRoot / "demo" / "exe" / "omega" / "runtime";

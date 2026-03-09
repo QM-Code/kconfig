@@ -5,6 +5,7 @@ usage() {
     echo "Usage: $0 <demo-binary> <repo-root> <case>"
     echo "Cases:"
     echo "  baseline_success"
+    echo "  config_help"
     echo "  triple_merge_success"
     echo "  backing_write_success"
     echo "  config_user_override_success"
@@ -28,7 +29,7 @@ fi
 require_contains() {
     local output="$1"
     local needle="$2"
-    if ! grep -Fq "$needle" <<<"$output"; then
+    if ! grep -Fq -- "$needle" <<<"$output"; then
         echo "Expected output to contain: $needle" >&2
         echo "--- output begin ---" >&2
         echo "$output" >&2
@@ -97,6 +98,19 @@ case "$test_case" in
         require_contains "$output" "banner=runtime-banner"
         require_contains "$output" "preview=KConfig pret"
         require_contains "$output" "weights=[9, 8, 7, 6]"
+        require_contains "$output" "KConfig demo omega compile/link/integration check passed"
+        ;;
+    config_help)
+        run_and_split --config
+        if [[ "$status" -ne 0 ]]; then
+            echo "Expected zero exit status for bare config root" >&2
+            echo "--- output begin ---" >&2
+            echo "$output" >&2
+            echo "--- output end ---" >&2
+            exit 1
+        fi
+        require_contains "$output" "Available --config-* options:"
+        require_contains "$output" "--config <assignment>"
         require_contains "$output" "KConfig demo omega compile/link/integration check passed"
         ;;
     triple_merge_success)
