@@ -284,10 +284,11 @@ void ParseArgs(int& argc,
         return;
     }
 
-    kcli::Parser cli;
-    cli.Initialize(argc, argv, configRoot);
-    const std::string root = std::string("--") + cli.GetRoot();
-    const std::string rootNamespace = cli.GetRoot();
+    std::string rootNamespace(configRoot);
+    if (rootNamespace.rfind("--", 0) == 0) {
+        rootNamespace.erase(0, 2);
+    }
+    const std::string root = std::string("--") + rootNamespace;
     const std::string rootExamples = root + "-examples";
     const std::string rootUser = root + "-user";
 
@@ -296,27 +297,29 @@ void ParseArgs(int& argc,
            argc,
            root);
 
-    cli.SetRootValueHandler(
+    kcli::Initialize(argc,
+                     argv,
+                     {.root = configRoot, .failure_mode = kcli::FailureMode::Throw});
+
+    kcli::SetRootValueHandler(
         [&](const kcli::HandlerContext&, std::string_view value) {
             applyAssignmentOrThrow(root, rootNamespace, value);
-        },
-        "<\"key\"=<value>>",
-        "Set one value in the root namespace.");
+        });
 
-    cli.Implement("examples",
-                  [&](const kcli::HandlerContext&) {
-                      printConfigExamples(root);
-                      KTRACE("cli", "handled '{}'", rootExamples);
-                  },
-                  "Show assignment examples.");
+    kcli::SetHandler("-examples",
+                     [&](const kcli::HandlerContext&) {
+                         printConfigExamples(root);
+                         KTRACE("cli", "handled '{}'", rootExamples);
+                     },
+                     "Show assignment examples.");
 
-    cli.Implement("user",
-                  [&](const kcli::HandlerContext&, std::string_view value) {
-                      applyUserConfigPathOrThrow(rootUser, value);
-                  },
-                  "Override user config file path for store::user::LoadConfigFile.");
+    kcli::SetHandler("-user",
+                     [&](const kcli::HandlerContext&, std::string_view value) {
+                         applyUserConfigPathOrThrow(rootUser, value);
+                     },
+                     "Override user config file path for store::user::LoadConfigFile.");
 
-    (void)cli.Process();
+    (void)kcli::Process();
 }
 
 } // namespace kconfig::cli
