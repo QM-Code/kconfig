@@ -1,9 +1,8 @@
 #include "../store.hpp"
 
+#include "kconfig/trace.hpp"
 #include "api_impl.hpp"
 #include "internal.hpp"
-
-#include <ktrace.hpp>
 
 #include <mutex>
 #include <optional>

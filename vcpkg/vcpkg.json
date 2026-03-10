@@ -1,7 +1,6 @@
 {
   "name": "kconfig",
   "dependencies": [
-    "spdlog",
     "nlohmann-json"
   ],
   "configuration": {

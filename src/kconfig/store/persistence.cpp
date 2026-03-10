@@ -1,12 +1,11 @@
 #include "internal.hpp"
 
+#include "kconfig/trace.hpp"
 #include "../io.hpp"
 #include "api_impl.hpp"
 
 #include <kconfig/store/fs.hpp>
 #include <kconfig/store/user.hpp>
-
-#include <ktrace.hpp>
 
 #include <chrono>
 #include <cctype>

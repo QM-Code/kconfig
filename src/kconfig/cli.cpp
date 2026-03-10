@@ -1,12 +1,12 @@
 #include <kconfig/cli.hpp>
 
+#include "kconfig/trace.hpp"
 #include "store.hpp"
 
 #include <kconfig/store.hpp>
 #include <kconfig/store/user.hpp>
 
 #include <kcli.hpp>
-#include <ktrace.hpp>
 
 #include <cctype>
 #include <filesystem>

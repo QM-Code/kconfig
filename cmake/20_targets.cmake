@@ -14,7 +14,6 @@ set(KCONFIG_SOURCES
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/read.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/json_path.cpp
     ${PROJECT_SOURCE_DIR}/src/kconfig/store/persistence.cpp
-    ${PROJECT_SOURCE_DIR}/src/kconfig/i18n.cpp
 )
 
 if(NOT KCONFIG_BUILD_STATIC AND NOT KCONFIG_BUILD_SHARED)
@@ -30,7 +29,6 @@ function(ktools_apply_runtime_rpath target_name)
     endif()
     set_target_properties("${target_name}" PROPERTIES
         BUILD_RPATH "${KTOOLS_RUNTIME_RPATH_DIRS}"
-        INSTALL_RPATH "${KTOOLS_RUNTIME_RPATH_DIRS}"
     )
 endfunction()
 
@@ -70,7 +68,8 @@ if(KCONFIG_BUILD_STATIC)
         PUBLIC
             ${_kconfig_kcli_static_dep}
             ${_kconfig_ktrace_static_dep}
-            spdlog::spdlog
+        PRIVATE
+            nlohmann_json::nlohmann_json
     )
 
     target_compile_definitions(kconfig_sdk_static
@@ -100,7 +99,8 @@ if(KCONFIG_BUILD_SHARED)
         PUBLIC
             ${_kconfig_kcli_shared_dep}
             ${_kconfig_ktrace_shared_dep}
-            spdlog::spdlog
+        PRIVATE
+            nlohmann_json::nlohmann_json
     )
 
     target_compile_definitions(kconfig_sdk_shared

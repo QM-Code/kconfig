@@ -1,11 +1,10 @@
+#include <kconfig.hpp>
 #include <kconfig/asset.hpp>
 
+#include "kconfig/trace.hpp"
 #include "store.hpp"
 #include "store/internal.hpp"
 #include "io.hpp"
-
-#include <ktrace.hpp>
-#include <spdlog/spdlog.h>
 
 #include <cctype>
 #include <cstdint>
@@ -138,10 +137,11 @@ std::optional<std::filesystem::path> ResolvePath(std::string_view name,
     std::string error;
     const auto path = ResolvePathInternal(name, jsonPath, &error);
     if (!path.has_value()) {
-        spdlog::warn("asset::ResolvePath({}, {}) failed: {}",
-                     std::string(name),
-                     std::string(jsonPath),
-                     error);
+        const auto log = kconfig::GetTraceLogger();
+        log.warn("asset::ResolvePath({}, {}) failed: {}",
+                 std::string(name),
+                 std::string(jsonPath),
+                 error);
     }
     return path;
 }
@@ -178,10 +178,11 @@ std::vector<std::uint8_t> LoadBytes(std::string_view name,
         const auto path = RequiredPath(name, jsonPath);
         return ReadBytesOrThrow(path);
     } catch (const std::exception& ex) {
-        spdlog::warn("asset::LoadBytes({}, {}) failed: {}",
-                     std::string(name),
-                     std::string(jsonPath),
-                     ex.what());
+        const auto log = kconfig::GetTraceLogger();
+        log.warn("asset::LoadBytes({}, {}) failed: {}",
+                 std::string(name),
+                 std::string(jsonPath),
+                 ex.what());
         return defaultValue;
     }
 }
@@ -198,10 +199,11 @@ std::string LoadText(std::string_view name,
         const auto path = RequiredPath(name, jsonPath);
         return ReadTextOrThrow(path);
     } catch (const std::exception& ex) {
-        spdlog::warn("asset::LoadText({}, {}) failed: {}",
-                     std::string(name),
-                     std::string(jsonPath),
-                     ex.what());
+        const auto log = kconfig::GetTraceLogger();
+        log.warn("asset::LoadText({}, {}) failed: {}",
+                 std::string(name),
+                 std::string(jsonPath),
+                 ex.what());
         return defaultValue;
     }
 }
@@ -222,10 +224,11 @@ kconfig::json::Value LoadJson(std::string_view name,
         }
         return *readResult.json;
     } catch (const std::exception& ex) {
-        spdlog::warn("asset::LoadJson({}, {}) failed: {}",
-                     std::string(name),
-                     std::string(jsonPath),
-                     ex.what());
+        const auto log = kconfig::GetTraceLogger();
+        log.warn("asset::LoadJson({}, {}) failed: {}",
+                 std::string(name),
+                 std::string(jsonPath),
+                 ex.what());
         return defaultValue;
     }
 }

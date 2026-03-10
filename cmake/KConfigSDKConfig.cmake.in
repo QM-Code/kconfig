@@ -1,7 +1,6 @@
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)
-find_dependency(spdlog CONFIG REQUIRED)
 find_dependency(KTraceSDK CONFIG REQUIRED)
 find_dependency(KcliSDK CONFIG REQUIRED)
 

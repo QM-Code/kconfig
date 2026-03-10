@@ -11,27 +11,23 @@
 #include <string>
 #include <vector>
 
+#define KTRACE(channel, ...) tracer.trace(channel, __VA_ARGS__)
+
 int main(int argc, char** argv) {
     ktrace::Logger logger;
 
-    ktrace::TraceLogger tracer;
+    ktrace::TraceLogger tracer("kconfig_demo_core");
     tracer.addChannel("store");
     tracer.addChannel("store.requests");
 
     logger.addTraceLogger(tracer);
     logger.addTraceLogger(kconfig::GetTraceLogger());
-    logger.activate();
 
-    kcli::PrimaryParser parser;
-    parser.addInlineParser(ktrace::GetInlineParser());
+    kcli::Parser parser;
+    parser.addInlineParser(logger.makeInlineParser(tracer));
     parser.addInlineParser(kconfig::cli::GetInlineParser());
 
-    try {
-        parser.parse(argc, argv);
-    } catch (const kcli::CliError& ex) {
-        std::cerr << "CLI error: " << ex.what() << "\n";
-        return 2;
-    }
+    parser.parseOrExit(argc, argv);
 
     const std::filesystem::path repoRoot = std::filesystem::current_path();
     const std::filesystem::path runtimeRoot = repoRoot / "demo" / "exe" / "core" / "runtime";

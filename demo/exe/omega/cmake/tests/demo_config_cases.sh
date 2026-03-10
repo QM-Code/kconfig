@@ -96,7 +96,6 @@ case "$test_case" in
         require_contains "$output" "language=fr"
         require_contains "$output" "name=runtime-session"
         require_contains "$output" "banner=runtime-banner"
-        require_contains "$output" "preview=KConfig pret"
         require_contains "$output" "weights=[9, 8, 7, 6]"
         require_contains "$output" "KConfig demo omega compile/link/integration check passed"
         ;;
@@ -127,7 +126,6 @@ case "$test_case" in
         require_contains "$output" "language=fr"
         require_contains "$output" "name=runtime-session"
         require_contains "$output" "banner=runtime-banner"
-        require_contains "$output" "preview=KConfig pret"
         require_contains "$output" "weights=[9, 8, 7, 6]"
         require_contains "$output" "KConfig demo omega compile/link/integration check passed"
         ;;
@@ -181,7 +179,6 @@ JSON
         require_contains "$output" "timeout=4.5"
         require_contains "$output" "scale=2.5"
         require_contains "$output" "banner=runtime-banner"
-        require_contains "$output" "preview=KConfig pret"
         require_contains "$output" "KConfig demo omega compile/link/integration check passed"
         ;;
     cli_config_override_success)
@@ -203,7 +200,6 @@ JSON
         require_contains "$output" "timeout=7.75"
         require_contains "$output" "name=cli-override"
         require_contains "$output" "banner=runtime-banner"
-        require_contains "$output" "preview=KConfig pret"
         require_contains "$output" "KConfig demo omega compile/link/integration check passed"
         ;;
     *)

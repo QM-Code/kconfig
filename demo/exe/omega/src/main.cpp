@@ -2,7 +2,6 @@
 #include <beta/sdk.hpp>
 #include <gamma/sdk.hpp>
 #include <kconfig.hpp>
-#include <kconfig/i18n.hpp>
 #include <kconfig/store.hpp>
 #include <kcli.hpp>
 #include <ktrace.hpp>
@@ -20,10 +19,12 @@
 #include <string_view>
 #include <vector>
 
+#define KTRACE(channel, ...) tracer.trace(channel, __VA_ARGS__)
+
 int main(int argc, char** argv) {
     ktrace::Logger logger;
 
-    ktrace::TraceLogger tracer;
+    ktrace::TraceLogger tracer("kconfig_demo_omega");
     tracer.addChannel("store");
     tracer.addChannel("store.requests");
     tracer.addChannel("asset");
@@ -31,32 +32,24 @@ int main(int argc, char** argv) {
 
     logger.addTraceLogger(tracer);
     logger.addTraceLogger(kconfig::GetTraceLogger());
-    logger.activate();
 
-    kcli::PrimaryParser parser;
-    parser.addInlineParser(ktrace::GetInlineParser());
+    kcli::Parser parser;
+    parser.addInlineParser(logger.makeInlineParser(tracer));
     parser.addInlineParser(kconfig::cli::GetInlineParser());
 
-    try {
-        parser.parse(argc, argv);
-    } catch (const kcli::CliError& ex) {
-        std::cerr << "CLI error: " << ex.what() << "\n";
-        return 2;
-    }
+    parser.parseOrExit(argc, argv);
 
     const std::filesystem::path repoRoot = std::filesystem::current_path();
     const std::filesystem::path runtimeRoot = repoRoot / "demo" / "exe" / "omega" / "runtime";
     const std::filesystem::path defaultsPath = runtimeRoot / "defaults.json";
     const std::filesystem::path userPath = runtimeRoot / "user.json";
     const std::filesystem::path sessionPath = runtimeRoot / "session.json";
-    const std::filesystem::path i18nPath = runtimeRoot / "i18n.json";
 
     KTRACE("store.requests",
-           "omega demo preparing config load defaults='{}' user='{}' session='{}' i18n='{}'",
+           "omega demo preparing config load defaults='{}' user='{}' session='{}'",
            defaultsPath.string(),
            userPath.string(),
-           sessionPath.string(),
-           i18nPath.string());
+           sessionPath.string());
 
     std::string ioError;
 
@@ -104,13 +97,6 @@ int main(int argc, char** argv) {
     KTRACE("store.requests", "store::fs::LoadReadOnly('session', '{}')", sessionPath.string());
     if (!kconfig::store::fs::LoadReadOnly("session", sessionPath, &ioError)) {
         std::cerr << "Failed to load session config: " << ioError << "\n";
-        return 1;
-    }
-
-    ioError.clear();
-    KTRACE("store.requests", "store::fs::LoadReadOnly('i18n', '{}')", i18nPath.string());
-    if (!kconfig::store::fs::LoadReadOnly("i18n", i18nPath, &ioError)) {
-        std::cerr << "Failed to load i18n config: " << ioError << "\n";
         return 1;
     }
 
@@ -239,10 +225,6 @@ int main(int argc, char** argv) {
             banner.pop_back();
         }
 
-        KTRACE("store.requests", "i18n::LoadLanguage('i18n', '{}')", language);
-        kconfig::i18n::LoadLanguage("i18n", language);
-        const std::string preview = kconfig::i18n::Get("demo.ready");
-
         std::cout << std::boolalpha
                   << "ReadRequired demo: enabled=" << enabled
                   << ", port=" << port
@@ -253,7 +235,6 @@ int main(int argc, char** argv) {
                   << ", language=" << language
                   << ", name=" << name
                   << ", banner=" << banner
-                  << ", preview=" << preview
                   << ", weights=[";
         for (std::size_t i = 0; i < weights.size(); ++i) {
             if (i > 0) {

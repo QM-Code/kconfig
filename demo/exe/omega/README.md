@@ -3,4 +3,4 @@
 Full-featured config and runtime showcase for KConfigSDK plus the demo SDKs.
 
 This demo uses the same trace composition model as the core demo, but with the
-fuller config, i18n, asset, and backing-file flows enabled.
+fuller config, asset, and backing-file flows enabled.

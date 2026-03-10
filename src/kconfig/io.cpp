@@ -1,6 +1,6 @@
 #include "io.hpp"
 
-#include <ktrace.hpp>
+#include "kconfig/trace.hpp"
 
 #include <exception>
 #include <fstream>

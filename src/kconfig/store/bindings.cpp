@@ -1,11 +1,11 @@
+#include <kconfig.hpp>
+
+#include "kconfig/trace.hpp"
 #include "../store.hpp"
 
 #include "../io.hpp"
 #include "api_impl.hpp"
 #include "internal.hpp"
-
-#include <ktrace.hpp>
-#include <spdlog/spdlog.h>
 
 #include <chrono>
 #include <cctype>
@@ -315,7 +315,8 @@ bool SetAssetRoot(std::string_view name,
 
     std::error_code ec;
     if (!std::filesystem::exists(canonical, ec) || ec) {
-        spdlog::warn("kconfig: asset root '{}' does not exist yet", canonical.string());
+        const auto log = kconfig::GetTraceLogger();
+        log.warn("asset root '{}' does not exist yet", canonical.string());
     }
 
     std::lock_guard<std::mutex> lock(g_state.mutex);

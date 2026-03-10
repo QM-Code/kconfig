@@ -1,6 +1,6 @@
 # Karma JSON Config Storage SDK
 
-JSON configuration/data/i18n/serialization SDK.
+JSON configuration/data/serialization SDK.
 
 ## Build SDK
 
@@ -32,26 +32,30 @@ Demos:
 
 Demo builds are orchestrated by the root `kbuild.py`.
 
-The core demo validates the common load/merge/read path. The omega demo exercises the fuller config, i18n, user-store, and backing-file flows.
+The core demo validates the common load/merge/read path. The omega demo exercises the fuller config, asset, user-store, and backing-file flows.
 
 ## Trace Integration
 
 `kconfig` now follows the rewritten `ktrace` model:
 
 - the library exposes `kconfig::GetTraceLogger()`
-- executables own and activate a `ktrace::Logger`
-- trace CLI remains global via `ktrace::GetInlineParser()`
+- executables own a `ktrace::Logger`
+- library warnings/errors now emit through that trace logger
+- trace CLI is logger-bound via `logger.makeInlineParser(...)`
 - config CLI remains separate via `kconfig::cli::GetInlineParser()`
 
 Executable integration looks like:
 
 ```cpp
 ktrace::Logger logger;
-logger.addTraceLogger(kconfig::GetTraceLogger());
-logger.activate();
+ktrace::TraceLogger app_trace("my_app");
+app_trace.addChannel("app");
 
-kcli::PrimaryParser parser;
-parser.addInlineParser(ktrace::GetInlineParser());
+logger.addTraceLogger(app_trace);
+logger.addTraceLogger(kconfig::GetTraceLogger());
+
+kcli::Parser parser;
+parser.addInlineParser(logger.makeInlineParser(app_trace));
 parser.addInlineParser(kconfig::cli::GetInlineParser());
 ```
 
@@ -59,6 +63,8 @@ parser.addInlineParser(kconfig::cli::GetInlineParser());
 inherit the `KTRACE_NAMESPACE` requirement just by including KConfig headers.
 Any translation unit that materializes a `ktrace::TraceLogger` from
 `kconfig::GetTraceLogger()` should include `ktrace.hpp`.
+Operational warnings that previously depended on `spdlog` now flow through this
+logger attachment as well.
 
 ## Coding Agents
 

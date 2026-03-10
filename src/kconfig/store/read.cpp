@@ -1,7 +1,8 @@
+#include <kconfig.hpp>
 #include <kconfig/store.hpp>
 #include <kconfig/store/read.hpp>
 
-#include <spdlog/spdlog.h>
+#include <ktrace.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -61,7 +62,8 @@ std::optional<kconfig::json::Value> GetNamespacedValue(std::string_view qualifie
     std::string parseError;
     if (!ParseNamespacedPath(qualifiedPath, parsed, &parseError)) {
         if (warnOnInvalidPath) {
-            spdlog::warn("Config path '{}' is invalid: {}", qualifiedPath, parseError);
+            const auto log = kconfig::GetTraceLogger();
+            log.warn("Config path '{}' is invalid: {}", std::string(qualifiedPath), parseError);
         }
         return std::nullopt;
     }
@@ -219,6 +221,7 @@ std::optional<std::vector<std::string>> TryParseStringArrayValue(const kconfig::
 } // namespace
 
 bool Bool(std::initializer_list<const char*> paths, bool defaultValue) {
+    const auto log = kconfig::GetTraceLogger();
     for (const char* path : paths) {
         if (path == nullptr || *path == '\0') {
             continue;
@@ -227,7 +230,7 @@ bool Bool(std::initializer_list<const char*> paths, bool defaultValue) {
             if (const auto parsed = TryParseBoolValue(*value)) {
                 return *parsed;
             }
-            spdlog::warn("Config '{}' cannot be interpreted as boolean", path);
+            log.warn("Config '{}' cannot be interpreted as boolean", path);
         }
     }
     return defaultValue;
@@ -248,6 +251,7 @@ bool RequiredBool(std::string_view path) {
 }
 
 uint16_t Uint16(std::initializer_list<const char*> paths, uint16_t defaultValue) {
+    const auto log = kconfig::GetTraceLogger();
     for (const char* path : paths) {
         if (path == nullptr || *path == '\0') {
             continue;
@@ -256,7 +260,7 @@ uint16_t Uint16(std::initializer_list<const char*> paths, uint16_t defaultValue)
             if (const auto parsed = TryParseUInt16Value(*value)) {
                 return *parsed;
             }
-            spdlog::warn("Config '{}' cannot be interpreted as uint16", path);
+            log.warn("Config '{}' cannot be interpreted as uint16", path);
         }
     }
     return defaultValue;
@@ -295,6 +299,7 @@ uint16_t RequiredPositiveUint16(std::string_view path) {
 }
 
 uint32_t Uint32(std::initializer_list<const char*> paths, uint32_t defaultValue) {
+    const auto log = kconfig::GetTraceLogger();
     for (const char* path : paths) {
         if (path == nullptr || *path == '\0') {
             continue;
@@ -303,7 +308,7 @@ uint32_t Uint32(std::initializer_list<const char*> paths, uint32_t defaultValue)
             if (const auto parsed = TryParseUInt32Value(*value)) {
                 return *parsed;
             }
-            spdlog::warn("Config '{}' cannot be interpreted as uint32", path);
+            log.warn("Config '{}' cannot be interpreted as uint32", path);
         }
     }
     return defaultValue;
@@ -324,6 +329,7 @@ uint32_t RequiredUint32(std::string_view path) {
 }
 
 float Float(std::initializer_list<const char*> paths, float defaultValue) {
+    const auto log = kconfig::GetTraceLogger();
     for (const char* path : paths) {
         if (path == nullptr || *path == '\0') {
             continue;
@@ -332,7 +338,7 @@ float Float(std::initializer_list<const char*> paths, float defaultValue) {
             if (const auto parsed = TryParseFloatValue(*value)) {
                 return *parsed;
             }
-            spdlog::warn("Config '{}' cannot be interpreted as float", path);
+            log.warn("Config '{}' cannot be interpreted as float", path);
         }
     }
     return defaultValue;
@@ -371,6 +377,7 @@ float RequiredPositiveFiniteFloat(std::string_view path) {
 }
 
 std::string String(std::string_view path, const std::string& defaultValue) {
+    const auto log = kconfig::GetTraceLogger();
     if (path.empty()) {
         return defaultValue;
     }
@@ -378,7 +385,7 @@ std::string String(std::string_view path, const std::string& defaultValue) {
         if (value->is_string()) {
             return value->get<std::string>();
         }
-        spdlog::warn("Config '{}' cannot be interpreted as string", path);
+        log.warn("Config '{}' cannot be interpreted as string", std::string(path));
     }
     return defaultValue;
 }
@@ -416,6 +423,7 @@ std::string RequiredNonEmptyString(std::string_view path) {
 }
 
 std::vector<float> FloatArray(std::string_view path, std::vector<float> defaultValue) {
+    const auto log = kconfig::GetTraceLogger();
     const auto value = GetNamespacedValue(path);
     if (!value) {
         return defaultValue;
@@ -423,7 +431,7 @@ std::vector<float> FloatArray(std::string_view path, std::vector<float> defaultV
     if (const auto parsed = TryParseFloatArrayValue(*value)) {
         return *parsed;
     }
-    spdlog::warn("Config '{}' cannot be interpreted as float array", path);
+    log.warn("Config '{}' cannot be interpreted as float array", std::string(path));
     return defaultValue;
 }
 
@@ -440,6 +448,7 @@ std::vector<float> RequiredFloatArray(std::string_view path) {
 }
 
 std::vector<std::string> StringArray(std::string_view path, std::vector<std::string> defaultValue) {
+    const auto log = kconfig::GetTraceLogger();
     const auto value = GetNamespacedValue(path);
     if (!value) {
         return defaultValue;
@@ -447,7 +456,7 @@ std::vector<std::string> StringArray(std::string_view path, std::vector<std::str
     if (const auto parsed = TryParseStringArrayValue(*value)) {
         return *parsed;
     }
-    spdlog::warn("Config '{}' cannot be interpreted as string array", path);
+    log.warn("Config '{}' cannot be interpreted as string array", std::string(path));
     return defaultValue;
 }
 
@@ -464,12 +473,13 @@ std::vector<std::string> RequiredStringArray(std::string_view path) {
 }
 
 kconfig::json::Value Object(std::string_view path, kconfig::json::Value defaultValue) {
+    const auto log = kconfig::GetTraceLogger();
     const auto value = GetNamespacedValue(path);
     if (!value) {
         return defaultValue;
     }
     if (!value->is_object()) {
-        spdlog::warn("Config '{}' cannot be interpreted as object", path);
+        log.warn("Config '{}' cannot be interpreted as object", std::string(path));
         return defaultValue;
     }
     return *value;
