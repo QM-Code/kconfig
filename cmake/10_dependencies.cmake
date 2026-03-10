@@ -1,5 +1,4 @@
-find_package(nlohmann_json CONFIG REQUIRED)
-find_package(KTraceSDK CONFIG REQUIRED)
+find_package(KtraceSDK CONFIG REQUIRED)
 find_package(KcliSDK CONFIG REQUIRED)
 
 # ktools local-build layout guard:

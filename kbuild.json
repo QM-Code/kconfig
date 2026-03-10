@@ -11,21 +11,16 @@
     "minimum_version": "3.20",
     "tests": true,
     "sdk": {
-      "package_name": "KConfigSDK"
+      "package_name": "KconfigSDK"
     },
     "dependencies": {
       "KcliSDK": {
         "prefix": "../kcli/build/{version}/sdk"
       },
-      "KTraceSDK": {
+      "KtraceSDK": {
         "prefix": "../ktrace/build/{version}/sdk"
       }
     }
-  },
-  "vcpkg": {
-    "dependencies": [
-      "nlohmann-json"
-    ]
   },
   "build": {
     "jobs": 4,

@@ -1,6 +1,6 @@
 # Core Demo
 
-Basic load, merge, read, and integration showcase for KConfigSDK and the alpha demo SDK.
+Basic load, merge, read, and integration showcase for KconfigSDK and the alpha demo SDK.
 
 Trace integration in this demo matches the rewritten `ktrace` API:
 

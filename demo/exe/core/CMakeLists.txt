@@ -29,7 +29,7 @@ function(ktools_apply_runtime_rpath target_name)
 endfunction()
 
 if(NOT TARGET kconfig::sdk_shared)
-    find_package(KConfigSDK CONFIG REQUIRED)
+    find_package(KconfigSDK CONFIG REQUIRED)
 endif()
 
 function(ktools_load_demo_sdk package_name target_name relative_source_dir)

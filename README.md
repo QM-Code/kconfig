@@ -11,7 +11,7 @@ JSON configuration/data/serialization SDK.
 SDK output:
 - `build/latest/sdk/include`
 - `build/latest/sdk/lib`
-- `build/latest/sdk/lib/cmake/KConfigSDK`
+- `build/latest/sdk/lib/cmake/KconfigSDK`
 
 ## Build and Test Demos
 

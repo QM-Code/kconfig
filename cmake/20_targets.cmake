@@ -68,8 +68,6 @@ if(KCONFIG_BUILD_STATIC)
         PUBLIC
             ${_kconfig_kcli_static_dep}
             ${_kconfig_ktrace_static_dep}
-        PRIVATE
-            nlohmann_json::nlohmann_json
     )
 
     target_compile_definitions(kconfig_sdk_static
@@ -99,8 +97,6 @@ if(KCONFIG_BUILD_SHARED)
         PUBLIC
             ${_kconfig_kcli_shared_dep}
             ${_kconfig_ktrace_shared_dep}
-        PRIVATE
-            nlohmann_json::nlohmann_json
     )
 
     target_compile_definitions(kconfig_sdk_shared
